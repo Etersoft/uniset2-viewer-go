@@ -1,6 +1,18 @@
 version: '3.8'
 
 services:
+  # Development viewer connecting to real UniSet2 on host
+  # Usage: docker-compose --profile dev up dev-viewer
+  dev-viewer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - UNISET_URL=http://localhost:9393
+    network_mode: host
+    profiles:
+      - dev
+
   # Mock uniset2 server for testing
   mock-uniset:
     image: node:20-alpine
