@@ -3,16 +3,15 @@ version: '3.8'
 services:
   # Mock uniset2 server for testing
   mock-uniset:
-    image: node:20-slim
+    image: node:20-alpine
     working_dir: /app
     volumes:
       - ./tests/mock-server:/app
-      - ./.node_modules/mock:/app/node_modules
     command: node server.js
-    ports:
-      - "9393:9393"
+    expose:
+      - "9393"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9393/api/v01/list"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9393/api/v01/list"]
       interval: 2s
       timeout: 5s
       retries: 5
@@ -37,16 +36,23 @@ services:
 
   # Playwright tests
   e2e:
-    build:
-      context: ./tests
-      dockerfile: Dockerfile
+    image: mcr.microsoft.com/playwright:v1.40.0-jammy
+    working_dir: /app
+    shm_size: 1g
     environment:
       - BASE_URL=http://viewer:8000
     volumes:
-      - ./tests:/app
-      - ./.node_modules/e2e:/app/node_modules
+      - ./tests:/app:ro
       - ./tests/test-results:/app/test-results
       - ./tests/playwright-report:/app/playwright-report
     depends_on:
       viewer:
         condition: service_healthy
+    entrypoint:
+      - bash
+      - -lc
+      - |
+        cd /tmp
+        cp -r /app/* .
+        npm install --no-fund --no-audit
+        npx playwright test --reporter=list
