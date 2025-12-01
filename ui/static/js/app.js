@@ -345,8 +345,53 @@ class UniSetObjectRenderer extends BaseObjectRenderer {
     }
 }
 
-// Рендерер по умолчанию (fallback)
-class DefaultObjectRenderer extends UniSetManagerRenderer {
+// Fallback рендерер для неподдерживаемых типов объектов
+class FallbackRenderer extends BaseObjectRenderer {
+    static getTypeName() {
+        return 'Unknown';
+    }
+
+    createPanelHTML() {
+        return `
+            <div class="fallback-warning">
+                <div class="fallback-icon">⚠️</div>
+                <div class="fallback-message">
+                    Тип объекта "<span class="fallback-type"></span>" не поддерживается
+                </div>
+                <div class="fallback-hint">Отображается сырой JSON ответа</div>
+            </div>
+            <div class="fallback-json-container">
+                <pre class="fallback-json" id="fallback-json-${this.objectName}"></pre>
+            </div>
+            ${this.createObjectInfoSection()}
+        `;
+    }
+
+    initialize() {
+        // Ничего дополнительного не требуется
+    }
+
+    update(data) {
+        // Обновляем тип объекта в сообщении
+        const typeSpan = document.querySelector(`#panel-${this.objectName} .fallback-type`);
+        if (typeSpan && data.object?.objectType) {
+            typeSpan.textContent = data.object.objectType;
+        }
+
+        // Выводим JSON - используем raw_data если есть, иначе весь data
+        const jsonPre = document.getElementById(`fallback-json-${this.objectName}`);
+        if (jsonPre) {
+            const displayData = data.raw_data || data;
+            jsonPre.textContent = JSON.stringify(displayData, null, 2);
+        }
+
+        // Обновляем информацию об объекте
+        renderObjectInfo(this.objectName, data.object);
+    }
+}
+
+// Рендерер по умолчанию - теперь использует FallbackRenderer
+class DefaultObjectRenderer extends FallbackRenderer {
     static getTypeName() {
         return 'Default';
     }

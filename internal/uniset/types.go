@@ -1,5 +1,7 @@
 package uniset
 
+import "encoding/json"
+
 // ObjectList список имён объектов из /api/v01/list
 type ObjectList []string
 
@@ -63,6 +65,8 @@ type ObjectData struct {
 	Object     *ObjectInfo            `json:"object,omitempty"`
 	// Дополнительные пользовательские поля на верхнем уровне
 	Extra map[string]interface{} `json:"-"`
+	// Сырые данные для fallback рендерера (все поля из JSON)
+	RawData map[string]json.RawMessage `json:"-"`
 }
 
 // HelpCommand команда из справки

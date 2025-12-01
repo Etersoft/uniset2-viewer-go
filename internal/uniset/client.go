@@ -68,21 +68,21 @@ func (c *Client) GetObjectData(objectName string) (*ObjectData, error) {
 	}
 
 	// Ответ имеет структуру {"ObjectName": {...}, "object": {...}}
+	// Но для некоторых объектов (например UniSetActivator) есть только "object"
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("unmarshal failed: %w", err)
 	}
 
-	objData, ok := raw[objectName]
-	if !ok {
-		return nil, fmt.Errorf("object %s not found in response", objectName)
-	}
-
 	var result ObjectData
-	if err := json.Unmarshal(objData, &result); err != nil {
-		return nil, fmt.Errorf("unmarshal object data failed: %w", err)
-	}
 	result.Name = objectName
+
+	// Пробуем найти данные объекта по имени
+	if objData, ok := raw[objectName]; ok {
+		if err := json.Unmarshal(objData, &result); err != nil {
+			return nil, fmt.Errorf("unmarshal object data failed: %w", err)
+		}
+	}
 
 	// Извлекаем поле "object" с информацией об объекте (id, objectType и т.д.)
 	if objectInfo, exists := raw["object"]; exists {
@@ -91,6 +91,9 @@ func (c *Client) GetObjectData(objectName string) (*ObjectData, error) {
 			result.Object = &info
 		}
 	}
+
+	// Сохраняем сырые данные для fallback рендерера
+	result.RawData = raw
 
 	return &result, nil
 }

@@ -76,7 +76,30 @@ func (h *Handlers) GetObjectData(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	h.writeJSON(w, data)
+
+	// Формируем ответ включая raw_data для fallback рендерера
+	response := map[string]interface{}{
+		"LogServer":  data.LogServer,
+		"Timers":     data.Timers,
+		"Variables":  data.Variables,
+		"Statistics": data.Statistics,
+		"io":         data.IO,
+		"object":     data.Object,
+	}
+
+	// Добавляем raw_data для fallback рендерера (для объектов без специализированного рендерера)
+	if data.RawData != nil {
+		rawDataParsed := make(map[string]interface{})
+		for k, v := range data.RawData {
+			var parsed interface{}
+			if err := json.Unmarshal(v, &parsed); err == nil {
+				rawDataParsed[k] = parsed
+			}
+		}
+		response["raw_data"] = rawDataParsed
+	}
+
+	h.writeJSON(w, response)
 }
 
 // WatchObject добавляет объект в список наблюдения

@@ -97,18 +97,35 @@ func TestGetObjectData(t *testing.T) {
 	}
 }
 
-func TestGetObjectDataNotFound(t *testing.T) {
+func TestGetObjectDataMinimal(t *testing.T) {
+	// Тест для объектов которые возвращают только "object" (как UniSetActivator)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		// Возвращаем пустой объект без запрошенного имени
-		json.NewEncoder(w).Encode(map[string]interface{}{})
+		// Возвращаем только object без ключа с именем объекта
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"object": map[string]interface{}{
+				"id":         -1,
+				"name":       "TestActivator",
+				"objectType": "UniSetActivator",
+				"isActive":   true,
+			},
+		})
 	}))
 	defer server.Close()
 
 	client := NewClient(server.URL)
-	_, err := client.GetObjectData("NonExistent")
-	if err == nil {
-		t.Error("expected error for non-existent object")
+	data, err := client.GetObjectData("TestActivator")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if data.Object == nil {
+		t.Error("expected object info to be parsed")
+	}
+	if data.Object.ObjectType != "UniSetActivator" {
+		t.Errorf("expected objectType=UniSetActivator, got %s", data.Object.ObjectType)
+	}
+	if data.RawData == nil {
+		t.Error("expected raw_data to be populated")
 	}
 }
 
