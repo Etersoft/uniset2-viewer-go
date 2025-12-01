@@ -1111,9 +1111,9 @@ function renderTimersTable(objectName, timers) {
         const tr = document.createElement('tr');
         tr.dataset.timerId = timer.id;
 
-        // Форматирование tick: -1 означает что таймер не активен
-        const tickDisplay = timer.tick === -1 ? '-' : timer.tick;
-        const tickClass = timer.tick === -1 ? 'timer-inactive' : '';
+        // Форматирование tick: -1 означает бесконечный таймер
+        const tickDisplay = timer.tick === -1 ? '∞' : timer.tick;
+        const tickClass = timer.tick === -1 ? 'timer-infinite' : '';
 
         // Форматирование timeleft с прогресс-баром
         const timeleftPercent = timer.msec > 0 ? Math.max(0, (timer.timeleft / timer.msec) * 100) : 0;
@@ -1178,6 +1178,7 @@ function renderObjectInfo(objectName, objectData) {
     tbody.innerHTML = '';
 
     // Первая строка - важные метрики сообщений (объединённая)
+    const msgCount = objectData.msgCount ?? 0;
     const lostMessages = objectData.lostMessages ?? 0;
     const maxQueue = objectData.maxSizeOfMessageQueue ?? '-';
     const msgCountRow = document.createElement('tr');
@@ -1185,9 +1186,11 @@ function renderObjectInfo(objectName, objectData) {
     const lostClass = lostMessages > 0 ? 'lost-messages-warning' : '';
     msgCountRow.innerHTML = `
         <td colspan="2" class="message-metrics">
-            <span class="metric-item ${lostClass}">Потеряно сообщений: <strong>${lostMessages}</strong></span>
+            <span class="metric-item">В очереди: <strong>${msgCount}</strong></span>
             <span class="metric-separator">|</span>
-            <span class="metric-item">Макс. размер очереди: <strong>${maxQueue}</strong></span>
+            <span class="metric-item ${lostClass}">Потеряно: <strong>${lostMessages}</strong></span>
+            <span class="metric-separator">|</span>
+            <span class="metric-item">Макс. очередь: <strong>${maxQueue}</strong></span>
         </td>
     `;
     tbody.appendChild(msgCountRow);
@@ -1197,8 +1200,7 @@ function renderObjectInfo(objectName, objectData) {
         { key: 'name', label: 'Имя' },
         { key: 'id', label: 'ID' },
         { key: 'objectType', label: 'Тип' },
-        { key: 'isActive', label: 'Активен', format: v => v ? 'Да' : 'Нет' },
-        { key: 'msgCount', label: 'Сообщений в очереди' }
+        { key: 'isActive', label: 'Активен', format: v => v ? 'Да' : 'Нет' }
     ];
 
     fields.forEach(({ key, label, format }) => {

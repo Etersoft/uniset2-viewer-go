@@ -826,9 +826,9 @@ header h1 {
     color: var(--text-muted);
 }
 
-.timer-inactive {
-    color: var(--text-muted);
-    font-style: italic;
+.timer-infinite {
+    color: var(--accent-cyan);
+    font-weight: 500;
 }
 
 .stats-subtitle {
