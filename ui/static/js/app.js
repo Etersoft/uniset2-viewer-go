@@ -207,11 +207,11 @@ class BaseObjectRenderer {
                 <thead>
                     <tr>
                         <th>Имя</th>
-                        <th>Описание</th>
                         <th>ID</th>
                         <th>Тип</th>
                         <th>Значение</th>
                         <th></th>
+                        <th>Описание</th>
                     </tr>
                 </thead>
                 <tbody id="${typeLower}-${this.objectName}"></tbody>
@@ -707,13 +707,12 @@ function renderIO(objectName, type, ioData) {
         const varName = `io.${type === 'inputs' ? 'in' : 'out'}.${key}`;
         const sensor = getSensorInfo(io.id) || getSensorInfo(io.name);
         const iotype = sensor?.iotype || (type === 'inputs' ? 'DI' : 'DO');
-        // Сначала пробуем взять textname из ответа API, потом из справочника сенсоров
-        const textname = io.textname || sensor?.textname || '';
+        // textname: приоритет - справочник сенсоров, потом comment из ответа API
+        const textname = sensor?.textname || io.textname || io.comment || '';
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td class="variable-name">${io.name || key}</td>
-            <td class="variable-textname">${textname}</td>
             <td>${io.id}</td>
             <td><span class="variable-iotype iotype-${iotype.toLowerCase()}">${iotype}</span></td>
             <td class="variable-value" data-var="${varName}">${formatValue(io.value)}</td>
@@ -733,6 +732,7 @@ function renderIO(objectName, type, ioData) {
                     </label>
                 </span>
             </td>
+            <td class="variable-textname">${textname}</td>
         `;
 
         const checkbox = tr.querySelector('input');
@@ -775,8 +775,8 @@ async function addChart(objectName, varName, sensorId, passedTextname) {
     const isDiscrete = isDiscreteSignal(sensor);
     const color = getNextColor();
     const displayName = sensor?.name || varName.split('.').pop();
-    // textname: сначала переданный параметр, потом из справочника сенсоров
-    const textName = passedTextname || sensor?.textname || '';
+    // textname: приоритет - справочник сенсоров, потом переданный параметр (comment из API)
+    const textName = sensor?.textname || passedTextname || '';
 
     // Создаём панель графика
     const chartDiv = document.createElement('div');
