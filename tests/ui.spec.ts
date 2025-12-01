@@ -8,10 +8,13 @@ test.describe('UniSet2 Viewer UI', () => {
     await expect(page.locator('h1')).toHaveText('UniSet2 Viewer');
   });
 
-  test('should display objects list', async ({ page }) => {
+  test('should display objects list (not empty)', async ({ page }) => {
     await page.goto('/');
 
-    // Ждём загрузки списка объектов
+    // Ждём загрузки списка объектов (не должен быть пустым)
+    await expect(page.locator('#objects-list li')).not.toHaveCount(0, { timeout: 10000 });
+
+    // Должно быть минимум 2 объекта
     await expect(page.locator('#objects-list li')).toHaveCount(2, { timeout: 5000 });
 
     // Проверяем что TestProc в списке
@@ -22,14 +25,15 @@ test.describe('UniSet2 Viewer UI', () => {
     await page.goto('/');
 
     await expect(page.locator('.placeholder')).toBeVisible();
-    await expect(page.locator('.placeholder')).toContainText('Select an object');
+    // Плейсхолдер на русском
+    await expect(page.locator('.placeholder')).toContainText('Выберите объект');
   });
 
   test('should open object tab on click', async ({ page }) => {
     await page.goto('/');
 
     // Ждём загрузки списка
-    await page.waitForSelector('#objects-list li');
+    await page.waitForSelector('#objects-list li', { timeout: 10000 });
 
     // Кликаем на TestProc
     await page.locator('#objects-list li', { hasText: 'TestProc' }).click();
@@ -45,35 +49,35 @@ test.describe('UniSet2 Viewer UI', () => {
   test('should display variables table', async ({ page }) => {
     await page.goto('/');
 
-    await page.waitForSelector('#objects-list li');
+    await page.waitForSelector('#objects-list li', { timeout: 10000 });
     await page.locator('#objects-list li', { hasText: 'TestProc' }).click();
 
     // Ждём загрузки переменных
-    await page.waitForSelector('.variables-section tbody tr');
+    await page.waitForSelector('.variables-section tbody tr', { timeout: 10000 });
 
-    // Проверяем наличие таблицы переменных
-    await expect(page.locator('.variables-section h3')).toContainText('Variables');
+    // Проверяем наличие таблицы переменных (заголовок на русском)
+    await expect(page.locator('.variables-section .section-header')).toContainText('Переменные');
     await expect(page.locator('.variables-section tbody tr')).not.toHaveCount(0);
   });
 
-  test('should display inputs and outputs tables', async ({ page }) => {
+  test('should display inputs and outputs sections', async ({ page }) => {
     await page.goto('/');
 
-    await page.waitForSelector('#objects-list li');
+    await page.waitForSelector('#objects-list li', { timeout: 10000 });
     await page.locator('#objects-list li', { hasText: 'TestProc' }).click();
 
     // Ждём загрузки данных
-    await page.waitForSelector('.io-section');
+    await page.waitForSelector('.io-section', { timeout: 10000 });
 
-    // Проверяем секции Inputs и Outputs
-    await expect(page.locator('.io-section h3', { hasText: 'Inputs' })).toBeVisible();
-    await expect(page.locator('.io-section h3', { hasText: 'Outputs' })).toBeVisible();
+    // Проверяем секции Входы и Выходы
+    await expect(page.locator('.io-section-title', { hasText: 'Входы' })).toBeVisible();
+    await expect(page.locator('.io-section-title', { hasText: 'Выходы' })).toBeVisible();
   });
 
   test('should close tab on close button click', async ({ page }) => {
     await page.goto('/');
 
-    await page.waitForSelector('#objects-list li');
+    await page.waitForSelector('#objects-list li', { timeout: 10000 });
     await page.locator('#objects-list li', { hasText: 'TestProc' }).click();
 
     // Ждём появления вкладки
@@ -90,7 +94,7 @@ test.describe('UniSet2 Viewer UI', () => {
   test('should refresh objects list on button click', async ({ page }) => {
     await page.goto('/');
 
-    await page.waitForSelector('#objects-list li');
+    await page.waitForSelector('#objects-list li', { timeout: 10000 });
     const initialCount = await page.locator('#objects-list li').count();
 
     // Кликаем Refresh
@@ -100,33 +104,33 @@ test.describe('UniSet2 Viewer UI', () => {
     await expect(page.locator('#objects-list li')).toHaveCount(initialCount);
   });
 
-  test('should enable chart checkbox for variable', async ({ page }) => {
+  test('should enable chart for IO variable', async ({ page }) => {
     await page.goto('/');
 
-    await page.waitForSelector('#objects-list li');
+    await page.waitForSelector('#objects-list li', { timeout: 10000 });
     await page.locator('#objects-list li', { hasText: 'TestProc' }).click();
 
-    // Ждём загрузки переменных
-    await page.waitForSelector('.variables-section tbody tr');
+    // Ждём загрузки IO
+    await page.waitForSelector('.io-section tbody tr', { timeout: 10000 });
 
-    // Находим первый чекбокс и кликаем
-    const firstCheckbox = page.locator('.variables-section tbody tr:first-child input[type="checkbox"]');
-    await firstCheckbox.check();
+    // Находим первый чекбокс в секции Входы (inputs) и кликаем на лейбл
+    const firstToggleLabel = page.locator('.io-section').first().locator('tbody tr:first-child .chart-toggle-label');
+    await firstToggleLabel.click();
 
     // Проверяем что появился график
-    await expect(page.locator('.chart-container')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.chart-panel')).toBeVisible({ timeout: 5000 });
   });
 
   test('should switch between multiple tabs', async ({ page }) => {
     await page.goto('/');
 
-    await page.waitForSelector('#objects-list li');
+    await page.waitForSelector('#objects-list li', { timeout: 10000 });
 
     // Открываем TestProc
     await page.locator('#objects-list li', { hasText: 'TestProc' }).click();
     await expect(page.locator('.tab-btn', { hasText: 'TestProc' })).toHaveClass(/active/);
 
-    // Открываем UniSetActivator (если есть)
+    // Открываем UniSetActivator
     const activator = page.locator('#objects-list li', { hasText: 'UniSetActivator' });
     if (await activator.isVisible()) {
       await activator.click();
@@ -139,6 +143,33 @@ test.describe('UniSet2 Viewer UI', () => {
       await page.locator('.tab-btn', { hasText: 'TestProc' }).click();
       await expect(page.locator('.tab-btn', { hasText: 'TestProc' })).toHaveClass(/active/);
     }
+  });
+
+  test('should have time range selector', async ({ page }) => {
+    await page.goto('/');
+
+    // Проверяем наличие селектора временного диапазона
+    await expect(page.locator('.time-range-selector')).toBeVisible();
+    await expect(page.locator('.time-range-btn[data-range="300"]')).toBeVisible();
+    await expect(page.locator('.time-range-btn[data-range="900"]')).toBeVisible();
+    await expect(page.locator('.time-range-btn[data-range="3600"]')).toBeVisible();
+
+    // По умолчанию активен 15m (900 секунд)
+    await expect(page.locator('.time-range-btn[data-range="900"]')).toHaveClass(/active/);
+  });
+
+  test('should change time range on click', async ({ page }) => {
+    await page.goto('/');
+
+    // Кликаем на 5m (300 секунд)
+    await page.locator('.time-range-btn[data-range="300"]').click();
+    await expect(page.locator('.time-range-btn[data-range="300"]')).toHaveClass(/active/);
+    await expect(page.locator('.time-range-btn[data-range="900"]')).not.toHaveClass(/active/);
+
+    // Кликаем на 1h (3600 секунд)
+    await page.locator('.time-range-btn[data-range="3600"]').click();
+    await expect(page.locator('.time-range-btn[data-range="3600"]')).toHaveClass(/active/);
+    await expect(page.locator('.time-range-btn[data-range="300"]')).not.toHaveClass(/active/);
   });
 
 });

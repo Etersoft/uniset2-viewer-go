@@ -13,6 +13,7 @@ import (
 	"github.com/pv/uniset2-viewer-go/internal/config"
 	"github.com/pv/uniset2-viewer-go/internal/logger"
 	"github.com/pv/uniset2-viewer-go/internal/poller"
+	"github.com/pv/uniset2-viewer-go/internal/sensorconfig"
 	"github.com/pv/uniset2-viewer-go/internal/storage"
 	"github.com/pv/uniset2-viewer-go/internal/uniset"
 	"github.com/pv/uniset2-viewer-go/ui"
@@ -48,8 +49,20 @@ func main() {
 	// Create poller
 	p := poller.New(client, store, cfg.PollInterval, cfg.HistoryTTL)
 
+	// Load sensor configuration if provided
+	var sensorCfg *sensorconfig.SensorConfig
+	if cfg.ConFile != "" {
+		var err error
+		sensorCfg, err = sensorconfig.LoadFromFile(cfg.ConFile)
+		if err != nil {
+			logger.Error("Failed to load sensor config", "file", cfg.ConFile, "error", err)
+			os.Exit(1)
+		}
+		logger.Info("Loaded sensor configuration", "file", cfg.ConFile, "sensors", sensorCfg.Count())
+	}
+
 	// Create API handlers and server
-	handlers := api.NewHandlers(client, store, p)
+	handlers := api.NewHandlers(client, store, p, sensorCfg)
 	server := api.NewServer(handlers, ui.Content)
 
 	// Start poller
@@ -66,12 +79,16 @@ func main() {
 	}
 
 	go func() {
-		logger.Info("Starting server",
+		logArgs := []any{
 			"addr", addr,
 			"uniset_url", cfg.UnisetURL,
 			"poll_interval", cfg.PollInterval.String(),
 			"history_ttl", cfg.HistoryTTL.String(),
-		)
+		}
+		if cfg.ConFile != "" {
+			logArgs = append(logArgs, "confile", cfg.ConFile)
+		}
+		logger.Info("Starting server", logArgs...)
 
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("Server failed", "error", err)

@@ -23,13 +23,14 @@ type Config struct {
 	HistoryTTL   time.Duration
 	LogFormat    string
 	LogLevel     string
+	ConFile      string
 }
 
 func Parse() *Config {
 	cfg := &Config{}
 
 	flag.StringVar(&cfg.UnisetURL, "uniset-url", "http://localhost:8080", "UniSet2 HTTP API URL")
-	flag.IntVar(&cfg.Port, "port", 8000, "Web server port")
+	flag.IntVar(&cfg.Port, "port", 9090, "Web server port")
 	flag.DurationVar(&cfg.PollInterval, "poll-interval", 5*time.Second, "UniSet2 polling interval")
 
 	var storageStr string
@@ -39,6 +40,7 @@ func Parse() *Config {
 	flag.DurationVar(&cfg.HistoryTTL, "history-ttl", time.Hour, "History retention time")
 	flag.StringVar(&cfg.LogFormat, "log-format", "text", "Log format: text or json")
 	flag.StringVar(&cfg.LogLevel, "log-level", "info", "Log level: debug, info, warn, error")
+	flag.StringVar(&cfg.ConFile, "confile", "", "UniSet2 XML configuration file (sensors metadata)")
 
 	flag.Parse()
 

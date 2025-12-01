@@ -7,21 +7,24 @@ import (
 	"time"
 
 	"github.com/pv/uniset2-viewer-go/internal/poller"
+	"github.com/pv/uniset2-viewer-go/internal/sensorconfig"
 	"github.com/pv/uniset2-viewer-go/internal/storage"
 	"github.com/pv/uniset2-viewer-go/internal/uniset"
 )
 
 type Handlers struct {
-	client  *uniset.Client
-	storage storage.Storage
-	poller  *poller.Poller
+	client       *uniset.Client
+	storage      storage.Storage
+	poller       *poller.Poller
+	sensorConfig *sensorconfig.SensorConfig
 }
 
-func NewHandlers(client *uniset.Client, store storage.Storage, p *poller.Poller) *Handlers {
+func NewHandlers(client *uniset.Client, store storage.Storage, p *poller.Poller, sensorCfg *sensorconfig.SensorConfig) *Handlers {
 	return &Handlers{
-		client:  client,
-		storage: store,
-		poller:  p,
+		client:       client,
+		storage:      store,
+		poller:       p,
+		sensorConfig: sensorCfg,
 	}
 }
 
@@ -153,4 +156,68 @@ func (h *Handlers) GetVariableHistoryRange(w http.ResponseWriter, r *http.Reques
 	}
 
 	h.writeJSON(w, history)
+}
+
+// GetSensors возвращает список всех датчиков из конфигурации
+// GET /api/sensors
+func (h *Handlers) GetSensors(w http.ResponseWriter, r *http.Request) {
+	if h.sensorConfig == nil {
+		h.writeJSON(w, map[string]interface{}{
+			"sensors": []interface{}{},
+			"count":   0,
+		})
+		return
+	}
+
+	h.writeJSON(w, map[string]interface{}{
+		"sensors": h.sensorConfig.GetAllInfo(),
+		"count":   h.sensorConfig.Count(),
+	})
+}
+
+// GetSensorByID возвращает информацию о датчике по ID
+// GET /api/sensors/{id}
+func (h *Handlers) GetSensorByID(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid sensor ID")
+		return
+	}
+
+	if h.sensorConfig == nil {
+		h.writeError(w, http.StatusNotFound, "sensor configuration not loaded")
+		return
+	}
+
+	sensor := h.sensorConfig.GetByID(id)
+	if sensor == nil {
+		h.writeError(w, http.StatusNotFound, "sensor not found")
+		return
+	}
+
+	h.writeJSON(w, sensor.ToInfo())
+}
+
+// GetSensorByName возвращает информацию о датчике по имени
+// GET /api/sensors/by-name/{name}
+func (h *Handlers) GetSensorByName(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" {
+		h.writeError(w, http.StatusBadRequest, "sensor name required")
+		return
+	}
+
+	if h.sensorConfig == nil {
+		h.writeError(w, http.StatusNotFound, "sensor configuration not loaded")
+		return
+	}
+
+	sensor := h.sensorConfig.GetByName(name)
+	if sensor == nil {
+		h.writeError(w, http.StatusNotFound, "sensor not found")
+		return
+	}
+
+	h.writeJSON(w, sensor.ToInfo())
 }

@@ -28,6 +28,11 @@ func (s *Server) setupRoutes(staticFS fs.FS) {
 	s.mux.HandleFunc("GET /api/objects/{name}/variables/{variable}/history", s.handlers.GetVariableHistory)
 	s.mux.HandleFunc("GET /api/objects/{name}/variables/{variable}/history/range", s.handlers.GetVariableHistoryRange)
 
+	// Sensor config API
+	s.mux.HandleFunc("GET /api/sensors", s.handlers.GetSensors)
+	s.mux.HandleFunc("GET /api/sensors/{id}", s.handlers.GetSensorByID)
+	s.mux.HandleFunc("GET /api/sensors/by-name/{name}", s.handlers.GetSensorByName)
+
 	// Static files
 	staticHandler := http.FileServer(http.FS(staticFS))
 	s.mux.Handle("GET /static/", staticHandler)

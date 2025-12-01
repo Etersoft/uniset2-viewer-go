@@ -51,7 +51,7 @@ func setupTestHandlers(unisetServer *httptest.Server) *Handlers {
 	client := uniset.NewClient(unisetServer.URL)
 	store := storage.NewMemoryStorage()
 	p := poller.New(client, store, 5*time.Second, time.Hour)
-	return NewHandlers(client, store, p)
+	return NewHandlers(client, store, p, nil)
 }
 
 func TestGetObjects(t *testing.T) {
@@ -200,7 +200,7 @@ func TestGetVariableHistory(t *testing.T) {
 	client := uniset.NewClient(unisetServer.URL)
 	store := storage.NewMemoryStorage()
 	p := poller.New(client, store, 5*time.Second, time.Hour)
-	handlers := NewHandlers(client, store, p)
+	handlers := NewHandlers(client, store, p, nil)
 
 	// Добавляем данные в хранилище
 	now := time.Now()
@@ -244,7 +244,7 @@ func TestGetVariableHistoryWithCount(t *testing.T) {
 	client := uniset.NewClient(unisetServer.URL)
 	store := storage.NewMemoryStorage()
 	p := poller.New(client, store, 5*time.Second, time.Hour)
-	handlers := NewHandlers(client, store, p)
+	handlers := NewHandlers(client, store, p, nil)
 
 	// Добавляем 10 точек
 	now := time.Now()
