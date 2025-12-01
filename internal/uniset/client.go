@@ -67,7 +67,7 @@ func (c *Client) GetObjectData(objectName string) (*ObjectData, error) {
 		return nil, err
 	}
 
-	// Ответ имеет структуру {"ObjectName": {...}}
+	// Ответ имеет структуру {"ObjectName": {...}, "object": {...}}
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("unmarshal failed: %w", err)
@@ -83,6 +83,14 @@ func (c *Client) GetObjectData(objectName string) (*ObjectData, error) {
 		return nil, fmt.Errorf("unmarshal object data failed: %w", err)
 	}
 	result.Name = objectName
+
+	// Извлекаем поле "object" с информацией об объекте (id, objectType и т.д.)
+	if objectInfo, exists := raw["object"]; exists {
+		var info ObjectInfo
+		if err := json.Unmarshal(objectInfo, &info); err == nil {
+			result.Object = &info
+		}
+	}
 
 	return &result, nil
 }
