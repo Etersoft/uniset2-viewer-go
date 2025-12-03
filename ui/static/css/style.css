@@ -757,6 +757,7 @@ header h1 {
 
 .io-grid.io-sequential {
     grid-template-columns: 1fr;
+    gap: 0;
 }
 
 .io-grid .collapsible-section {
@@ -804,25 +805,49 @@ header h1 {
 }
 
 /* IO Section styling */
-.io-section .collapsible-header {
-    display: flex;
-    align-items: center;
-    padding: 0.4rem 0.75rem;
-    min-height: auto;
+.io-section {
+    margin-bottom: 0;
 }
 
-.io-section .collapsible-title {
-    font-size: 12px;
+.io-section.collapsed tbody,
+.io-section.collapsed .io-resize-handle {
+    display: none;
 }
 
-.io-section .collapsible-icon {
+.io-section.collapsed .io-table-container {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible;
+}
+
+.io-section-toggle {
+    cursor: pointer;
+    user-select: none;
+}
+
+.io-section-toggle:hover {
+    color: var(--accent-cyan);
+}
+
+.io-collapse-icon {
     width: 14px;
     height: 14px;
+    vertical-align: middle;
+    margin-right: 0.25rem;
+    transition: transform 0.15s ease;
+}
+
+.io-section.collapsed .io-collapse-icon {
+    transform: rotate(-90deg);
 }
 
 /* Global IO filter in header */
 .io-timers-section .io-filter-wrapper {
     margin-left: 0.5rem;
+    margin-right: 0;
+}
+
+.io-timers-section .io-sequential-toggle {
     margin-right: auto;
 }
 
@@ -861,10 +886,12 @@ header h1 {
     background: var(--bg-tertiary);
     cursor: ns-resize;
     border-top: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
     transition: background 0.15s ease;
     display: flex;
     align-items: center;
     justify-content: center;
+    margin-bottom: 0;
 }
 
 .io-resize-handle:hover {
@@ -892,6 +919,7 @@ header h1 {
     text-align: center;
     padding: 0.25rem !important;
 }
+
 
 .io-pin-toggle {
     cursor: pointer;
@@ -1114,7 +1142,18 @@ header h1 {
     border-radius: 10px;
     background: var(--bg-tertiary);
     color: var(--text-secondary);
-    margin-left: auto;
+    margin-left: 0.5rem;
+}
+
+/* IO section title in table header */
+.io-section-title {
+    font-weight: 500;
+    color: var(--text-primary) !important;
+    text-align: left;
+    white-space: nowrap;
+    text-transform: none !important;
+    font-size: 13px !important;
+    letter-spacing: normal !important;
 }
 
 /* LogViewer styles */

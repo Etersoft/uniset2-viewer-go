@@ -66,12 +66,12 @@ test.describe('UniSet2 Viewer UI', () => {
     await page.waitForSelector('#objects-list li', { timeout: 10000 });
     await page.locator('#objects-list li', { hasText: 'TestProc' }).click();
 
-    // Ждём загрузки данных (в collapsible секциях внутри io-grid)
-    await page.waitForSelector('.io-grid .collapsible-section', { timeout: 10000 });
+    // Ждём загрузки данных (в io-section внутри io-grid)
+    await page.waitForSelector('.io-grid .io-section', { timeout: 10000 });
 
-    // Проверяем секции Входы и Выходы
-    await expect(page.locator('.io-grid .collapsible-title', { hasText: 'Входы' })).toBeVisible();
-    await expect(page.locator('.io-grid .collapsible-title', { hasText: 'Выходы' })).toBeVisible();
+    // Проверяем секции Входы и Выходы (в заголовке таблицы)
+    await expect(page.locator('.io-grid .io-section-title', { hasText: 'Входы' })).toBeVisible();
+    await expect(page.locator('.io-grid .io-section-title', { hasText: 'Выходы' })).toBeVisible();
   });
 
   test('should close tab on close button click', async ({ page }) => {
@@ -110,14 +110,14 @@ test.describe('UniSet2 Viewer UI', () => {
     await page.waitForSelector('#objects-list li', { timeout: 10000 });
     await page.locator('#objects-list li', { hasText: 'TestProc' }).click();
 
-    // Ждём загрузки IO (в collapsible секции внутри io-grid)
-    await page.waitForSelector('.io-grid .collapsible-section tbody tr', { timeout: 10000 });
+    // Ждём загрузки IO (в io-section внутри io-grid)
+    await page.waitForSelector('.io-grid .io-section tbody tr', { timeout: 10000 });
 
     // Находим первый чекбокс в секции Входы (inputs) и кликаем на лейбл
-    const firstToggleLabel = page.locator('.io-grid .collapsible-section').first().locator('tbody tr:first-child .chart-toggle-label');
+    const firstToggleLabel = page.locator('.io-grid .io-section').first().locator('tbody tr:first-child .chart-toggle-label');
     await firstToggleLabel.click();
 
-    // Проверяем что появился график
+    // Проверяем что появился график (или хотя бы панель с графиком)
     await expect(page.locator('.chart-panel')).toBeVisible({ timeout: 5000 });
   });
 

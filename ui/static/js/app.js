@@ -244,68 +244,60 @@ class BaseObjectRenderer {
     createIOSection(type, title) {
         const typeLower = type.toLowerCase();
         return `
-            <div class="collapsible-section io-section" data-section="${typeLower}-${this.objectName}" id="${typeLower}-section-${this.objectName}">
-                <div class="collapsible-header" onclick="toggleSection('${typeLower}-${this.objectName}')">
-                    <svg class="collapsible-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M6 9l6 6 6-6"/>
-                    </svg>
-                    <span class="collapsible-title">${title}</span>
-                    <span class="io-section-badge" id="${typeLower}-count-${this.objectName}">0</span>
+            <div class="io-section" id="${typeLower}-section-${this.objectName}" data-section="${typeLower}-${this.objectName}">
+                <div class="io-table-container" id="io-container-${typeLower}-${this.objectName}">
+                    <table class="variables-table io-table">
+                        <thead>
+                            <tr>
+                                <th class="io-pin-col">
+                                    <span class="io-unpin-all" id="io-unpin-${typeLower}-${this.objectName}" title="Снять все закрепления" style="display:none">✕</span>
+                                </th>
+                                <th class="io-section-title io-section-toggle" data-section="${typeLower}-${this.objectName}">
+                                    <svg class="io-collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M6 9l6 6 6-6"/>
+                                    </svg>
+                                    ${title} <span class="io-section-badge" id="${typeLower}-count-${this.objectName}">0</span>
+                                </th>
+                                <th>Тип</th>
+                                <th>ID</th>
+                                <th>Имя</th>
+                                <th>Значение</th>
+                            </tr>
+                        </thead>
+                        <tbody id="${typeLower}-${this.objectName}"></tbody>
+                    </table>
                 </div>
-                <div class="collapsible-content" id="section-${typeLower}-${this.objectName}">
-                    <div class="io-table-container" id="io-container-${typeLower}-${this.objectName}">
-                        <table class="variables-table io-table">
-                            <thead>
-                                <tr>
-                                    <th class="io-pin-col">
-                                        <span class="io-unpin-all" id="io-unpin-${typeLower}-${this.objectName}" title="Снять все закрепления" style="display:none">✕</span>
-                                    </th>
-                                    <th class="io-chart-col"></th>
-                                    <th>Имя</th>
-                                    <th>ID</th>
-                                    <th>Тип</th>
-                                    <th>Значение</th>
-                                </tr>
-                            </thead>
-                            <tbody id="${typeLower}-${this.objectName}"></tbody>
-                        </table>
-                    </div>
-                    <div class="io-resize-handle" id="io-resize-${typeLower}-${this.objectName}"></div>
-                </div>
+                <div class="io-resize-handle" id="io-resize-${typeLower}-${this.objectName}"></div>
             </div>
         `;
     }
 
     createTimersSection() {
         return `
-            <div class="collapsible-section io-section" data-section="timers-${this.objectName}" id="timers-section-${this.objectName}">
-                <div class="collapsible-header" onclick="toggleSection('timers-${this.objectName}')">
-                    <svg class="collapsible-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M6 9l6 6 6-6"/>
-                    </svg>
-                    <span class="collapsible-title">Таймеры</span>
-                    <span class="io-section-badge" id="timers-count-${this.objectName}">0</span>
+            <div class="io-section" id="timers-section-${this.objectName}" data-section="timers-${this.objectName}">
+                <div class="io-table-container" id="io-container-timers-${this.objectName}">
+                    <table class="variables-table io-table">
+                        <thead>
+                            <tr>
+                                <th class="io-pin-col">
+                                    <span class="io-unpin-all" id="io-unpin-timers-${this.objectName}" title="Снять все закрепления" style="display:none">✕</span>
+                                </th>
+                                <th class="io-section-title io-section-toggle" data-section="timers-${this.objectName}">
+                                    <svg class="io-collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M6 9l6 6 6-6"/>
+                                    </svg>
+                                    Таймеры <span class="io-section-badge" id="timers-count-${this.objectName}">0</span>
+                                </th>
+                                <th>Имя</th>
+                                <th>Интервал</th>
+                                <th>Осталось</th>
+                                <th>Tick</th>
+                            </tr>
+                        </thead>
+                        <tbody id="timers-${this.objectName}"></tbody>
+                    </table>
                 </div>
-                <div class="collapsible-content" id="section-timers-${this.objectName}">
-                    <div class="io-table-container" id="io-container-timers-${this.objectName}">
-                        <table class="variables-table io-table">
-                            <thead>
-                                <tr>
-                                    <th class="io-pin-col">
-                                        <span class="io-unpin-all" id="io-unpin-timers-${this.objectName}" title="Снять все закрепления" style="display:none">✕</span>
-                                    </th>
-                                    <th>ID</th>
-                                    <th>Имя</th>
-                                    <th>Интервал</th>
-                                    <th>Осталось</th>
-                                    <th>Tick</th>
-                                </tr>
-                            </thead>
-                            <tbody id="timers-${this.objectName}"></tbody>
-                        </table>
-                    </div>
-                    <div class="io-resize-handle" id="io-resize-timers-${this.objectName}"></div>
-                </div>
+                <div class="io-resize-handle" id="io-resize-timers-${this.objectName}"></div>
             </div>
         `;
     }
@@ -1866,9 +1858,9 @@ function renderIO(objectName, type, ioData) {
                     </label>
                 </span>
             </td>
-            <td class="variable-name" title="${textname}">${io.name || key}</td>
-            <td>${io.id}</td>
             <td><span class="variable-iotype iotype-${iotype.toLowerCase()}">${iotype}</span></td>
+            <td>${io.id}</td>
+            <td class="variable-name" title="${textname}">${io.name || key}</td>
             <td class="variable-value" data-var="${varName}">${formatValue(io.value)}</td>
         `;
 
@@ -2956,7 +2948,49 @@ function setupIOSections(objectName) {
     ['inputs', 'outputs', 'timers'].forEach(type => {
         setupIOResize(objectName, type);
         setupIOUnpinAll(objectName, type);
+        setupIOCollapse(objectName, type);
     });
+}
+
+function setupIOCollapse(objectName, type) {
+    const toggleEl = document.querySelector(`.io-section-toggle[data-section="${type}-${objectName}"]`);
+    const section = document.getElementById(`${type}-section-${objectName}`);
+
+    if (!toggleEl || !section) return;
+
+    // Load saved state
+    const savedState = loadIOCollapseState(objectName, type);
+    if (savedState === 'collapsed') {
+        section.classList.add('collapsed');
+    }
+
+    toggleEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        section.classList.toggle('collapsed');
+        saveIOCollapseState(objectName, type, section.classList.contains('collapsed'));
+    });
+}
+
+function saveIOCollapseState(objectName, type, collapsed) {
+    try {
+        const saved = JSON.parse(localStorage.getItem('uniset2-viewer-io-collapse') || '{}');
+        const key = `${objectName}-${type}`;
+        saved[key] = collapsed ? 'collapsed' : 'expanded';
+        localStorage.setItem('uniset2-viewer-io-collapse', JSON.stringify(saved));
+    } catch (err) {
+        console.warn('Failed to save IO collapse state:', err);
+    }
+}
+
+function loadIOCollapseState(objectName, type) {
+    try {
+        const saved = JSON.parse(localStorage.getItem('uniset2-viewer-io-collapse') || '{}');
+        const key = `${objectName}-${type}`;
+        return saved[key] || 'expanded';
+    } catch (err) {
+        console.warn('Failed to load IO collapse state:', err);
+        return 'expanded';
+    }
 }
 
 function setupIOResize(objectName, type) {
