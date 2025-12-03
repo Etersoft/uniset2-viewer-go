@@ -493,6 +493,7 @@ class LogViewer {
         this.container = container;
         this.eventSource = null;
         this.connected = false;
+        this.isActive = false; // true если идёт попытка подключения или переподключения
         this.lines = [];
         this.maxLines = 2000;
         this.autoScroll = true;
@@ -567,7 +568,8 @@ class LogViewer {
         // Connect button
         const connectBtn = document.getElementById(`log-connect-${this.objectName}`);
         connectBtn.addEventListener('click', () => {
-            if (this.connected) {
+            if (this.isActive) {
+                // Если активно (подключены или пытаемся подключиться) - останавливаем
                 this.disconnect();
             } else {
                 this.connect();
@@ -661,6 +663,7 @@ class LogViewer {
             this.eventSource.close();
         }
 
+        this.isActive = true;
         this.updateStatus('connecting');
 
         const filter = this.filter ? `?filter=${encodeURIComponent(this.filter)}` : '';
@@ -694,8 +697,9 @@ class LogViewer {
 
         this.eventSource.addEventListener('disconnected', () => {
             this.connected = false;
-            this.updateStatus('disconnected');
-            console.log('LogViewer: Disconnected');
+            // isActive остаётся true - EventSource будет пытаться переподключиться
+            this.updateStatus('reconnecting');
+            console.log('LogViewer: Disconnected, will reconnect');
         });
 
         this.eventSource.addEventListener('error', (e) => {
@@ -703,13 +707,15 @@ class LogViewer {
                 this.addLine(`[ERROR] ${e.data}`, 'error');
             }
             this.connected = false;
-            this.updateStatus('error');
+            // isActive остаётся true - EventSource будет пытаться переподключиться
+            this.updateStatus('reconnecting');
         });
 
         this.eventSource.onerror = () => {
             if (this.connected) {
                 this.connected = false;
-                this.updateStatus('error');
+                // isActive остаётся true - EventSource будет пытаться переподключиться
+                this.updateStatus('reconnecting');
             }
         };
     }
@@ -720,6 +726,7 @@ class LogViewer {
             this.eventSource = null;
         }
         this.connected = false;
+        this.isActive = false;
         this.updateStatus('disconnected');
     }
 
@@ -833,7 +840,7 @@ class LogViewer {
         if (!dot || !text || !btn) return;
 
         dot.className = 'logviewer-status-dot';
-        btn.classList.remove('connected');
+        btn.classList.remove('connected', 'reconnecting');
 
         switch (status) {
             case 'connected':
@@ -845,13 +852,15 @@ class LogViewer {
             case 'connecting':
                 dot.classList.add('connecting');
                 text.textContent = 'Подключение...';
-                btn.textContent = 'Отмена';
+                btn.textContent = 'Остановить';
                 break;
-            case 'error':
-                text.textContent = 'Ошибка';
-                btn.textContent = 'Подключить';
+            case 'reconnecting':
+                dot.classList.add('reconnecting');
+                text.textContent = 'Переподключение...';
+                btn.textContent = 'Остановить';
+                btn.classList.add('reconnecting');
                 break;
-            default:
+            default: // disconnected
                 text.textContent = 'Отключено';
                 btn.textContent = 'Подключить';
         }

@@ -994,6 +994,11 @@ header h1 {
     animation: pulse 1s infinite;
 }
 
+.logviewer-status-dot.reconnecting {
+    background: var(--accent-orange);
+    animation: pulse 1s infinite;
+}
+
 @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.4; }
@@ -1216,6 +1221,14 @@ header h1 {
 
 .log-connect-btn.connected:hover {
     background: #d93d4f;
+}
+
+.log-connect-btn.reconnecting {
+    background: var(--accent-orange);
+}
+
+.log-connect-btn.reconnecting:hover {
+    background: #d98c23;
 }
 
 /* Responsive */

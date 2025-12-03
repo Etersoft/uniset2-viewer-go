@@ -315,4 +315,35 @@ test.describe('UniSet2 Viewer UI', () => {
     await expect(page.locator('.logviewer-resize-handle')).toBeVisible();
   });
 
+  test('should show Stop button during reconnection on connection failure', async ({ page }) => {
+    await page.goto('/');
+
+    await page.waitForSelector('#objects-list li', { timeout: 10000 });
+    await page.locator('#objects-list li', { hasText: 'TestProc' }).click();
+
+    await page.waitForSelector('.logviewer-section', { timeout: 10000 });
+
+    // Нажимаем кнопку подключения
+    const connectBtn = page.locator('.log-connect-btn');
+    await expect(connectBtn).toContainText('Подключить');
+    await connectBtn.click();
+
+    // После нажатия кнопка должна показать "Остановить" (сначала при connecting, потом при reconnecting)
+    // Ждём пока кнопка изменится на "Остановить"
+    await expect(connectBtn).toContainText('Остановить', { timeout: 5000 });
+
+    // Проверяем что статус показывает переподключение или подключение
+    // Статус текст находится в span внутри .logviewer-status (второй span после точки)
+    const statusText = page.locator('.logviewer-status span:nth-child(2)');
+    // Статус может быть "Подключение..." или "Переподключение..."
+    await expect(statusText).toHaveText(/Подключение|Переподключение/, { timeout: 5000 });
+
+    // Кликаем остановить чтобы отключиться
+    await connectBtn.click();
+
+    // После остановки кнопка должна вернуться к "Подключить"
+    await expect(connectBtn).toContainText('Подключить', { timeout: 5000 });
+    await expect(statusText).toHaveText('Отключено', { timeout: 5000 });
+  });
+
 });
