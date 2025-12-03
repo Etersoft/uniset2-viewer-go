@@ -263,6 +263,33 @@ class BaseObjectRenderer {
         `, { hidden: true, sectionId: `logserver-section-${this.objectName}` });
     }
 
+    createLogViewerSection() {
+        // Контейнер для LogViewer - будет инициализирован позже
+        return `<div id="logviewer-container-${this.objectName}"></div>`;
+    }
+
+    // Инициализация LogViewer (вызывается после создания DOM если LogServer доступен)
+    initLogViewer(logServerData) {
+        if (!logServerData || !logServerData.host) return;
+
+        const container = document.getElementById(`logviewer-container-${this.objectName}`);
+        if (!container) return;
+
+        // Создаём LogViewer только если его ещё нет
+        if (!this.logViewer) {
+            this.logViewer = new LogViewer(this.objectName, container);
+            this.logViewer.restoreCollapsedState();
+        }
+    }
+
+    // Уничтожение LogViewer
+    destroyLogViewer() {
+        if (this.logViewer) {
+            this.logViewer.destroy();
+            this.logViewer = null;
+        }
+    }
+
     createStatisticsSection() {
         return this.createCollapsibleSection('statistics', 'Статистика', `
             <div id="statistics-${this.objectName}"></div>
@@ -293,6 +320,7 @@ class UniSetManagerRenderer extends BaseObjectRenderer {
                 ${this.createTimersSection()}
             </div>
             ${this.createVariablesSection()}
+            ${this.createLogViewerSection()}
             ${this.createLogServerSection()}
             ${this.createStatisticsSection()}
             ${this.createObjectInfoSection()}
@@ -314,6 +342,13 @@ class UniSetManagerRenderer extends BaseObjectRenderer {
         renderLogServer(this.objectName, data.LogServer);
         renderStatistics(this.objectName, data.Statistics);
         updateChartLegends(this.objectName, data);
+
+        // Инициализируем LogViewer если есть LogServer
+        this.initLogViewer(data.LogServer);
+    }
+
+    destroy() {
+        this.destroyLogViewer();
     }
 }
 
@@ -327,6 +362,7 @@ class UniSetObjectRenderer extends BaseObjectRenderer {
         return `
             ${this.createChartsSection()}
             ${this.createVariablesSection()}
+            ${this.createLogViewerSection()}
             ${this.createLogServerSection()}
             ${this.createStatisticsSection()}
             ${this.createObjectInfoSection()}
@@ -345,6 +381,13 @@ class UniSetObjectRenderer extends BaseObjectRenderer {
         renderLogServer(this.objectName, data.LogServer);
         renderStatistics(this.objectName, data.Statistics);
         updateChartLegends(this.objectName, data);
+
+        // Инициализируем LogViewer если есть LogServer
+        this.initLogViewer(data.LogServer);
+    }
+
+    destroy() {
+        this.destroyLogViewer();
     }
 }
 
@@ -416,6 +459,420 @@ registerRenderer('UniSetObject', UniSetObjectRenderer);
 
 // ============================================================================
 // Конец системы рендереров
+// ============================================================================
+
+// ============================================================================
+// LogViewer - компонент для просмотра логов в реальном времени
+// ============================================================================
+
+// Уровни логов UniSet2
+const LOG_LEVELS = {
+    NONE: 0,
+    CRIT: 1,
+    WARN: 2,
+    INFO: 4,
+    DEBUG: 8,
+    LEVEL1: 16,
+    LEVEL2: 32,
+    LEVEL3: 64,
+    LEVEL4: 128,
+    LEVEL5: 256,
+    LEVEL6: 512,
+    LEVEL7: 1024,
+    LEVEL8: 2048,
+    LEVEL9: 4096,
+    ANY: 0xFFFFFFFF
+};
+
+// Класс для управления просмотром логов объекта
+class LogViewer {
+    constructor(objectName, container) {
+        this.objectName = objectName;
+        this.container = container;
+        this.eventSource = null;
+        this.connected = false;
+        this.lines = [];
+        this.maxLines = 2000;
+        this.autoScroll = true;
+        this.currentLevel = LOG_LEVELS.INFO | LOG_LEVELS.WARN | LOG_LEVELS.CRIT;
+        this.filter = '';
+        this.height = 200;
+
+        this.init();
+    }
+
+    init() {
+        this.render();
+        this.setupEventHandlers();
+        this.loadSavedHeight();
+    }
+
+    render() {
+        const html = `
+            <div class="logviewer-section" data-object="${this.objectName}" id="logviewer-section-${this.objectName}">
+                <div class="logviewer-header" data-toggle="logviewer">
+                    <svg class="collapsible-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M6 9l6 6 6-6"/>
+                    </svg>
+                    <span class="logviewer-title">Логи</span>
+                    <div class="logviewer-controls" onclick="event.stopPropagation()">
+                        <div class="logviewer-status">
+                            <span class="logviewer-status-dot" id="log-status-dot-${this.objectName}"></span>
+                            <span id="log-status-text-${this.objectName}">Отключено</span>
+                        </div>
+                        <select class="log-level-select" id="log-level-${this.objectName}" title="Уровень логов">
+                            <option value="${LOG_LEVELS.CRIT}">CRIT</option>
+                            <option value="${LOG_LEVELS.CRIT | LOG_LEVELS.WARN}">WARN+</option>
+                            <option value="${LOG_LEVELS.CRIT | LOG_LEVELS.WARN | LOG_LEVELS.INFO}" selected>INFO+</option>
+                            <option value="${LOG_LEVELS.CRIT | LOG_LEVELS.WARN | LOG_LEVELS.INFO | LOG_LEVELS.DEBUG}">DEBUG+</option>
+                            <option value="${LOG_LEVELS.ANY}">ALL</option>
+                        </select>
+                        <input type="text" class="log-filter-input" id="log-filter-${this.objectName}"
+                               placeholder="Фильтр..." title="Фильтр по regexp">
+                        <button class="log-clear-btn" id="log-clear-${this.objectName}" title="Очистить">Очистить</button>
+                        <button class="log-connect-btn" id="log-connect-${this.objectName}">Подключить</button>
+                    </div>
+                </div>
+                <div class="logviewer-content">
+                    <div class="log-container" id="log-container-${this.objectName}" style="height: ${this.height}px">
+                        <div class="log-placeholder" id="log-placeholder-${this.objectName}">
+                            <span class="log-placeholder-icon">📋</span>
+                            <span>Нажмите "Подключить" для просмотра логов</span>
+                        </div>
+                        <div class="log-lines" id="log-lines-${this.objectName}" style="display: none"></div>
+                    </div>
+                    <div class="logviewer-resize-handle" id="log-resize-${this.objectName}"></div>
+                </div>
+            </div>
+        `;
+        this.container.innerHTML = html;
+    }
+
+    setupEventHandlers() {
+        // Toggle collapse
+        const header = this.container.querySelector('.logviewer-header');
+        header.addEventListener('click', (e) => {
+            if (e.target.closest('.logviewer-controls')) return;
+            this.toggleCollapse();
+        });
+
+        // Connect button
+        const connectBtn = document.getElementById(`log-connect-${this.objectName}`);
+        connectBtn.addEventListener('click', () => {
+            if (this.connected) {
+                this.disconnect();
+            } else {
+                this.connect();
+            }
+        });
+
+        // Clear button
+        const clearBtn = document.getElementById(`log-clear-${this.objectName}`);
+        clearBtn.addEventListener('click', () => this.clear());
+
+        // Level select
+        const levelSelect = document.getElementById(`log-level-${this.objectName}`);
+        levelSelect.addEventListener('change', (e) => {
+            this.currentLevel = parseInt(e.target.value);
+            if (this.connected) {
+                this.sendCommand('setLevel', this.currentLevel);
+            }
+        });
+
+        // Filter input
+        const filterInput = document.getElementById(`log-filter-${this.objectName}`);
+        let filterTimeout = null;
+        filterInput.addEventListener('input', (e) => {
+            clearTimeout(filterTimeout);
+            filterTimeout = setTimeout(() => {
+                this.filter = e.target.value;
+                if (this.connected) {
+                    this.sendCommand('setFilter', 0, this.filter);
+                }
+            }, 500);
+        });
+
+        // Resize handle
+        this.setupResize();
+
+        // Auto-scroll on container scroll
+        const logContainer = document.getElementById(`log-container-${this.objectName}`);
+        logContainer.addEventListener('scroll', () => {
+            const { scrollTop, scrollHeight, clientHeight } = logContainer;
+            this.autoScroll = scrollHeight - scrollTop - clientHeight < 50;
+        });
+    }
+
+    setupResize() {
+        const resizeHandle = document.getElementById(`log-resize-${this.objectName}`);
+        const logContainer = document.getElementById(`log-container-${this.objectName}`);
+
+        let startY = 0;
+        let startHeight = 0;
+        let isResizing = false;
+
+        const onMouseMove = (e) => {
+            if (!isResizing) return;
+            const delta = e.clientY - startY;
+            const newHeight = Math.max(100, Math.min(600, startHeight + delta));
+            logContainer.style.height = `${newHeight}px`;
+            this.height = newHeight;
+        };
+
+        const onMouseUp = () => {
+            if (!isResizing) return;
+            isResizing = false;
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            this.saveHeight();
+        };
+
+        resizeHandle.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            isResizing = true;
+            startY = e.clientY;
+            startHeight = logContainer.offsetHeight;
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+            document.body.style.cursor = 'ns-resize';
+            document.body.style.userSelect = 'none';
+        });
+    }
+
+    toggleCollapse() {
+        const section = document.getElementById(`logviewer-section-${this.objectName}`);
+        section.classList.toggle('collapsed');
+        this.saveCollapsedState();
+    }
+
+    connect() {
+        if (this.eventSource) {
+            this.eventSource.close();
+        }
+
+        this.updateStatus('connecting');
+
+        const filter = this.filter ? `?filter=${encodeURIComponent(this.filter)}` : '';
+        const url = `/api/logs/${encodeURIComponent(this.objectName)}/stream${filter}`;
+
+        this.eventSource = new EventSource(url);
+
+        this.eventSource.addEventListener('connected', (e) => {
+            this.connected = true;
+            this.updateStatus('connected');
+            this.showLogLines();
+
+            // Send initial level
+            this.sendCommand('setLevel', this.currentLevel);
+
+            try {
+                const data = JSON.parse(e.data);
+                console.log(`LogViewer: Connected to ${data.host}:${data.port}`);
+            } catch (err) {
+                console.log('LogViewer: Connected');
+            }
+        });
+
+        this.eventSource.addEventListener('log', (e) => {
+            this.addLine(e.data);
+        });
+
+        this.eventSource.addEventListener('disconnected', () => {
+            this.connected = false;
+            this.updateStatus('disconnected');
+            console.log('LogViewer: Disconnected');
+        });
+
+        this.eventSource.addEventListener('error', (e) => {
+            if (e.data) {
+                this.addLine(`[ERROR] ${e.data}`, 'error');
+            }
+            this.connected = false;
+            this.updateStatus('error');
+        });
+
+        this.eventSource.onerror = () => {
+            if (this.connected) {
+                this.connected = false;
+                this.updateStatus('error');
+            }
+        };
+    }
+
+    disconnect() {
+        if (this.eventSource) {
+            this.eventSource.close();
+            this.eventSource = null;
+        }
+        this.connected = false;
+        this.updateStatus('disconnected');
+    }
+
+    async sendCommand(command, level = 0, filter = '') {
+        try {
+            await fetch(`/api/logs/${encodeURIComponent(this.objectName)}/command`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command, level, filter })
+            });
+        } catch (err) {
+            console.error('LogViewer: Failed to send command', err);
+        }
+    }
+
+    addLine(text, type = '') {
+        const line = { text, type, timestamp: new Date() };
+        this.lines.push(line);
+
+        // Limit lines
+        if (this.lines.length > this.maxLines) {
+            this.lines = this.lines.slice(-this.maxLines);
+        }
+
+        this.renderLine(line);
+        this.scrollToBottom();
+    }
+
+    renderLine(line) {
+        const linesContainer = document.getElementById(`log-lines-${this.objectName}`);
+        if (!linesContainer) return;
+
+        const div = document.createElement('div');
+        div.className = 'log-line';
+
+        // Detect log level from text
+        const levelClass = this.detectLogLevel(line.text);
+        if (levelClass) {
+            div.classList.add(levelClass);
+        }
+        if (line.type === 'error') {
+            div.classList.add('log-level-crit');
+        }
+
+        div.textContent = line.text;
+        linesContainer.appendChild(div);
+    }
+
+    detectLogLevel(text) {
+        const lower = text.toLowerCase();
+        if (lower.includes('crit') || lower.includes('fatal') || lower.includes('error')) {
+            return 'log-level-crit';
+        }
+        if (lower.includes('warn')) {
+            return 'log-level-warn';
+        }
+        if (lower.includes('info')) {
+            return 'log-level-info';
+        }
+        if (lower.includes('debug') || lower.includes('level')) {
+            return 'log-level-debug';
+        }
+        return '';
+    }
+
+    scrollToBottom() {
+        if (!this.autoScroll) return;
+        const container = document.getElementById(`log-container-${this.objectName}`);
+        if (container) {
+            container.scrollTop = container.scrollHeight;
+        }
+    }
+
+    showLogLines() {
+        const placeholder = document.getElementById(`log-placeholder-${this.objectName}`);
+        const lines = document.getElementById(`log-lines-${this.objectName}`);
+        if (placeholder) placeholder.style.display = 'none';
+        if (lines) lines.style.display = 'block';
+    }
+
+    clear() {
+        this.lines = [];
+        const linesContainer = document.getElementById(`log-lines-${this.objectName}`);
+        if (linesContainer) {
+            linesContainer.innerHTML = '';
+        }
+    }
+
+    updateStatus(status) {
+        const dot = document.getElementById(`log-status-dot-${this.objectName}`);
+        const text = document.getElementById(`log-status-text-${this.objectName}`);
+        const btn = document.getElementById(`log-connect-${this.objectName}`);
+
+        if (!dot || !text || !btn) return;
+
+        dot.className = 'logviewer-status-dot';
+        btn.classList.remove('connected');
+
+        switch (status) {
+            case 'connected':
+                dot.classList.add('connected');
+                text.textContent = 'Подключено';
+                btn.textContent = 'Отключить';
+                btn.classList.add('connected');
+                break;
+            case 'connecting':
+                dot.classList.add('connecting');
+                text.textContent = 'Подключение...';
+                btn.textContent = 'Отмена';
+                break;
+            case 'error':
+                text.textContent = 'Ошибка';
+                btn.textContent = 'Подключить';
+                break;
+            default:
+                text.textContent = 'Отключено';
+                btn.textContent = 'Подключить';
+        }
+    }
+
+    saveHeight() {
+        try {
+            const heights = JSON.parse(localStorage.getItem('uniset2-viewer-logheights') || '{}');
+            heights[this.objectName] = this.height;
+            localStorage.setItem('uniset2-viewer-logheights', JSON.stringify(heights));
+        } catch (err) {
+            console.warn('Failed to save log height:', err);
+        }
+    }
+
+    loadSavedHeight() {
+        try {
+            const heights = JSON.parse(localStorage.getItem('uniset2-viewer-logheights') || '{}');
+            if (heights[this.objectName]) {
+                this.height = heights[this.objectName];
+                const container = document.getElementById(`log-container-${this.objectName}`);
+                if (container) {
+                    container.style.height = `${this.height}px`;
+                }
+            }
+        } catch (err) {
+            console.warn('Failed to load log height:', err);
+        }
+    }
+
+    saveCollapsedState() {
+        const section = document.getElementById(`logviewer-section-${this.objectName}`);
+        const collapsed = section.classList.contains('collapsed');
+        state.collapsedSections[`logviewer-${this.objectName}`] = collapsed;
+        saveCollapsedSections();
+    }
+
+    restoreCollapsedState() {
+        if (state.collapsedSections[`logviewer-${this.objectName}`]) {
+            const section = document.getElementById(`logviewer-section-${this.objectName}`);
+            section?.classList.add('collapsed');
+        }
+    }
+
+    destroy() {
+        this.disconnect();
+    }
+}
+
+// ============================================================================
+// Конец LogViewer
 // ============================================================================
 
 // Цвета для графиков

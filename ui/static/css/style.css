@@ -931,6 +931,269 @@ header h1 {
     margin-left: auto;
 }
 
+/* LogViewer styles */
+.logviewer-section {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    margin-bottom: 1rem;
+    overflow: hidden;
+}
+
+.logviewer-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1rem;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s ease;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.logviewer-header:hover {
+    background: var(--bg-hover);
+}
+
+.logviewer-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.logviewer-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-left: auto;
+}
+
+.logviewer-status {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.logviewer-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+}
+
+.logviewer-status-dot.connected {
+    background: var(--accent-green);
+}
+
+.logviewer-status-dot.connecting {
+    background: var(--accent-orange);
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+/* Log level selector */
+.log-level-select {
+    padding: 0.25rem 0.5rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 12px;
+    cursor: pointer;
+    outline: none;
+}
+
+.log-level-select:hover {
+    border-color: var(--accent-blue);
+}
+
+.log-level-select:focus {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 2px rgba(50, 116, 217, 0.2);
+}
+
+/* Log filter input */
+.log-filter-input {
+    padding: 0.25rem 0.5rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 12px;
+    width: 150px;
+    outline: none;
+}
+
+.log-filter-input::placeholder {
+    color: var(--text-muted);
+}
+
+.log-filter-input:focus {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 2px rgba(50, 116, 217, 0.2);
+}
+
+/* Log viewer content */
+.logviewer-content {
+    position: relative;
+    transition: max-height 0.2s ease;
+    overflow: hidden;
+}
+
+.logviewer-section.collapsed .logviewer-content {
+    display: none;
+}
+
+.logviewer-section.collapsed .logviewer-header {
+    border-bottom: none;
+}
+
+.log-container {
+    height: 200px;
+    min-height: 100px;
+    max-height: 600px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: var(--bg-primary);
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.log-lines {
+    padding: 0.5rem;
+}
+
+.log-line {
+    white-space: pre-wrap;
+    word-break: break-all;
+    padding: 0.125rem 0.25rem;
+    border-radius: 2px;
+}
+
+.log-line:hover {
+    background: var(--bg-hover);
+}
+
+/* Log level colors */
+.log-line.log-level-crit,
+.log-line.log-level-fatal {
+    color: var(--accent-red);
+    background: rgba(242, 73, 92, 0.1);
+}
+
+.log-line.log-level-warn,
+.log-line.log-level-warning {
+    color: var(--accent-orange);
+}
+
+.log-line.log-level-info {
+    color: var(--text-primary);
+}
+
+.log-line.log-level-debug,
+.log-line.log-level-level1,
+.log-line.log-level-level2,
+.log-line.log-level-level3 {
+    color: var(--text-secondary);
+}
+
+.log-line.log-level-any {
+    color: var(--text-muted);
+}
+
+/* Resize handle */
+.logviewer-resize-handle {
+    height: 6px;
+    background: var(--bg-tertiary);
+    cursor: ns-resize;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-top: 1px solid var(--border-color);
+    transition: background 0.15s ease;
+}
+
+.logviewer-resize-handle:hover {
+    background: var(--bg-hover);
+}
+
+.logviewer-resize-handle::after {
+    content: '';
+    width: 40px;
+    height: 2px;
+    background: var(--text-muted);
+    border-radius: 1px;
+}
+
+/* Log placeholder */
+.log-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 100px;
+    color: var(--text-muted);
+    font-size: 13px;
+    gap: 0.5rem;
+}
+
+.log-placeholder-icon {
+    font-size: 2rem;
+    opacity: 0.5;
+}
+
+/* Clear button */
+.log-clear-btn {
+    padding: 0.25rem 0.5rem;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.log-clear-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    border-color: var(--text-muted);
+}
+
+/* Connect/disconnect button */
+.log-connect-btn {
+    padding: 0.25rem 0.5rem;
+    background: var(--accent-blue);
+    border: none;
+    border-radius: 4px;
+    color: white;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.log-connect-btn:hover {
+    background: #4183e0;
+}
+
+.log-connect-btn.connected {
+    background: var(--accent-red);
+}
+
+.log-connect-btn.connected:hover {
+    background: #d93d4f;
+}
+
 /* Responsive */
 @media (max-width: 1200px) {
     .io-grid-3 {
