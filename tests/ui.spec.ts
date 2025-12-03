@@ -464,12 +464,12 @@ test.describe('UniSet2 Viewer UI', () => {
     const bufferSelect = page.locator('.log-buffer-select');
     await expect(bufferSelect).toBeVisible();
 
-    // По умолчанию 2000
-    await expect(bufferSelect).toHaveValue('2000');
+    // По умолчанию 10000
+    await expect(bufferSelect).toHaveValue('10000');
 
     // Проверяем наличие опций
     const options = bufferSelect.locator('option');
-    await expect(options).toHaveCount(5); // 500, 1000, 2000, 5000, 10000
+    await expect(options).toHaveCount(7); // 500, 1000, 2000, 5000, 10000, 20000, 50000
 
     // Меняем на 5000
     await bufferSelect.selectOption('5000');
@@ -484,10 +484,10 @@ test.describe('UniSet2 Viewer UI', () => {
 
     await page.waitForSelector('.logviewer-section', { timeout: 10000 });
 
-    // Проверяем наличие кнопки скачивания
+    // Проверяем наличие кнопки скачивания (дискета)
     const downloadBtn = page.locator('.log-download-btn');
     await expect(downloadBtn).toBeVisible();
-    await expect(downloadBtn).toHaveText('⬇');
+    await expect(downloadBtn).toHaveText('💾');
   });
 
   test('should have stats display', async ({ page }) => {
