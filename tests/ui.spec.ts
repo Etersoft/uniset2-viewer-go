@@ -216,4 +216,103 @@ test.describe('UniSet2 Viewer UI', () => {
     }
   });
 
+  // === LogViewer тесты ===
+
+  test('should display LogViewer section for objects with LogServer', async ({ page }) => {
+    await page.goto('/');
+
+    await page.waitForSelector('#objects-list li', { timeout: 10000 });
+    await page.locator('#objects-list li', { hasText: 'TestProc' }).click();
+
+    // Ждём загрузки данных объекта
+    await page.waitForSelector('.logviewer-section', { timeout: 10000 });
+
+    // Проверяем секцию Логи
+    await expect(page.locator('.logviewer-section')).toBeVisible();
+    await expect(page.locator('.logviewer-title')).toContainText('Логи');
+  });
+
+  test('should have log level selector with default option', async ({ page }) => {
+    await page.goto('/');
+
+    await page.waitForSelector('#objects-list li', { timeout: 10000 });
+    await page.locator('#objects-list li', { hasText: 'TestProc' }).click();
+
+    await page.waitForSelector('.logviewer-section', { timeout: 10000 });
+
+    // Проверяем селектор уровня логов
+    const levelSelect = page.locator('.log-level-select');
+    await expect(levelSelect).toBeVisible();
+
+    // По умолчанию выбрано "По умолчанию" (value="0")
+    await expect(levelSelect).toHaveValue('0');
+
+    // Проверяем наличие опций (опции внутри select скрыты, проверяем их количество)
+    const options = levelSelect.locator('option');
+    await expect(options).toHaveCount(6); // По умолчанию, CRIT, WARN+, INFO+, DEBUG+, ALL
+  });
+
+  test('should show connect button in LogViewer', async ({ page }) => {
+    await page.goto('/');
+
+    await page.waitForSelector('#objects-list li', { timeout: 10000 });
+    await page.locator('#objects-list li', { hasText: 'TestProc' }).click();
+
+    await page.waitForSelector('.logviewer-section', { timeout: 10000 });
+
+    // Проверяем кнопку подключения
+    const connectBtn = page.locator('.log-connect-btn');
+    await expect(connectBtn).toBeVisible();
+    await expect(connectBtn).toContainText('Подключить');
+  });
+
+  test('should show placeholder before connecting', async ({ page }) => {
+    await page.goto('/');
+
+    await page.waitForSelector('#objects-list li', { timeout: 10000 });
+    await page.locator('#objects-list li', { hasText: 'TestProc' }).click();
+
+    await page.waitForSelector('.logviewer-section', { timeout: 10000 });
+
+    // Проверяем placeholder
+    const placeholder = page.locator('.log-placeholder');
+    await expect(placeholder).toBeVisible();
+    await expect(placeholder).toContainText('Подключить');
+  });
+
+  test('should toggle LogViewer section collapse', async ({ page }) => {
+    await page.goto('/');
+
+    await page.waitForSelector('#objects-list li', { timeout: 10000 });
+    await page.locator('#objects-list li', { hasText: 'TestProc' }).click();
+
+    await page.waitForSelector('.logviewer-section', { timeout: 10000 });
+
+    const section = page.locator('.logviewer-section');
+    const content = page.locator('.logviewer-content');
+
+    // Секция должна быть развёрнута по умолчанию
+    await expect(content).toBeVisible();
+
+    // Кликаем на заголовок (на title, не на controls) для сворачивания
+    await page.locator('.logviewer-title').click();
+    await expect(section).toHaveClass(/collapsed/);
+
+    // Кликаем снова для разворачивания
+    await page.locator('.logviewer-title').click();
+    await expect(section).not.toHaveClass(/collapsed/);
+  });
+
+  test('should have resize handle in LogViewer', async ({ page }) => {
+    await page.goto('/');
+
+    await page.waitForSelector('#objects-list li', { timeout: 10000 });
+    await page.locator('#objects-list li', { hasText: 'TestProc' }).click();
+
+    await page.waitForSelector('.logviewer-section', { timeout: 10000 });
+
+    // Проверяем наличие resize handle
+    await expect(page.locator('.logviewer-resize-handle')).toBeVisible();
+  });
+
 });

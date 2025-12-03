@@ -105,6 +105,7 @@ type LogStream struct {
 	ObjectName string
 	Lines      chan string
 	cancel     context.CancelFunc
+	manager    *Manager // ссылка на менеджер для закрытия клиента
 }
 
 // NewLogStream создает новый стрим логов для объекта
@@ -139,6 +140,7 @@ func (m *Manager) NewLogStream(ctx context.Context, objectName string, host stri
 		ObjectName: objectName,
 		Lines:      lines,
 		cancel:     cancel,
+		manager:    m,
 	}
 
 	// Запускаем чтение логов
@@ -160,9 +162,13 @@ func (m *Manager) NewLogStream(ctx context.Context, objectName string, host stri
 	return stream, nil
 }
 
-// Close закрывает стрим логов
+// Close закрывает стрим логов и TCP соединение к LogServer
 func (ls *LogStream) Close() {
 	if ls.cancel != nil {
 		ls.cancel()
+	}
+	// Закрываем TCP соединение к LogServer
+	if ls.manager != nil {
+		ls.manager.RemoveClient(ls.ObjectName)
 	}
 }
