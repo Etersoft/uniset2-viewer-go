@@ -221,6 +221,10 @@ class BaseObjectRenderer {
                         <path d="M6 9l6 6 6-6"/>
                     </svg>
                     <span class="collapsible-title">I/O</span>
+                    <div class="io-filter-wrapper" onclick="event.stopPropagation()">
+                        <input type="text" class="io-filter-input io-filter-global" id="io-filter-global-${this.objectName}"
+                               placeholder="Фильтр..." data-object="${this.objectName}">
+                    </div>
                     <label class="io-sequential-toggle" onclick="event.stopPropagation()">
                         <input type="checkbox" id="io-sequential-${this.objectName}" onchange="toggleIOLayout('${this.objectName}')">
                         <span>Друг за другом</span>
@@ -242,10 +246,6 @@ class BaseObjectRenderer {
         return `
             <div class="collapsible-section io-section" data-section="${typeLower}-${this.objectName}" id="${typeLower}-section-${this.objectName}">
                 <div class="collapsible-header" onclick="toggleSection('${typeLower}-${this.objectName}')">
-                    <div class="io-filter-wrapper" onclick="event.stopPropagation()">
-                        <input type="text" class="io-filter-input" id="io-filter-${typeLower}-${this.objectName}"
-                               placeholder="Фильтр..." data-type="${typeLower}" data-object="${this.objectName}">
-                    </div>
                     <svg class="collapsible-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M6 9l6 6 6-6"/>
                     </svg>
@@ -280,10 +280,6 @@ class BaseObjectRenderer {
         return `
             <div class="collapsible-section io-section" data-section="timers-${this.objectName}" id="timers-section-${this.objectName}">
                 <div class="collapsible-header" onclick="toggleSection('timers-${this.objectName}')">
-                    <div class="io-filter-wrapper" onclick="event.stopPropagation()">
-                        <input type="text" class="io-filter-input" id="io-filter-timers-${this.objectName}"
-                               placeholder="Фильтр..." data-type="timers" data-object="${this.objectName}">
-                    </div>
                     <svg class="collapsible-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M6 9l6 6 6-6"/>
                     </svg>
@@ -1815,8 +1811,8 @@ function renderIO(objectName, type, ioData) {
         countBadge.textContent = entries.length;
     }
 
-    // Получаем текущий фильтр и закреплённые строки
-    const filterInput = document.getElementById(`io-filter-${type}-${objectName}`);
+    // Получаем текущий фильтр (глобальный) и закреплённые строки
+    const filterInput = document.getElementById(`io-filter-global-${objectName}`);
     const filterText = filterInput ? filterInput.value.toLowerCase() : '';
     const pinnedRows = getIOPinnedRows(objectName, type);
     const hasPinned = pinnedRows.size > 0;
@@ -2294,8 +2290,8 @@ function renderTimersTable(objectName, timers) {
     const tbody = document.getElementById(`timers-${objectName}`);
     if (!tbody) return;
 
-    // Получаем текущий фильтр и закреплённые строки
-    const filterInput = document.getElementById(`io-filter-timers-${objectName}`);
+    // Получаем текущий фильтр (глобальный) и закреплённые строки
+    const filterInput = document.getElementById(`io-filter-global-${objectName}`);
     const filterText = filterInput ? filterInput.value.toLowerCase() : '';
     const pinnedRows = getIOPinnedRows(objectName, 'timers');
     const hasPinned = pinnedRows.size > 0;
@@ -2954,9 +2950,11 @@ function loadIOLayoutState(objectName) {
 
 // IO Section resize, filter, and pin functionality
 function setupIOSections(objectName) {
+    // Setup global filter for all IO sections
+    setupIOGlobalFilter(objectName);
+
     ['inputs', 'outputs', 'timers'].forEach(type => {
         setupIOResize(objectName, type);
-        setupIOFilter(objectName, type);
         setupIOUnpinAll(objectName, type);
     });
 }
@@ -3030,27 +3028,30 @@ function loadIOHeight(objectName, type) {
     }
 }
 
-function setupIOFilter(objectName, type) {
-    const filterInput = document.getElementById(`io-filter-${type}-${objectName}`);
+function setupIOGlobalFilter(objectName) {
+    const filterInput = document.getElementById(`io-filter-global-${objectName}`);
     if (!filterInput) return;
 
     let filterTimeout = null;
 
+    const refilterAll = () => {
+        const tabState = state.tabs.get(objectName);
+        if (tabState) {
+            if (tabState.ioData?.in) {
+                renderIO(objectName, 'inputs', tabState.ioData.in);
+            }
+            if (tabState.ioData?.out) {
+                renderIO(objectName, 'outputs', tabState.ioData.out);
+            }
+            if (tabState.timersData) {
+                renderTimers(objectName, tabState.timersData);
+            }
+        }
+    };
+
     filterInput.addEventListener('input', (e) => {
         clearTimeout(filterTimeout);
-        filterTimeout = setTimeout(() => {
-            // Перерисовываем IO с новым фильтром
-            const tabState = state.tabs.get(objectName);
-            if (tabState) {
-                if (type === 'inputs' && tabState.ioData?.in) {
-                    renderIO(objectName, 'inputs', tabState.ioData.in);
-                } else if (type === 'outputs' && tabState.ioData?.out) {
-                    renderIO(objectName, 'outputs', tabState.ioData.out);
-                } else if (type === 'timers' && tabState.timersData) {
-                    renderTimers(objectName, tabState.timersData);
-                }
-            }
-        }, 200);
+        filterTimeout = setTimeout(refilterAll, 200);
     });
 
     // ESC to clear and blur
@@ -3058,17 +3059,7 @@ function setupIOFilter(objectName, type) {
         if (e.key === 'Escape') {
             filterInput.value = '';
             filterInput.blur();
-            // Перерисовываем
-            const tabState = state.tabs.get(objectName);
-            if (tabState) {
-                if (type === 'inputs' && tabState.ioData?.in) {
-                    renderIO(objectName, 'inputs', tabState.ioData.in);
-                } else if (type === 'outputs' && tabState.ioData?.out) {
-                    renderIO(objectName, 'outputs', tabState.ioData.out);
-                } else if (type === 'timers' && tabState.timersData) {
-                    renderTimers(objectName, tabState.timersData);
-                }
-            }
+            refilterAll();
         }
     });
 }

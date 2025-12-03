@@ -820,6 +820,12 @@ header h1 {
     height: 14px;
 }
 
+/* Global IO filter in header */
+.io-timers-section .io-filter-wrapper {
+    margin-left: 0.5rem;
+    margin-right: auto;
+}
+
 .io-filter-wrapper {
     margin-right: 0.5rem;
 }
