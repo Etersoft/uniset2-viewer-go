@@ -881,6 +881,22 @@ header h1 {
     overflow-x: hidden;
 }
 
+/* IO table (inputs/outputs) - first columns should be minimal width */
+.io-table-io th:nth-child(1),
+.io-table-io td:nth-child(1) {
+    width: 30px;
+}
+
+.io-table-io th:nth-child(2),
+.io-table-io td:nth-child(2) {
+    width: 80px;
+}
+
+.io-table-io th:nth-child(3),
+.io-table-io td:nth-child(3) {
+    width: 100px;
+}
+
 .io-resize-handle {
     height: 6px;
     background: var(--bg-tertiary);
@@ -1154,6 +1170,24 @@ header h1 {
     text-transform: none !important;
     font-size: 13px !important;
     letter-spacing: normal !important;
+}
+
+/* Spacer column between chart/title and type columns */
+.io-spacer-col {
+    padding: 0 !important;
+}
+
+/* Type and ID columns - minimal width (only for io-table-io) */
+.io-table-io th:nth-child(4),
+.io-table-io td:nth-child(4) {
+    width: 50px;
+    white-space: nowrap;
+}
+
+.io-table-io th:nth-child(5),
+.io-table-io td:nth-child(5) {
+    width: 50px;
+    white-space: nowrap;
 }
 
 /* LogViewer styles */

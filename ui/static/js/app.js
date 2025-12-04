@@ -246,7 +246,7 @@ class BaseObjectRenderer {
         return `
             <div class="io-section" id="${typeLower}-section-${this.objectName}" data-section="${typeLower}-${this.objectName}">
                 <div class="io-table-container" id="io-container-${typeLower}-${this.objectName}">
-                    <table class="variables-table io-table">
+                    <table class="variables-table io-table io-table-io">
                         <thead>
                             <tr>
                                 <th class="io-pin-col">
@@ -258,6 +258,7 @@ class BaseObjectRenderer {
                                     </svg>
                                     ${title} <span class="io-section-badge" id="${typeLower}-count-${this.objectName}">0</span>
                                 </th>
+                                <th class="io-spacer-col"></th>
                                 <th>Тип</th>
                                 <th>ID</th>
                                 <th>Имя</th>
@@ -1858,6 +1859,7 @@ function renderIO(objectName, type, ioData) {
                     </label>
                 </span>
             </td>
+            <td class="io-spacer-col"></td>
             <td><span class="variable-iotype iotype-${iotype.toLowerCase()}">${iotype}</span></td>
             <td>${io.id}</td>
             <td class="variable-name" title="${textname}">${io.name || key}</td>
