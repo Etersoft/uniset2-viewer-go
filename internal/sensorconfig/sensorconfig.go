@@ -53,10 +53,11 @@ type SensorConfig struct {
 }
 
 // XML parsing structures
+// Root element can have any name (UNISETPLC, Configure, etc.)
 type xmlRoot struct {
-	XMLName    xml.Name      `xml:"UNISETPLC"`
-	Sensors    xmlSensors    `xml:"sensors"`              // Direct sensors under root
-	ObjectsMap xmlObjectsMap `xml:"ObjectsMap"`           // Sensors under ObjectsMap
+	XMLName    xml.Name      // Accept any root element name
+	Sensors    xmlSensors    `xml:"sensors"`    // Direct sensors under root
+	ObjectsMap xmlObjectsMap `xml:"ObjectsMap"` // Sensors under ObjectsMap
 }
 
 type xmlObjectsMap struct {

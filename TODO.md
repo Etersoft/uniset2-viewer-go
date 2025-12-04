@@ -32,6 +32,81 @@
 
 ## В работе
 
+### Внешние датчики из SharedMemory (SM)
+
+**Цель:** Добавить возможность добавлять на графики датчики из конфига проекта, получая значения через HTTP API объекта SharedMemory.
+
+**Архитектура:**
+```
+┌─────────────┐     ┌─────────────────┐     ┌──────────────┐
+│   Browser   │────▶│  uniset2-viewer │────▶│     SM       │
+│   (UI)      │◀────│    (Go server)  │◀────│  /get?...    │
+└─────────────┘ SSE └─────────────────┘     └──────────────┘
+```
+
+**SM API:** `GET /api/v01/SharedMemory/get?id1,name2,id3&shortInfo`
+
+Ответ (shortInfo):
+```json
+{
+  "object": {"id": 5003, "name": "SharedMemory", "objectType": "IONotifyController", ...},
+  "sensors": [
+    {"id": 100, "name": "AI100_AS", "value": 0, "real_value": 0, "tv_sec": 1764866261, "tv_nsec": 952434117},
+    {"error": "not found", "name": "unknown_sensor"}
+  ]
+}
+```
+
+#### Этап 1: UI — Диалог выбора датчиков
+- [x] Кнопка "Добавить датчик" в `createChartsSection()` (в заголовке секции "Графики")
+- [x] HTML/CSS модального окна
+- [x] Загрузка списка датчиков через `GET /api/sensors` (+ fallback на `/api/sm/sensors`)
+- [x] Фильтрация по name, textname, iotype
+- [x] Обработка ESC: 1-й раз — сброс фильтра + убрать фокус, 2-й раз — закрытие окна
+- [x] Сохранение выбранных датчиков в localStorage (`uniset2-viewer-external-sensors-{objectName}`)
+- [x] Восстановление датчиков при открытии вкладки
+- [x] Endpoint `/api/sm/sensors` для загрузки датчиков из SharedMemory
+
+#### Этап 2: Backend — SM интеграция
+- [x] Config (`internal/config/config.go`):
+  - `--sm-url` — URL SharedMemory API (по умолчанию пусто = отключено)
+  - `--sm-poll-interval` — интервал опроса SM (по умолчанию как poll-interval)
+- [x] SM клиент (`internal/sm/client.go`):
+  - `GetValues(names []string) (map[string]SensorValue, error)` — запрос к `/get?...&shortInfo`
+  - Парсинг ответа SM
+- [x] API endpoints (`internal/api/handlers.go`):
+  - `POST /api/objects/{name}/external-sensors` — подписка `{sensors: ["name1", "name2"]}`
+  - `DELETE /api/objects/{name}/external-sensors/{sensor}` — отписка
+  - `GET /api/objects/{name}/external-sensors` — список подписанных с текущими значениями
+- [x] SM Poller (`internal/sm/poller.go`):
+  - Периодический опрос SM для подписанных датчиков
+  - Отправка данных через SSE (event type `"sensor_data"`)
+- [x] Сохранение истории в storage (для графиков и выгрузки)
+
+#### Этап 3: UI — Графики внешних датчиков
+- [x] Обработка SSE события `sensor_data`
+- [x] Создание графиков для внешних датчиков (как для обычных переменных)
+- [x] Восстановление подписок при загрузке страницы (из localStorage → POST subscribe)
+- [x] Кнопка удаления внешнего датчика с графика
+
+#### Этап 4: Тесты
+- [x] Playwright тесты для UI (`tests/external-sensors.spec.ts`):
+  - Отображение кнопки "+ Датчик"
+  - Открытие/закрытие модального окна
+  - Фильтрация датчиков
+  - ESC handling (очистка фильтра, закрытие)
+  - Добавление/удаление датчика
+  - Сохранение в localStorage
+- [x] Go тесты для SM клиента (`internal/sm/client_test.go`)
+- [x] Go тесты для SM poller (`internal/sm/poller_test.go`)
+- [x] Go тесты для External Sensors API (`internal/api/handlers_test.go`)
+
+**Привязка:** Датчики привязываются к конкретной вкладке/объекту (не глобально).
+
+**История:** Да, для графиков и возможности выгрузки.
+
+---
+
 ### LogServer клиент (чтение логов в реальном времени)
 
 **Цель:** Подключение к LogServer UniSet2 для чтения и отображения логов в UI.

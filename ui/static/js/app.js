@@ -78,6 +78,48 @@ function initSSE() {
         }
     });
 
+    // Обработка обновлений внешних датчиков из SM
+    eventSource.addEventListener('sensor_data', (e) => {
+        try {
+            const event = JSON.parse(e.data);
+            const objectName = event.objectName;
+            const sensor = event.data;
+
+            // Находим вкладку и график для этого датчика
+            const tabState = state.tabs.get(objectName);
+            if (tabState) {
+                const varName = `ext:${sensor.name}`;
+                const chartData = tabState.charts.get(varName);
+
+                if (chartData) {
+                    // Добавляем точку на график (формат {x: Date, y: value} для time scale)
+                    const timestamp = new Date(event.timestamp);
+                    const value = sensor.value;
+                    const dataPoint = { x: timestamp, y: value };
+
+                    chartData.chart.data.datasets[0].data.push(dataPoint);
+
+                    // Ограничиваем количество точек
+                    const maxPoints = 1000;
+                    if (chartData.chart.data.datasets[0].data.length > maxPoints) {
+                        chartData.chart.data.datasets[0].data.shift();
+                    }
+
+                    chartData.chart.update('none');
+
+                    // Обновляем значение в легенде
+                    const safeVarName = varName.replace(/:/g, '-');
+                    const legendEl = document.getElementById(`legend-value-${objectName}-${safeVarName}`);
+                    if (legendEl) {
+                        legendEl.textContent = formatValue(value);
+                    }
+                }
+            }
+        } catch (err) {
+            console.warn('SSE: Ошибка обработки sensor_data:', err);
+        }
+    });
+
     eventSource.onerror = (e) => {
         console.warn('SSE: Ошибка соединения');
         state.sse.connected = false;
@@ -206,6 +248,9 @@ class BaseObjectRenderer {
                         <path d="M6 9l6 6 6-6"/>
                     </svg>
                     <span class="collapsible-title">Графики</span>
+                    <button class="add-sensor-btn" onclick="event.stopPropagation(); openSensorDialog('${this.objectName}')" title="Добавить датчик на график">
+                        + Датчик
+                    </button>
                     <div class="section-reorder-buttons" onclick="event.stopPropagation()">
                         <button class="section-move-btn section-move-up" onclick="moveSectionUp('${this.objectName}', 'charts')" title="Переместить вверх">↑</button>
                         <button class="section-move-btn section-move-down" onclick="moveSectionDown('${this.objectName}', 'charts')" title="Переместить вниз">↓</button>
@@ -1592,17 +1637,33 @@ async function fetchSensors() {
     return response.json();
 }
 
+async function fetchSMSensors() {
+    const response = await fetch('/api/sm/sensors');
+    if (!response.ok) return { sensors: [], count: 0 };
+    return response.json();
+}
+
 // Загрузка конфигурации сенсоров
 async function loadSensorsConfig() {
     try {
-        const data = await fetchSensors();
+        // Сначала пробуем загрузить из конфига
+        let data = await fetchSensors();
+        let source = 'config';
+
+        // Если конфиг пуст, пробуем загрузить из SharedMemory
+        if (!data.sensors || data.sensors.length === 0) {
+            console.log('Конфиг датчиков пуст, загружаю из SharedMemory...');
+            data = await fetchSMSensors();
+            source = 'sm';
+        }
+
         if (data.sensors) {
             data.sensors.forEach(sensor => {
                 state.sensors.set(sensor.id, sensor);
                 state.sensorsByName.set(sensor.name, sensor);
             });
         }
-        console.log(`Загружено ${state.sensors.size} сенсоров`);
+        console.log(`Загружено ${state.sensors.size} сенсоров из ${source}`);
     } catch (err) {
         console.error('Ошибка загрузки конфигурации сенсоров:', err);
     }
@@ -1620,6 +1681,488 @@ function getSensorInfo(idOrName) {
 function isDiscreteSignal(sensor) {
     if (!sensor) return false;
     return sensor.isDiscrete === true || sensor.iotype === 'DI' || sensor.iotype === 'DO';
+}
+
+// === Sensor Dialog ===
+
+// Состояние диалога датчиков
+const sensorDialogState = {
+    objectName: null,
+    allSensors: [],
+    filteredSensors: [],
+    addedSensors: new Set() // датчики уже добавленные на график для текущего объекта
+};
+
+// Открыть диалог выбора датчика
+function openSensorDialog(objectName) {
+    sensorDialogState.objectName = objectName;
+
+    // Загрузить список уже добавленных внешних датчиков
+    sensorDialogState.addedSensors = getExternalSensorsFromStorage(objectName);
+
+    const overlay = document.getElementById('sensor-dialog-overlay');
+    const filterInput = document.getElementById('sensor-filter-input');
+
+    overlay.classList.add('visible');
+    filterInput.value = '';
+    filterInput.focus();
+
+    // Загрузить датчики если ещё не загружены
+    if (state.sensors.size === 0) {
+        renderSensorDialogContent('<div class="sensor-dialog-loading">Загрузка списка датчиков...</div>');
+        loadSensorsConfig().then(() => {
+            prepareSensorList();
+            renderSensorTable();
+        }).catch(err => {
+            renderSensorDialogContent('<div class="sensor-dialog-empty">Ошибка загрузки датчиков</div>');
+        });
+    } else {
+        prepareSensorList();
+        renderSensorTable();
+    }
+
+    // Обработчик фильтра
+    filterInput.oninput = () => {
+        filterSensors(filterInput.value);
+        renderSensorTable();
+    };
+
+    // Обработчик ESC
+    document.addEventListener('keydown', handleSensorDialogKeydown);
+}
+
+// Закрыть диалог
+function closeSensorDialog() {
+    const overlay = document.getElementById('sensor-dialog-overlay');
+    overlay.classList.remove('visible');
+    sensorDialogState.objectName = null;
+    document.removeEventListener('keydown', handleSensorDialogKeydown);
+}
+
+// Обработка ESC
+function handleSensorDialogKeydown(e) {
+    if (e.key === 'Escape') {
+        const filterInput = document.getElementById('sensor-filter-input');
+
+        // Если есть фильтр — сбросить его и убрать фокус
+        if (filterInput.value) {
+            filterInput.value = '';
+            filterInput.blur();
+            filterSensors('');
+            renderSensorTable();
+        } else {
+            // Иначе закрыть диалог
+            closeSensorDialog();
+        }
+        e.preventDefault();
+    }
+}
+
+// Подготовить список датчиков
+function prepareSensorList() {
+    sensorDialogState.allSensors = Array.from(state.sensors.values());
+    sensorDialogState.filteredSensors = [...sensorDialogState.allSensors];
+}
+
+// Фильтрация датчиков
+function filterSensors(query) {
+    if (!query) {
+        sensorDialogState.filteredSensors = [...sensorDialogState.allSensors];
+        return;
+    }
+
+    const lowerQuery = query.toLowerCase();
+    sensorDialogState.filteredSensors = sensorDialogState.allSensors.filter(sensor => {
+        return (sensor.name && sensor.name.toLowerCase().includes(lowerQuery)) ||
+               (sensor.textname && sensor.textname.toLowerCase().includes(lowerQuery)) ||
+               (sensor.iotype && sensor.iotype.toLowerCase().includes(lowerQuery));
+    });
+}
+
+// Рендер содержимого диалога
+function renderSensorDialogContent(html) {
+    document.getElementById('sensor-dialog-content').innerHTML = html;
+}
+
+// Рендер таблицы датчиков
+function renderSensorTable() {
+    const sensors = sensorDialogState.filteredSensors;
+    const countEl = document.getElementById('sensor-dialog-count');
+
+    countEl.textContent = `${sensors.length} датчиков`;
+
+    if (sensors.length === 0) {
+        renderSensorDialogContent('<div class="sensor-dialog-empty">Датчики не найдены</div>');
+        return;
+    }
+
+    const rows = sensors.map(sensor => {
+        const isAdded = sensorDialogState.addedSensors.has(sensor.name);
+        const btnText = isAdded ? '✓' : '+';
+        const btnDisabled = isAdded ? 'disabled' : '';
+        const btnTitle = isAdded ? 'Уже добавлен' : 'Добавить на график';
+
+        return `
+            <tr>
+                <td>
+                    <button class="sensor-add-btn" ${btnDisabled} title="${btnTitle}"
+                            onclick="addExternalSensor('${sensorDialogState.objectName}', '${sensor.name}')">${btnText}</button>
+                </td>
+                <td>${sensor.id}</td>
+                <td class="sensor-name">${escapeHtml(sensor.name)}</td>
+                <td>${escapeHtml(sensor.textname || '')}</td>
+                <td class="sensor-type">${sensor.iotype || ''}</td>
+            </tr>
+        `;
+    }).join('');
+
+    renderSensorDialogContent(`
+        <table class="sensor-table">
+            <thead>
+                <tr>
+                    <th style="width: 40px"></th>
+                    <th style="width: 60px">ID</th>
+                    <th>Имя</th>
+                    <th>Описание</th>
+                    <th style="width: 50px">Тип</th>
+                </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+        </table>
+    `);
+}
+
+// Экранирование HTML
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Подписаться на внешние датчики через API
+async function subscribeToExternalSensors(objectName, sensorNames) {
+    try {
+        const response = await fetch(`/api/objects/${encodeURIComponent(objectName)}/external-sensors`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sensors: sensorNames })
+        });
+        if (!response.ok) {
+            const err = await response.json();
+            console.warn('Ошибка подписки на датчики:', err.error || response.statusText);
+        }
+    } catch (err) {
+        console.warn('Ошибка подписки на датчики:', err);
+    }
+}
+
+// Отписаться от внешнего датчика через API
+async function unsubscribeFromExternalSensor(objectName, sensorName) {
+    try {
+        const response = await fetch(
+            `/api/objects/${encodeURIComponent(objectName)}/external-sensors/${encodeURIComponent(sensorName)}`,
+            { method: 'DELETE' }
+        );
+        if (!response.ok) {
+            const err = await response.json();
+            console.warn('Ошибка отписки от датчика:', err.error || response.statusText);
+        }
+    } catch (err) {
+        console.warn('Ошибка отписки от датчика:', err);
+    }
+}
+
+// Добавить внешний датчик на график
+function addExternalSensor(objectName, sensorName) {
+    const sensor = state.sensorsByName.get(sensorName);
+    if (!sensor) {
+        console.error('Датчик не найден:', sensorName);
+        return;
+    }
+
+    // Добавляем в список добавленных
+    sensorDialogState.addedSensors.add(sensorName);
+
+    // Сохраняем в localStorage
+    saveExternalSensorsToStorage(objectName, sensorDialogState.addedSensors);
+
+    // Создаём график для внешнего датчика
+    createExternalSensorChart(objectName, sensor);
+
+    // Обновляем таблицу (чтобы кнопка стала disabled)
+    renderSensorTable();
+
+    console.log(`Добавлен внешний датчик ${sensorName} для ${objectName}`);
+
+    // Подписываемся на датчик через API
+    subscribeToExternalSensors(objectName, [sensorName]);
+}
+
+// Создать график для внешнего датчика
+function createExternalSensorChart(objectName, sensor) {
+    const tabState = state.tabs.get(objectName);
+    if (!tabState) return;
+
+    const varName = `ext:${sensor.name}`; // Префикс ext: для внешних датчиков
+
+    // Проверяем, не создан ли уже график
+    if (tabState.charts.has(varName)) {
+        console.log(`График для ${varName} уже существует`);
+        return;
+    }
+
+    const displayName = sensor.textname || sensor.name;
+    const isDiscrete = isDiscreteSignal(sensor);
+    const color = getNextColor();
+
+    // Создаём панель графика
+    const chartsContainer = document.getElementById(`charts-${objectName}`);
+    if (!chartsContainer) return;
+
+    // Используем CSS-безопасный ID (заменяем : на -)
+    const safeVarName = varName.replace(/:/g, '-');
+
+    const chartDiv = document.createElement('div');
+    chartDiv.className = 'chart-panel external-sensor-chart';
+    chartDiv.id = `chart-panel-${objectName}-${safeVarName}`;
+    chartDiv.innerHTML = `
+        <div class="chart-panel-header">
+            <div class="chart-panel-info">
+                <span class="legend-color-picker" data-object="${objectName}" data-variable="${varName}" style="background:${color}" title="Нажмите для выбора цвета"></span>
+                <span class="chart-panel-title">${escapeHtml(displayName)}</span>
+                <span class="chart-panel-value" id="legend-value-${objectName}-${safeVarName}">--</span>
+                <span class="chart-panel-textname">${escapeHtml(sensor.name)}</span>
+                <span class="chart-panel-badge external-badge">SM</span>
+            </div>
+            <div class="chart-panel-right">
+                <label class="fill-toggle" title="Заливка фона">
+                    <input type="checkbox" id="fill-${objectName}-${safeVarName}" ${!isDiscrete ? 'checked' : ''}>
+                    <span class="fill-toggle-label">фон</span>
+                </label>
+                <button class="chart-remove-btn" title="Удалить с графика">✕</button>
+            </div>
+        </div>
+        <div class="chart-wrapper">
+            <canvas id="canvas-${objectName}-${safeVarName}"></canvas>
+        </div>
+    `;
+
+    chartsContainer.appendChild(chartDiv);
+
+    // Получаем диапазон времени
+    const timeRange = getTimeRangeForObject(objectName);
+    const fillEnabled = !isDiscrete;
+
+    // Создаём Chart.js график
+    const ctx = document.getElementById(`canvas-${objectName}-${safeVarName}`).getContext('2d');
+    const chartConfig = {
+        type: 'line',
+        data: {
+            datasets: [{
+                label: displayName,
+                data: [],
+                borderColor: color,
+                backgroundColor: `${color}20`,
+                fill: fillEnabled,
+                tension: 0,
+                stepped: isDiscrete ? 'before' : false,
+                pointRadius: 0,
+                borderWidth: isDiscrete ? 2 : 1.5
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            },
+            scales: {
+                x: {
+                    type: 'time',
+                    display: true,
+                    grid: {
+                        color: '#333840',
+                        drawBorder: false
+                    },
+                    ticks: {
+                        color: '#8a9099',
+                        maxTicksLimit: 10,
+                        display: true
+                    },
+                    time: {
+                        displayFormats: {
+                            second: 'HH:mm:ss',
+                            minute: 'HH:mm',
+                            hour: 'HH:mm'
+                        }
+                    },
+                    min: timeRange.min,
+                    max: timeRange.max
+                },
+                y: {
+                    display: true,
+                    position: 'left',
+                    beginAtZero: isDiscrete,
+                    suggestedMin: isDiscrete ? 0 : undefined,
+                    suggestedMax: isDiscrete ? 1.1 : undefined,
+                    grid: {
+                        color: '#333840',
+                        drawBorder: false
+                    },
+                    ticks: {
+                        color: '#8a9099',
+                        stepSize: isDiscrete ? 1 : undefined
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    backgroundColor: '#22252a',
+                    titleColor: '#d8dce2',
+                    bodyColor: '#d8dce2',
+                    borderColor: '#333840',
+                    borderWidth: 1
+                }
+            }
+        }
+    };
+
+    const chart = new Chart(ctx, chartConfig);
+
+    // Синхронизируем все графики после добавления нового
+    syncAllChartsTimeRange(objectName);
+
+    // Сохраняем в состояние (используем оригинальный varName для ключа)
+    tabState.charts.set(varName, {
+        chart,
+        isDiscrete,
+        displayName,
+        color,
+        safeVarName // сохраняем для обновления DOM элементов
+    });
+
+    // Устанавливаем начальное время если это первый график
+    if (!tabState.chartStartTime) {
+        tabState.chartStartTime = Date.now();
+    }
+
+    // Обработчик удаления
+    chartDiv.querySelector('.chart-remove-btn').addEventListener('click', () => {
+        removeExternalSensor(objectName, sensor.name);
+    });
+
+    // Обработчик чекбокса заливки
+    const fillCheckbox = document.getElementById(`fill-${objectName}-${safeVarName}`);
+    if (fillCheckbox) {
+        fillCheckbox.addEventListener('change', (e) => {
+            chart.data.datasets[0].fill = e.target.checked;
+            chart.update('none');
+        });
+    }
+
+    console.log(`Создан график для внешнего датчика ${varName}`);
+}
+
+// Удалить внешний датчик с графика
+function removeExternalSensor(objectName, sensorName) {
+    const tabState = state.tabs.get(objectName);
+    if (!tabState) return;
+
+    const varName = `ext:${sensorName}`;
+    const safeVarName = varName.replace(/:/g, '-');
+
+    // Удаляем график
+    const chartData = tabState.charts.get(varName);
+    if (chartData) {
+        chartData.chart.destroy();
+        tabState.charts.delete(varName);
+    }
+
+    // Удаляем DOM элемент (используем safeVarName)
+    const chartPanel = document.getElementById(`chart-panel-${objectName}-${safeVarName}`);
+    if (chartPanel) {
+        chartPanel.remove();
+    }
+
+    // Удаляем из localStorage
+    const addedSensors = getExternalSensorsFromStorage(objectName);
+    addedSensors.delete(sensorName);
+    saveExternalSensorsToStorage(objectName, addedSensors);
+
+    // Обновляем состояние диалога если открыт
+    if (sensorDialogState.objectName === objectName) {
+        sensorDialogState.addedSensors.delete(sensorName);
+        renderSensorTable();
+    }
+
+    console.log(`Удалён внешний датчик ${sensorName} для ${objectName}`);
+
+    // Отписываемся от датчика через API
+    unsubscribeFromExternalSensor(objectName, sensorName);
+}
+
+// Загрузить внешние датчики из localStorage
+function getExternalSensorsFromStorage(objectName) {
+    try {
+        const key = `uniset2-viewer-external-sensors-${objectName}`;
+        const data = localStorage.getItem(key);
+        if (data) {
+            return new Set(JSON.parse(data));
+        }
+    } catch (err) {
+        console.warn('Ошибка загрузки внешних датчиков:', err);
+    }
+    return new Set();
+}
+
+// Сохранить внешние датчики в localStorage
+function saveExternalSensorsToStorage(objectName, sensors) {
+    try {
+        const key = `uniset2-viewer-external-sensors-${objectName}`;
+        localStorage.setItem(key, JSON.stringify([...sensors]));
+    } catch (err) {
+        console.warn('Ошибка сохранения внешних датчиков:', err);
+    }
+}
+
+// Восстановить внешние датчики при открытии вкладки
+function restoreExternalSensors(objectName) {
+    const sensors = getExternalSensorsFromStorage(objectName);
+    if (sensors.size === 0) return;
+
+    // Ждём загрузки конфига сенсоров
+    const tryRestore = () => {
+        if (state.sensors.size === 0) {
+            setTimeout(tryRestore, 100);
+            return;
+        }
+
+        const restoredSensors = [];
+        sensors.forEach(sensorName => {
+            const sensor = state.sensorsByName.get(sensorName);
+            if (sensor) {
+                createExternalSensorChart(objectName, sensor);
+                restoredSensors.push(sensorName);
+            } else {
+                console.warn(`Внешний датчик ${sensorName} не найден в конфиге`);
+            }
+        });
+
+        // Подписываемся на все восстановленные датчики одним запросом
+        if (restoredSensors.length > 0) {
+            subscribeToExternalSensors(objectName, restoredSensors);
+        }
+
+        console.log(`Восстановлено ${restoredSensors.length} внешних датчиков для ${objectName}`);
+    };
+
+    tryRestore();
 }
 
 // UI функции
@@ -1721,6 +2264,9 @@ function createTab(name, objectType, initialData) {
 
     // Инициализация рендерера (настройка обработчиков и т.д.)
     renderer.initialize();
+
+    // Восстанавливаем внешние датчики из localStorage
+    restoreExternalSensors(name);
 
     // Обновляем состояние кнопок перемещения секций
     updateReorderButtons(name);

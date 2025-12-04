@@ -112,3 +112,35 @@ func (c *Client) GetObjectHelp(objectName string) (*HelpResponse, error) {
 
 	return &result, nil
 }
+
+// SMSensor описывает датчик из SharedMemory
+type SMSensor struct {
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Value    int64  `json:"value"`
+	Blocked  bool   `json:"blocked"`
+	Frozen   bool   `json:"frozen"`
+	ReadOnly bool   `json:"readonly"`
+}
+
+// SMSensorsResponse ответ от SM /sensors endpoint
+type SMSensorsResponse struct {
+	Count   int        `json:"count"`
+	Sensors []SMSensor `json:"sensors"`
+}
+
+// GetSMSensors возвращает список датчиков из SharedMemory
+func (c *Client) GetSMSensors() (*SMSensorsResponse, error) {
+	data, err := c.doGet("SharedMemory/sensors")
+	if err != nil {
+		return nil, err
+	}
+
+	var result SMSensorsResponse
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, fmt.Errorf("unmarshal failed: %w", err)
+	}
+
+	return &result, nil
+}

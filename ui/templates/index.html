@@ -61,6 +61,27 @@
         </div>
     </div>
 
+    <!-- Sensor Dialog Modal -->
+    <div class="sensor-dialog-overlay" id="sensor-dialog-overlay" onclick="if(event.target === this) closeSensorDialog()">
+        <div class="sensor-dialog">
+            <div class="sensor-dialog-header">
+                <span class="sensor-dialog-title">Добавить датчик на график</span>
+                <button class="sensor-dialog-close" onclick="closeSensorDialog()" title="Закрыть">&times;</button>
+            </div>
+            <div class="sensor-dialog-filter">
+                <input type="text" class="sensor-filter-input" id="sensor-filter-input"
+                       placeholder="Фильтр по имени, описанию, типу..." autocomplete="off">
+            </div>
+            <div class="sensor-dialog-content" id="sensor-dialog-content">
+                <div class="sensor-dialog-loading">Загрузка списка датчиков...</div>
+            </div>
+            <div class="sensor-dialog-footer">
+                <span id="sensor-dialog-count">0 датчиков</span>
+                <span id="sensor-dialog-hint">ESC — сбросить фильтр / закрыть</span>
+            </div>
+        </div>
+    </div>
+
     <script src="/static/js/app.js"></script>
 </body>
 </html>

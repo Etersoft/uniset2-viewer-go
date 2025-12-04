@@ -17,6 +17,7 @@ import (
 	"github.com/pv/uniset2-viewer-go/internal/logserver"
 	"github.com/pv/uniset2-viewer-go/internal/poller"
 	"github.com/pv/uniset2-viewer-go/internal/sensorconfig"
+	"github.com/pv/uniset2-viewer-go/internal/sm"
 	"github.com/pv/uniset2-viewer-go/internal/storage"
 	"github.com/pv/uniset2-viewer-go/internal/uniset"
 	"github.com/pv/uniset2-viewer-go/ui"
@@ -79,11 +80,32 @@ func main() {
 		sseHub.BroadcastObjectData(objectName, data)
 	})
 
+	// Create SM poller if configured
+	var smPoller *sm.Poller
+	if cfg.SMURL != "" {
+		smClient := sm.NewClient(cfg.SMURL)
+		smInterval := cfg.SMPollInterval
+		if smInterval == 0 {
+			smInterval = cfg.PollInterval
+		}
+		smPoller = sm.NewPoller(smClient, store, smInterval, func(update sm.SensorUpdate) {
+			sseHub.BroadcastSensorUpdate(update)
+		})
+		handlers.SetSMPoller(smPoller)
+		logger.Info("SM integration enabled", "url", cfg.SMURL, "poll_interval", smInterval)
+	}
+
 	// Start poller
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	go p.Run(ctx)
+
+	// Start SM poller if configured
+	if smPoller != nil {
+		smPoller.Start()
+		defer smPoller.Stop()
+	}
 
 	// Start HTTP server
 	addr := fmt.Sprintf(":%d", cfg.Port)

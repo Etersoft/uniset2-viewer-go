@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/pv/uniset2-viewer-go/internal/logger"
+	"github.com/pv/uniset2-viewer-go/internal/sm"
 	"github.com/pv/uniset2-viewer-go/internal/uniset"
 )
 
@@ -90,6 +91,16 @@ func (h *SSEHub) BroadcastObjectData(objectName string, data *uniset.ObjectData)
 		ObjectName: objectName,
 		Data:       data,
 		Timestamp:  time.Now(),
+	})
+}
+
+// BroadcastSensorUpdate отправляет обновление внешнего датчика клиентам
+func (h *SSEHub) BroadcastSensorUpdate(update sm.SensorUpdate) {
+	h.Broadcast(SSEEvent{
+		Type:       "sensor_data",
+		ObjectName: update.ObjectName,
+		Data:       update.Sensor,
+		Timestamp:  update.Timestamp,
 	})
 }
 

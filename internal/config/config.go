@@ -15,15 +15,17 @@ const (
 )
 
 type Config struct {
-	UnisetURL    string
-	Port         int
-	PollInterval time.Duration
-	Storage      StorageType
-	SQLitePath   string
-	HistoryTTL   time.Duration
-	LogFormat    string
-	LogLevel     string
-	ConFile      string
+	UnisetURL      string
+	Port           int
+	PollInterval   time.Duration
+	Storage        StorageType
+	SQLitePath     string
+	HistoryTTL     time.Duration
+	LogFormat      string
+	LogLevel       string
+	ConFile        string
+	SMURL          string        // URL SharedMemory API (пусто = отключено)
+	SMPollInterval time.Duration // Интервал опроса SM (0 = использовать PollInterval)
 }
 
 func Parse() *Config {
@@ -41,6 +43,8 @@ func Parse() *Config {
 	flag.StringVar(&cfg.LogFormat, "log-format", "text", "Log format: text or json")
 	flag.StringVar(&cfg.LogLevel, "log-level", "info", "Log level: debug, info, warn, error")
 	flag.StringVar(&cfg.ConFile, "confile", "", "UniSet2 XML configuration file (sensors metadata)")
+	flag.StringVar(&cfg.SMURL, "sm-url", "", "SharedMemory HTTP API URL (empty = disabled)")
+	flag.DurationVar(&cfg.SMPollInterval, "sm-poll-interval", 0, "SharedMemory polling interval (0 = use poll-interval)")
 
 	flag.Parse()
 
