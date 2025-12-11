@@ -112,6 +112,7 @@ func main() {
 	handlers.SetServerManager(serverMgr)
 	handlers.SetSSEHub(sseHub)
 	handlers.SetControlsEnabled(cfg.ConFile != "") // Controls visible only if confile specified
+	handlers.SetUIConfig(cfg.UI)
 
 	// Set IONC poller if available
 	if ioncPollerInstance != nil {

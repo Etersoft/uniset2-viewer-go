@@ -23,6 +23,29 @@ type ServerConfig struct {
 	Name string `yaml:"name,omitempty"` // человекочитаемое имя (опционально)
 }
 
+// UIConfig описывает настройки UI
+type UIConfig struct {
+	// true = клиентская фильтрация (UI), false = серверная фильтрация (default: false)
+	IONCUISensorsFilter  *bool `yaml:"ioncUISensorsFilter,omitempty"`
+	OPCUAUISensorsFilter *bool `yaml:"opcuaUISensorsFilter,omitempty"`
+}
+
+// GetIONCUISensorsFilter возвращает значение с учётом default (false)
+func (u *UIConfig) GetIONCUISensorsFilter() bool {
+	if u == nil || u.IONCUISensorsFilter == nil {
+		return false // default: серверная фильтрация
+	}
+	return *u.IONCUISensorsFilter
+}
+
+// GetOPCUAUISensorsFilter возвращает значение с учётом default (false)
+func (u *UIConfig) GetOPCUAUISensorsFilter() bool {
+	if u == nil || u.OPCUAUISensorsFilter == nil {
+		return false // default: серверная фильтрация
+	}
+	return *u.OPCUAUISensorsFilter
+}
+
 // stringSlice реализует flag.Value для множественных строковых флагов
 type stringSlice []string
 
@@ -38,6 +61,9 @@ func (s *stringSlice) Set(value string) error {
 type Config struct {
 	// Серверы UniSet2 (новый формат)
 	Servers []ServerConfig
+
+	// Настройки UI
+	UI *UIConfig
 
 	Addr           string // адрес для прослушивания (формат: :port или host:port)
 	PollInterval   time.Duration
@@ -82,13 +108,14 @@ func Parse() *Config {
 		cfg.Storage = StorageMemory
 	}
 
-	// Загрузка серверов из YAML конфига (если указан)
+	// Загрузка конфига из YAML (если указан)
 	if cfg.ConfigFile != "" {
-		yamlServers, err := LoadServersFromYAML(cfg.ConfigFile)
+		yamlConfig, err := LoadFromYAML(cfg.ConfigFile)
 		if err != nil {
 			slog.Error("Failed to load config file", "path", cfg.ConfigFile, "error", err)
 		} else {
-			cfg.Servers = yamlServers
+			cfg.Servers = yamlConfig.Servers
+			cfg.UI = yamlConfig.UI
 		}
 	}
 

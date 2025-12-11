@@ -13,6 +13,11 @@ const state = window.state = {
     capabilities: {
         smEnabled: false // по умолчанию SM отключен
     },
+    config: {
+        controlsEnabled: false,
+        ioncUISensorsFilter: false,  // false = серверная фильтрация (default)
+        opcuaUISensorsFilter: false  // false = серверная фильтрация (default)
+    },
     sse: {
         eventSource: null,
         connected: false,
@@ -1133,17 +1138,34 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
             tbody.innerHTML = '<tr><td colspan="9" class="ionc-loading">Загрузка...</td></tr>';
         }
 
+        // Проверяем режим фильтрации: false = серверная (default), true = UI
+        const useUIFilter = state.config.ioncUISensorsFilter;
+
         try {
-            const url = this.buildUrl(`/api/objects/${encodeURIComponent(this.objectName)}/ionc/sensors?offset=0&limit=${this.chunkSize}`);
+            let url = this.buildUrl(`/api/objects/${encodeURIComponent(this.objectName)}/ionc/sensors?offset=0&limit=${this.chunkSize}`);
+
+            // Серверная фильтрация (если не включена UI фильтрация)
+            if (!useUIFilter) {
+                if (this.filter) {
+                    url += `&filter=${encodeURIComponent(this.filter)}`;
+                }
+                if (this.typeFilter && this.typeFilter !== 'all') {
+                    url += `&iotype=${this.typeFilter}`;
+                }
+            }
+
             const response = await fetch(url);
             if (!response.ok) throw new Error('Failed to load sensors');
 
             const data = await response.json();
             this.totalCount = data.size || 0;
 
-            // Фильтруем локально
             let sensors = data.sensors || [];
-            sensors = this.applyLocalFilters(sensors);
+
+            // UI фильтрация (если включена)
+            if (useUIFilter) {
+                sensors = this.applyLocalFilters(sensors);
+            }
 
             this.allSensors = sensors;
             this.sensors = sensors; // Для совместимости с существующим кодом
@@ -1187,17 +1209,33 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
         this.isLoadingChunk = true;
         this.showLoadingIndicator(true);
 
+        // Проверяем режим фильтрации: false = серверная (default), true = UI
+        const useUIFilter = state.config.ioncUISensorsFilter;
+
         try {
             const nextOffset = this.allSensors.length;
-            const url = this.buildUrl(`/api/objects/${encodeURIComponent(this.objectName)}/ionc/sensors?offset=${nextOffset}&limit=${this.chunkSize}`);
+            let url = this.buildUrl(`/api/objects/${encodeURIComponent(this.objectName)}/ionc/sensors?offset=${nextOffset}&limit=${this.chunkSize}`);
+
+            // Серверная фильтрация (если не включена UI фильтрация)
+            if (!useUIFilter) {
+                if (this.filter) {
+                    url += `&filter=${encodeURIComponent(this.filter)}`;
+                }
+                if (this.typeFilter && this.typeFilter !== 'all') {
+                    url += `&iotype=${this.typeFilter}`;
+                }
+            }
+
             const response = await fetch(url);
             if (!response.ok) throw new Error('Failed to load more sensors');
 
             const data = await response.json();
             let newSensors = data.sensors || [];
 
-            // Применить локальные фильтры
-            newSensors = this.applyLocalFilters(newSensors);
+            // UI фильтрация (если включена)
+            if (useUIFilter) {
+                newSensors = this.applyLocalFilters(newSensors);
+            }
 
             // Добавить к уже загруженным
             this.allSensors = [...this.allSensors, ...newSensors];
@@ -2436,21 +2474,33 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
         const viewport = document.getElementById(`opcua-sensors-viewport-${this.objectName}`);
         if (viewport) viewport.scrollTop = 0;
 
+        // Проверяем режим фильтрации: false = серверная (default), true = UI
+        const useUIFilter = state.config.opcuaUISensorsFilter;
+
         try {
             let url = `/api/objects/${encodeURIComponent(this.objectName)}/opcua/sensors?limit=${this.chunkSize}&offset=0`;
-            if (this.filter) {
-                url += `&filter=${encodeURIComponent(this.filter)}`;
+
+            // Серверная фильтрация (если не включена UI фильтрация)
+            if (!useUIFilter) {
+                if (this.filter) {
+                    url += `&filter=${encodeURIComponent(this.filter)}`;
+                }
+                if (this.typeFilter && this.typeFilter !== 'all') {
+                    url += `&iotype=${this.typeFilter}`;
+                }
             }
+
             const data = await this.fetchJSON(url);
-            const sensors = data.sensors || [];
+            let sensors = data.sensors || [];
             this.sensorsTotal = typeof data.total === 'number' ? data.total : sensors.length;
 
-            // Apply type filter client-side
-            this.allSensors = this.typeFilter === 'all'
-                ? sensors
-                : sensors.filter(s => s.iotype === this.typeFilter);
+            // UI фильтрация (если включена)
+            if (useUIFilter) {
+                sensors = this.applyLocalFilters(sensors);
+            }
 
-            this.hasMore = sensors.length === this.chunkSize;
+            this.allSensors = sensors;
+            this.hasMore = (data.sensors?.length || 0) === this.chunkSize;
             this.updateVisibleRows();
             this.updateSensorCount();
             this.setNote(`opcua-sensors-note-${this.objectName}`, '');
@@ -2459,28 +2509,54 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
         }
     }
 
+    applyLocalFilters(sensors) {
+        let result = sensors;
+        if (this.filter) {
+            const filterLower = this.filter.toLowerCase();
+            result = result.filter(s =>
+                s.name?.toLowerCase().includes(filterLower) ||
+                String(s.id).includes(filterLower)
+            );
+        }
+        if (this.typeFilter && this.typeFilter !== 'all') {
+            result = result.filter(s => s.iotype === this.typeFilter);
+        }
+        return result;
+    }
+
     async loadMoreSensors() {
         if (this.isLoadingChunk || !this.hasMore) return;
 
         this.isLoadingChunk = true;
         this.showLoadingIndicator(true);
 
+        // Проверяем режим фильтрации: false = серверная (default), true = UI
+        const useUIFilter = state.config.opcuaUISensorsFilter;
+
         try {
             const nextOffset = this.allSensors.length;
             let url = `/api/objects/${encodeURIComponent(this.objectName)}/opcua/sensors?limit=${this.chunkSize}&offset=${nextOffset}`;
-            if (this.filter) {
-                url += `&filter=${encodeURIComponent(this.filter)}`;
+
+            // Серверная фильтрация (если не включена UI фильтрация)
+            if (!useUIFilter) {
+                if (this.filter) {
+                    url += `&filter=${encodeURIComponent(this.filter)}`;
+                }
+                if (this.typeFilter && this.typeFilter !== 'all') {
+                    url += `&iotype=${this.typeFilter}`;
+                }
             }
+
             const data = await this.fetchJSON(url);
-            const newSensors = data.sensors || [];
+            let newSensors = data.sensors || [];
 
-            // Apply type filter client-side
-            const filtered = this.typeFilter === 'all'
-                ? newSensors
-                : newSensors.filter(s => s.iotype === this.typeFilter);
+            // UI фильтрация (если включена)
+            if (useUIFilter) {
+                newSensors = this.applyLocalFilters(newSensors);
+            }
 
-            this.allSensors = [...this.allSensors, ...filtered];
-            this.hasMore = newSensors.length === this.chunkSize;
+            this.allSensors = [...this.allSensors, ...newSensors];
+            this.hasMore = (data.sensors?.length || 0) === this.chunkSize;
             this.updateVisibleRows();
             this.updateSensorCount();
         } catch (err) {
@@ -6759,8 +6835,25 @@ function loadSettings() {
     }
 }
 
+// Загрузка конфигурации приложения
+async function loadAppConfig() {
+    try {
+        const response = await fetch('/api/config');
+        if (response.ok) {
+            const config = await response.json();
+            state.config = { ...state.config, ...config };
+            console.log('App config loaded:', state.config);
+        }
+    } catch (err) {
+        console.warn('Failed to load app config:', err);
+    }
+}
+
 // Инициализация
 document.addEventListener('DOMContentLoaded', () => {
+    // Загружаем конфигурацию приложения (не блокируем загрузку объектов)
+    loadAppConfig();
+
     // Инициализация SSE для realtime обновлений (получаем capabilities при подключении)
     initSSE();
 

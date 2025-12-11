@@ -31,6 +31,7 @@ type Handlers struct {
 	ioncPoller      *ionc.Poller
 	serverManager   *server.Manager // менеджер нескольких серверов
 	controlsEnabled bool            // true if confile was specified (IONC controls visible)
+	uiConfig        *config.UIConfig
 }
 
 func NewHandlers(client *uniset.Client, store storage.Storage, p *poller.Poller, sensorCfg *sensorconfig.SensorConfig, pollInterval time.Duration) *Handlers {
@@ -67,6 +68,11 @@ func (h *Handlers) SetServerManager(mgr *server.Manager) {
 // SetControlsEnabled устанавливает доступность элементов управления IONC
 func (h *Handlers) SetControlsEnabled(enabled bool) {
 	h.controlsEnabled = enabled
+}
+
+// SetUIConfig устанавливает конфигурацию UI
+func (h *Handlers) SetUIConfig(cfg *config.UIConfig) {
+	h.uiConfig = cfg
 }
 
 // SetSSEHub устанавливает SSE hub
@@ -116,8 +122,17 @@ func (h *Handlers) writeError(w http.ResponseWriter, status int, message string)
 // GetConfig возвращает конфигурацию приложения для UI
 // GET /api/config
 func (h *Handlers) GetConfig(w http.ResponseWriter, r *http.Request) {
+	// Получаем значения с учётом defaults
+	var ioncUISensorsFilter, opcuaUISensorsFilter bool
+	if h.uiConfig != nil {
+		ioncUISensorsFilter = h.uiConfig.GetIONCUISensorsFilter()
+		opcuaUISensorsFilter = h.uiConfig.GetOPCUAUISensorsFilter()
+	}
+
 	h.writeJSON(w, map[string]interface{}{
-		"controlsEnabled": h.controlsEnabled,
+		"controlsEnabled":      h.controlsEnabled,
+		"ioncUISensorsFilter":  ioncUISensorsFilter,
+		"opcuaUISensorsFilter": opcuaUISensorsFilter,
 	})
 }
 
@@ -672,7 +687,7 @@ func (h *Handlers) GetExternalSensors(w http.ResponseWriter, r *http.Request) {
 // === IONotifyController API ===
 
 // GetIONCSensors возвращает список датчиков из IONotifyController объекта
-// GET /api/objects/{name}/ionc/sensors?offset=0&limit=100&server=...
+// GET /api/objects/{name}/ionc/sensors?offset=0&limit=100&filter=text&server=...
 func (h *Handlers) GetIONCSensors(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	if name == "" {
@@ -682,6 +697,7 @@ func (h *Handlers) GetIONCSensors(w http.ResponseWriter, r *http.Request) {
 
 	offset := 0
 	limit := 100
+	filter := r.URL.Query().Get("filter")
 
 	if offsetStr := r.URL.Query().Get("offset"); offsetStr != "" {
 		if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
@@ -702,7 +718,7 @@ func (h *Handlers) GetIONCSensors(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := client.GetIONCSensors(name, offset, limit)
+	result, err := client.GetIONCSensors(name, offset, limit, filter)
 	if err != nil {
 		h.writeError(w, http.StatusBadGateway, err.Error())
 		return

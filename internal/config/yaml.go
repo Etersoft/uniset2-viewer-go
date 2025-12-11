@@ -7,19 +7,20 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// ServersConfigFile представляет структуру YAML файла конфигурации
-type ServersConfigFile struct {
+// ConfigFile представляет структуру YAML файла конфигурации
+type ConfigFile struct {
 	Servers []ServerConfig `yaml:"servers"`
+	UI      *UIConfig      `yaml:"ui,omitempty"`
 }
 
-// LoadServersFromYAML загружает конфигурацию серверов из YAML файла
-func LoadServersFromYAML(path string) ([]ServerConfig, error) {
+// LoadFromYAML загружает полную конфигурацию из YAML файла
+func LoadFromYAML(path string) (*ConfigFile, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
 
-	var configFile ServersConfigFile
+	var configFile ConfigFile
 	if err := yaml.Unmarshal(data, &configFile); err != nil {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
@@ -31,5 +32,14 @@ func LoadServersFromYAML(path string) ([]ServerConfig, error) {
 		}
 	}
 
+	return &configFile, nil
+}
+
+// LoadServersFromYAML загружает конфигурацию серверов из YAML файла (для обратной совместимости)
+func LoadServersFromYAML(path string) ([]ServerConfig, error) {
+	configFile, err := LoadFromYAML(path)
+	if err != nil {
+		return nil, err
+	}
 	return configFile.Servers, nil
 }

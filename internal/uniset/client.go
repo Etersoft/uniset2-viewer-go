@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -234,20 +236,22 @@ type IONCLostConsumersResponse struct {
 }
 
 // GetIONCSensors возвращает список датчиков из IONotifyController объекта
-// GET /{objectName}/sensors?offset=N&limit=M
-func (c *Client) GetIONCSensors(objectName string, offset, limit int) (*IONCSensorsResponse, error) {
+// GET /{objectName}/sensors?offset=N&limit=M&filter=text
+func (c *Client) GetIONCSensors(objectName string, offset, limit int, filter string) (*IONCSensorsResponse, error) {
+	values := url.Values{}
+	if offset > 0 {
+		values.Set("offset", strconv.Itoa(offset))
+	}
+	if limit > 0 {
+		values.Set("limit", strconv.Itoa(limit))
+	}
+	if filter != "" {
+		values.Set("filter", filter)
+	}
+
 	path := fmt.Sprintf("%s/sensors", objectName)
-	if offset > 0 || limit > 0 {
-		path += "?"
-		if offset > 0 {
-			path += fmt.Sprintf("offset=%d", offset)
-		}
-		if limit > 0 {
-			if offset > 0 {
-				path += "&"
-			}
-			path += fmt.Sprintf("limit=%d", limit)
-		}
+	if encoded := values.Encode(); encoded != "" {
+		path += "?" + encoded
 	}
 
 	data, err := c.doGet(path)
