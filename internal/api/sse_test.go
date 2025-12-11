@@ -465,3 +465,337 @@ data: {"objectName":"TestProc"}
 		t.Errorf("expected second event=object_data, got %s", events[1]["event"])
 	}
 }
+
+// ============================================================================
+// Server Status SSE Tests
+// ============================================================================
+
+func TestSSEHubBroadcastServerStatus(t *testing.T) {
+	hub := NewSSEHub()
+	client := hub.AddClient("")
+	defer hub.RemoveClient(client)
+
+	// Broadcast server connected status
+	hub.BroadcastServerStatus("server1", "Server 1", true, "")
+
+	select {
+	case event := <-client.events:
+		if event.Type != "server_status" {
+			t.Errorf("expected type=server_status, got %s", event.Type)
+		}
+		if event.ServerID != "server1" {
+			t.Errorf("expected ServerID=server1, got %s", event.ServerID)
+		}
+		if event.ServerName != "Server 1" {
+			t.Errorf("expected ServerName=Server 1, got %s", event.ServerName)
+		}
+
+		// Check data content
+		data, ok := event.Data.(map[string]interface{})
+		if !ok {
+			t.Fatal("expected Data to be map[string]interface{}")
+		}
+		if data["connected"] != true {
+			t.Errorf("expected connected=true, got %v", data["connected"])
+		}
+		errorVal := data["lastError"]
+		if errorVal != nil && errorVal != "" {
+			t.Errorf("expected empty or nil lastError, got %v", data["lastError"])
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Error("did not receive server_status event")
+	}
+}
+
+func TestSSEHubBroadcastServerStatusDisconnected(t *testing.T) {
+	hub := NewSSEHub()
+	client := hub.AddClient("")
+	defer hub.RemoveClient(client)
+
+	// Broadcast server disconnected status with error
+	hub.BroadcastServerStatus("server1", "Server 1", false, "connection timeout")
+
+	select {
+	case event := <-client.events:
+		if event.Type != "server_status" {
+			t.Errorf("expected type=server_status, got %s", event.Type)
+		}
+
+		data, ok := event.Data.(map[string]interface{})
+		if !ok {
+			t.Fatal("expected Data to be map[string]interface{}")
+		}
+		if data["connected"] != false {
+			t.Errorf("expected connected=false, got %v", data["connected"])
+		}
+		if data["lastError"] != "connection timeout" {
+			t.Errorf("expected lastError='connection timeout', got %v", data["lastError"])
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Error("did not receive server_status event")
+	}
+}
+
+func TestSSEHubBroadcastServerStatusMultipleClients(t *testing.T) {
+	hub := NewSSEHub()
+
+	// Create multiple clients
+	client1 := hub.AddClient("")
+	client2 := hub.AddClient("")
+	client3 := hub.AddClient("TestProc") // This should also receive server_status
+
+	defer hub.RemoveClient(client1)
+	defer hub.RemoveClient(client2)
+	defer hub.RemoveClient(client3)
+
+	hub.BroadcastServerStatus("server1", "Server 1", true, "")
+
+	// All clients should receive the event (server_status is not filtered by object)
+	clients := []*sseClient{client1, client2, client3}
+	for i, client := range clients {
+		select {
+		case event := <-client.events:
+			if event.Type != "server_status" {
+				t.Errorf("client%d: expected type=server_status, got %s", i+1, event.Type)
+			}
+		case <-time.After(100 * time.Millisecond):
+			t.Errorf("client%d: did not receive server_status event", i+1)
+		}
+	}
+}
+
+// ============================================================================
+// Objects List SSE Tests
+// ============================================================================
+
+func TestSSEHubBroadcastObjectsList(t *testing.T) {
+	hub := NewSSEHub()
+	client := hub.AddClient("")
+	defer hub.RemoveClient(client)
+
+	objects := []string{"Proc1", "Proc2", "SharedMemory"}
+	hub.BroadcastObjectsList("server1", "Server 1", objects)
+
+	select {
+	case event := <-client.events:
+		if event.Type != "objects_list" {
+			t.Errorf("expected type=objects_list, got %s", event.Type)
+		}
+		if event.ServerID != "server1" {
+			t.Errorf("expected ServerID=server1, got %s", event.ServerID)
+		}
+		if event.ServerName != "Server 1" {
+			t.Errorf("expected ServerName=Server 1, got %s", event.ServerName)
+		}
+
+		// Check data content
+		data, ok := event.Data.(map[string]interface{})
+		if !ok {
+			t.Fatal("expected Data to be map[string]interface{}")
+		}
+
+		objectList, ok := data["objects"].([]string)
+		if !ok {
+			t.Fatal("expected objects to be []string")
+		}
+		if len(objectList) != 3 {
+			t.Errorf("expected 3 objects, got %d", len(objectList))
+		}
+
+		if data["connected"] != true {
+			t.Errorf("expected connected=true, got %v", data["connected"])
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Error("did not receive objects_list event")
+	}
+}
+
+func TestSSEHubBroadcastObjectsListEmpty(t *testing.T) {
+	hub := NewSSEHub()
+	client := hub.AddClient("")
+	defer hub.RemoveClient(client)
+
+	// Broadcast empty objects list
+	hub.BroadcastObjectsList("server1", "Server 1", []string{})
+
+	select {
+	case event := <-client.events:
+		if event.Type != "objects_list" {
+			t.Errorf("expected type=objects_list, got %s", event.Type)
+		}
+
+		data, ok := event.Data.(map[string]interface{})
+		if !ok {
+			t.Fatal("expected Data to be map[string]interface{}")
+		}
+
+		objectList, ok := data["objects"].([]string)
+		if !ok {
+			t.Fatal("expected objects to be []string")
+		}
+		if len(objectList) != 0 {
+			t.Errorf("expected 0 objects, got %d", len(objectList))
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Error("did not receive objects_list event")
+	}
+}
+
+func TestSSEHubBroadcastObjectsListMultipleClients(t *testing.T) {
+	hub := NewSSEHub()
+
+	client1 := hub.AddClient("")
+	client2 := hub.AddClient("TestProc") // Should also receive objects_list
+
+	defer hub.RemoveClient(client1)
+	defer hub.RemoveClient(client2)
+
+	objects := []string{"Proc1", "Proc2"}
+	hub.BroadcastObjectsList("server1", "Server 1", objects)
+
+	// All clients should receive the event
+	clients := []*sseClient{client1, client2}
+	for i, client := range clients {
+		select {
+		case event := <-client.events:
+			if event.Type != "objects_list" {
+				t.Errorf("client%d: expected type=objects_list, got %s", i+1, event.Type)
+			}
+		case <-time.After(100 * time.Millisecond):
+			t.Errorf("client%d: did not receive objects_list event", i+1)
+		}
+	}
+}
+
+// ============================================================================
+// Integration: Server Reconnect Flow
+// ============================================================================
+
+func TestSSEServerReconnectFlow(t *testing.T) {
+	hub := NewSSEHub()
+	client := hub.AddClient("")
+	defer hub.RemoveClient(client)
+
+	var receivedEvents []SSEEvent
+
+	// Simulate server disconnect
+	hub.BroadcastServerStatus("server1", "Server 1", false, "connection refused")
+
+	// Simulate server reconnect
+	hub.BroadcastServerStatus("server1", "Server 1", true, "")
+
+	// Simulate objects list update after reconnect
+	hub.BroadcastObjectsList("server1", "Server 1", []string{"Proc1", "Proc2"})
+
+	// Collect all events
+	timeout := time.After(200 * time.Millisecond)
+	for {
+		select {
+		case event := <-client.events:
+			receivedEvents = append(receivedEvents, event)
+		case <-timeout:
+			goto done
+		}
+	}
+done:
+
+	if len(receivedEvents) != 3 {
+		t.Errorf("expected 3 events, got %d", len(receivedEvents))
+	}
+
+	// First event: server disconnected
+	if len(receivedEvents) > 0 {
+		if receivedEvents[0].Type != "server_status" {
+			t.Errorf("expected first event type=server_status, got %s", receivedEvents[0].Type)
+		}
+		data := receivedEvents[0].Data.(map[string]interface{})
+		if data["connected"] != false {
+			t.Error("expected first event connected=false")
+		}
+	}
+
+	// Second event: server reconnected
+	if len(receivedEvents) > 1 {
+		if receivedEvents[1].Type != "server_status" {
+			t.Errorf("expected second event type=server_status, got %s", receivedEvents[1].Type)
+		}
+		data := receivedEvents[1].Data.(map[string]interface{})
+		if data["connected"] != true {
+			t.Error("expected second event connected=true")
+		}
+	}
+
+	// Third event: objects list
+	if len(receivedEvents) > 2 {
+		if receivedEvents[2].Type != "objects_list" {
+			t.Errorf("expected third event type=objects_list, got %s", receivedEvents[2].Type)
+		}
+	}
+}
+
+// ============================================================================
+// SSE Event JSON Serialization Tests
+// ============================================================================
+
+func TestSSEEventServerStatusJSON(t *testing.T) {
+	event := SSEEvent{
+		Type:       "server_status",
+		ServerID:   "server1",
+		ServerName: "Test Server",
+		Data: map[string]interface{}{
+			"connected": true,
+			"lastError": "",
+		},
+		Timestamp: time.Now(),
+	}
+
+	data, err := json.Marshal(event)
+	if err != nil {
+		t.Fatalf("failed to marshal SSEEvent: %v", err)
+	}
+
+	var decoded SSEEvent
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal SSEEvent: %v", err)
+	}
+
+	if decoded.Type != "server_status" {
+		t.Errorf("expected Type=server_status, got %s", decoded.Type)
+	}
+	if decoded.ServerID != "server1" {
+		t.Errorf("expected ServerID=server1, got %s", decoded.ServerID)
+	}
+}
+
+func TestSSEEventObjectsListJSON(t *testing.T) {
+	event := SSEEvent{
+		Type:       "objects_list",
+		ServerID:   "server1",
+		ServerName: "Test Server",
+		Data: map[string]interface{}{
+			"objects":   []string{"Proc1", "Proc2"},
+			"connected": true,
+		},
+		Timestamp: time.Now(),
+	}
+
+	data, err := json.Marshal(event)
+	if err != nil {
+		t.Fatalf("failed to marshal SSEEvent: %v", err)
+	}
+
+	var decoded map[string]interface{}
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal SSEEvent: %v", err)
+	}
+
+	if decoded["type"] != "objects_list" {
+		t.Errorf("expected type=objects_list, got %v", decoded["type"])
+	}
+
+	eventData := decoded["data"].(map[string]interface{})
+	objects := eventData["objects"].([]interface{})
+	if len(objects) != 2 {
+		t.Errorf("expected 2 objects, got %d", len(objects))
+	}
+}

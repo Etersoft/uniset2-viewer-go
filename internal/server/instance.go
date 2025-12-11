@@ -19,6 +19,12 @@ type ObjectEventCallback func(serverID, serverName, objectName string, data *uni
 // IONCEventCallback вызывается при обновлении IONC датчиков
 type IONCEventCallback func(serverID, serverName string, updates []ionc.SensorUpdate)
 
+// StatusEventCallback вызывается при изменении статуса подключения
+type StatusEventCallback func(serverID, serverName string, connected bool, lastError string)
+
+// ObjectsChangedCallback вызывается при изменении списка объектов (восстановление связи)
+type ObjectsChangedCallback func(serverID, serverName string, objects []string)
+
 // Instance представляет подключение к одному UniSet2 серверу
 type Instance struct {
 	Config     config.ServerConfig
@@ -26,11 +32,14 @@ type Instance struct {
 	Poller     *poller.Poller
 	IONCPoller *ionc.Poller
 
-	mu          sync.RWMutex
-	connected   bool
-	lastPoll    time.Time
-	lastError   string
-	objectCount int
+	mu               sync.RWMutex
+	connected        bool
+	lastPoll         time.Time
+	lastError        string
+	objectCount      int
+	statusCallback   StatusEventCallback
+	objectsCallback  ObjectsChangedCallback
+	healthInterval   time.Duration
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -46,6 +55,8 @@ func NewInstance(
 	supplier string,
 	objectCallback ObjectEventCallback,
 	ioncCallback IONCEventCallback,
+	statusCallback StatusEventCallback,
+	objectsCallback ObjectsChangedCallback,
 ) *Instance {
 	client := uniset.NewClientWithSupplier(cfg.URL, supplier)
 
@@ -76,16 +87,19 @@ func NewInstance(
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Instance{
-		Config:     cfg,
-		Client:     client,
-		Poller:     p,
-		IONCPoller: ioncPoller,
-		ctx:        ctx,
-		cancel:     cancel,
+		Config:          cfg,
+		Client:          client,
+		Poller:          p,
+		IONCPoller:      ioncPoller,
+		statusCallback:  statusCallback,
+		objectsCallback: objectsCallback,
+		healthInterval:  pollInterval, // используем poll interval для health check
+		ctx:             ctx,
+		cancel:          cancel,
 	}
 }
 
-// Start запускает все pollers
+// Start запускает все pollers и health check
 func (i *Instance) Start() {
 	i.wg.Add(1)
 	go func() {
@@ -95,7 +109,62 @@ func (i *Instance) Start() {
 
 	i.IONCPoller.Start()
 
+	// Запускаем health check goroutine
+	i.wg.Add(1)
+	go func() {
+		defer i.wg.Done()
+		i.runHealthCheck()
+	}()
+
 	slog.Info("Server instance started", "id", i.Config.ID, "url", i.Config.URL)
+}
+
+// runHealthCheck периодически проверяет доступность сервера
+func (i *Instance) runHealthCheck() {
+	serverName := i.Config.Name
+	if serverName == "" {
+		serverName = i.Config.URL
+	}
+
+	for {
+		i.mu.RLock()
+		interval := i.healthInterval
+		i.mu.RUnlock()
+
+		select {
+		case <-i.ctx.Done():
+			return
+		case <-time.After(interval):
+			i.checkHealth(serverName)
+		}
+	}
+}
+
+// checkHealth проверяет доступность сервера и обновляет статус
+func (i *Instance) checkHealth(serverName string) {
+	objects, err := i.Client.GetObjectList()
+
+	i.mu.RLock()
+	wasConnected := i.connected
+	i.mu.RUnlock()
+
+	if err != nil {
+		// Сервер недоступен
+		i.UpdateStatus(false, err)
+	} else {
+		// Сервер доступен
+		i.UpdateStatus(true, nil)
+		i.SetObjectCount(len(objects))
+
+		// Если связь восстановилась - уведомляем об обновлении списка объектов
+		if !wasConnected && i.objectsCallback != nil {
+			slog.Info("Server reconnected, updating objects list",
+				"id", i.Config.ID,
+				"objects", len(objects),
+			)
+			i.objectsCallback(i.Config.ID, serverName, objects)
+		}
+	}
 }
 
 // Stop останавливает все pollers
@@ -128,17 +197,49 @@ func (i *Instance) GetStatus() Status {
 	}
 }
 
+// SetHealthInterval изменяет интервал health check
+func (i *Instance) SetHealthInterval(interval time.Duration) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.healthInterval = interval
+	// Примечание: ticker будет обновлён при следующей итерации runHealthCheck
+}
+
 // UpdateStatus обновляет статус подключения
 func (i *Instance) UpdateStatus(connected bool, err error) {
 	i.mu.Lock()
-	defer i.mu.Unlock()
+
+	// Проверяем, изменился ли статус
+	statusChanged := i.connected != connected
+	prevConnected := i.connected
 
 	i.connected = connected
 	i.lastPoll = time.Now()
+	errStr := ""
 	if err != nil {
-		i.lastError = err.Error()
+		errStr = err.Error()
+		i.lastError = errStr
 	} else {
 		i.lastError = ""
+	}
+
+	callback := i.statusCallback
+	serverID := i.Config.ID
+	serverName := i.Config.Name
+	if serverName == "" {
+		serverName = i.Config.URL
+	}
+
+	i.mu.Unlock()
+
+	// Вызываем callback вне лока, только если статус изменился
+	if statusChanged && callback != nil {
+		slog.Info("Server status changed",
+			"id", serverID,
+			"connected", connected,
+			"was", prevConnected,
+		)
+		callback(serverID, serverName, connected, errStr)
 	}
 }
 

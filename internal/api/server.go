@@ -81,6 +81,10 @@ func (s *Server) setupRoutes(staticFS fs.FS) {
 	s.mux.HandleFunc("GET /api/servers/{id}/status", s.handlers.GetServerStatus)
 	s.mux.HandleFunc("GET /api/all-objects", s.handlers.GetAllObjectsWithServers)
 
+	// Settings API
+	s.mux.HandleFunc("GET /api/settings/poll-interval", s.handlers.GetPollInterval)
+	s.mux.HandleFunc("POST /api/settings/poll-interval", s.handlers.SetPollInterval)
+
 	// Application config for UI
 	s.mux.HandleFunc("GET /api/config", s.handlers.GetConfig)
 

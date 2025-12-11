@@ -1457,6 +1457,53 @@ func (h *Handlers) GetAllObjectsWithServers(w http.ResponseWriter, r *http.Reque
 	})
 }
 
+// GetPollInterval возвращает текущий интервал опроса
+// GET /api/settings/poll-interval
+func (h *Handlers) GetPollInterval(w http.ResponseWriter, r *http.Request) {
+	if h.serverManager == nil {
+		h.writeJSON(w, map[string]interface{}{
+			"interval": h.pollInterval.Milliseconds(),
+		})
+		return
+	}
+
+	h.writeJSON(w, map[string]interface{}{
+		"interval": h.serverManager.GetPollInterval().Milliseconds(),
+	})
+}
+
+// SetPollInterval изменяет интервал опроса
+// POST /api/settings/poll-interval
+func (h *Handlers) SetPollInterval(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Interval int64 `json:"interval"` // миллисекунды
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	// Валидация: минимум 1 секунда, максимум 5 минут
+	if req.Interval < 1000 || req.Interval > 300000 {
+		h.writeError(w, http.StatusBadRequest, "interval must be between 1000ms and 300000ms")
+		return
+	}
+
+	interval := time.Duration(req.Interval) * time.Millisecond
+
+	if h.serverManager != nil {
+		h.serverManager.SetPollInterval(interval)
+	}
+
+	h.pollInterval = interval
+
+	h.writeJSON(w, map[string]interface{}{
+		"interval": interval.Milliseconds(),
+		"status":   "ok",
+	})
+}
+
 // generateServerID генерирует ID из URL (копия из config, чтобы не экспортировать)
 func generateServerID(url string) string {
 	// Простой хэш из URL

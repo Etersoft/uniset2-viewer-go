@@ -789,6 +789,78 @@ test.describe('UniSet2 Viewer UI', () => {
     expect(afterClear).toBeNull();
   });
 
+  test('should display server status indicators in header for multi-server setup', async ({ page }) => {
+    // Мокаем ответ API с несколькими серверами
+    await page.route('**/api/all-objects', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          count: 2,
+          objects: [
+            { serverId: 'srv1', serverName: 'Server1', connected: true, objects: ['Obj1'] },
+            { serverId: 'srv2', serverName: 'Server2', connected: false, objects: ['Obj2'] }
+          ]
+        })
+      });
+    });
+
+    await page.route('**/api/servers', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          count: 2,
+          servers: [
+            { id: 'srv1', url: 'http://server1', name: 'Server1', connected: true },
+            { id: 'srv2', url: 'http://server2', name: 'Server2', connected: false }
+          ]
+        })
+      });
+    });
+
+    await page.goto('/');
+    await page.waitForSelector('#objects-list li', { timeout: 10000 });
+
+    // Проверяем что контейнер индикаторов серверов появился
+    const statusContainer = page.locator('#servers-status');
+    await expect(statusContainer).toBeVisible();
+
+    // Проверяем индикаторы
+    const connectedIndicator = page.locator('.server-indicator[data-server-id="srv1"]');
+    await expect(connectedIndicator).toBeVisible();
+    await expect(connectedIndicator).toHaveClass(/connected/);
+
+    const disconnectedIndicator = page.locator('.server-indicator[data-server-id="srv2"]');
+    await expect(disconnectedIndicator).toBeVisible();
+    await expect(disconnectedIndicator).toHaveClass(/disconnected/);
+
+    // Проверяем имена серверов
+    await expect(connectedIndicator.locator('.server-indicator-name')).toHaveText('Server1');
+    await expect(disconnectedIndicator.locator('.server-indicator-name')).toHaveText('Server2');
+  });
+
+  test('should hide server status indicators for single server setup', async ({ page }) => {
+    // Мокаем ответ API с одним сервером
+    await page.route('**/api/servers', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          count: 1,
+          servers: [{ id: 'srv1', url: 'http://server1', name: 'Server1', connected: true }]
+        })
+      });
+    });
+
+    await page.goto('/');
+    await page.waitForSelector('#objects-list li', { timeout: 10000 });
+
+    // Контейнер должен быть пустым (CSS :empty скрывает его)
+    const statusContainer = page.locator('#servers-status');
+    await expect(statusContainer).toBeEmpty();
+  });
+
   test('should show correct tooltip for server badges', async ({ page }) => {
     // Мокаем ответ API
     await page.route('**/api/all-objects', async route => {
@@ -840,6 +912,233 @@ test.describe('UniSet2 Viewer UI', () => {
     // Проверяем title для отключённого сервера (содержит "(отключен)")
     const disconnectedBadge = page.locator('#objects-list li .server-badge', { hasText: 'Server2' });
     await expect(disconnectedBadge).toHaveAttribute('title', 'Сервер: Server2 (отключен)');
+  });
+
+  test('should disable tab panel when server disconnects', async ({ page }) => {
+    // Мокаем API для получения списка объектов
+    await page.route('**/api/all-objects', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          count: 1,
+          objects: [
+            {
+              serverId: 'srv1',
+              serverName: 'Server1',
+              connected: true,
+              objects: ['TestProc']
+            }
+          ]
+        })
+      });
+    });
+
+    // Мокаем API для данных объекта
+    await page.route('**/api/objects/TestProc**', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          object: {
+            Name: 'TestProc',
+            Variables: { var1: '100' }
+          }
+        })
+      });
+    });
+
+    // Мокаем API серверов
+    await page.route('**/api/servers', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          count: 1,
+          servers: [
+            { id: 'srv1', url: 'http://server1', name: 'Server1', connected: true }
+          ]
+        })
+      });
+    });
+
+    await page.goto('/');
+    await page.waitForSelector('#objects-list li');
+
+    // Открываем таб
+    await page.click('#objects-list li');
+    await page.waitForSelector('.tab-panel.active');
+
+    // Проверяем что таб активен и не имеет класса server-disconnected
+    const tabPanel = page.locator('.tab-panel.active');
+    await expect(tabPanel).not.toHaveClass(/server-disconnected/);
+
+    const tabBtn = page.locator('.tab-btn[data-server-id="srv1"]');
+    await expect(tabBtn).not.toHaveClass(/server-disconnected/);
+
+    // Симулируем SSE событие отключения сервера
+    await page.evaluate(() => {
+      const event = new CustomEvent('server_status_test');
+      // Вызываем функцию updateServerStatus напрямую
+      (window as any).updateServerStatus?.('srv1', false);
+    });
+
+    // Ждем применения класса
+    await page.waitForTimeout(100);
+
+    // Проверяем что таб стал неактивным
+    await expect(tabPanel).toHaveClass(/server-disconnected/);
+    await expect(tabBtn).toHaveClass(/server-disconnected/);
+  });
+
+  test('should re-enable tab panel when server reconnects', async ({ page }) => {
+    // Мокаем API для получения списка объектов
+    await page.route('**/api/all-objects', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          count: 1,
+          objects: [
+            {
+              serverId: 'srv1',
+              serverName: 'Server1',
+              connected: true,
+              objects: ['TestProc']
+            }
+          ]
+        })
+      });
+    });
+
+    // Мокаем API для данных объекта
+    await page.route('**/api/objects/TestProc**', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          object: {
+            Name: 'TestProc',
+            Variables: { var1: '100' }
+          }
+        })
+      });
+    });
+
+    // Мокаем API серверов
+    await page.route('**/api/servers', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          count: 1,
+          servers: [
+            { id: 'srv1', url: 'http://server1', name: 'Server1', connected: true }
+          ]
+        })
+      });
+    });
+
+    await page.goto('/');
+    await page.waitForSelector('#objects-list li');
+
+    // Открываем таб
+    await page.click('#objects-list li');
+    await page.waitForSelector('.tab-panel.active');
+
+    const tabPanel = page.locator('.tab-panel.active');
+    const tabBtn = page.locator('.tab-btn[data-server-id="srv1"]');
+
+    // Симулируем отключение сервера
+    await page.evaluate(() => {
+      (window as any).updateServerStatus?.('srv1', false);
+    });
+    await page.waitForTimeout(100);
+
+    // Проверяем что таб стал неактивным
+    await expect(tabPanel).toHaveClass(/server-disconnected/);
+    await expect(tabBtn).toHaveClass(/server-disconnected/);
+
+    // Симулируем восстановление связи
+    await page.evaluate(() => {
+      (window as any).updateServerStatus?.('srv1', true);
+    });
+    await page.waitForTimeout(100);
+
+    // Проверяем что таб снова активен
+    await expect(tabPanel).not.toHaveClass(/server-disconnected/);
+    await expect(tabBtn).not.toHaveClass(/server-disconnected/);
+  });
+
+  test('should show overlay message when tab is disabled', async ({ page }) => {
+    // Мокаем API для получения списка объектов
+    await page.route('**/api/all-objects', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          count: 1,
+          objects: [
+            {
+              serverId: 'srv1',
+              serverName: 'Server1',
+              connected: true,
+              objects: ['TestProc']
+            }
+          ]
+        })
+      });
+    });
+
+    // Мокаем API для данных объекта
+    await page.route('**/api/objects/TestProc**', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          object: {
+            Name: 'TestProc',
+            Variables: { var1: '100' }
+          }
+        })
+      });
+    });
+
+    // Мокаем API серверов
+    await page.route('**/api/servers', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          count: 1,
+          servers: [
+            { id: 'srv1', url: 'http://server1', name: 'Server1', connected: true }
+          ]
+        })
+      });
+    });
+
+    await page.goto('/');
+    await page.waitForSelector('#objects-list li');
+
+    // Открываем таб
+    await page.click('#objects-list li');
+    await page.waitForSelector('.tab-panel.active');
+
+    const tabPanel = page.locator('.tab-panel.active');
+
+    // Симулируем отключение сервера
+    await page.evaluate(() => {
+      (window as any).updateServerStatus?.('srv1', false);
+    });
+    await page.waitForTimeout(100);
+
+    // Проверяем наличие CSS ::after с текстом через computed style
+    const hasOverlay = await tabPanel.evaluate((el) => {
+      const style = window.getComputedStyle(el, '::after');
+      return style.content.includes('Сервер недоступен');
+    });
+    expect(hasOverlay).toBe(true);
   });
 
 });

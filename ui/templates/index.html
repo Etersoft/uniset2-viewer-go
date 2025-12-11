@@ -16,6 +16,17 @@
         <header>
             <h1>UniSet2 Viewer</h1>
             <div class="header-controls">
+                <div class="poll-interval-selector" id="poll-interval-selector" title="Интервал опроса серверов">
+                    <span class="poll-interval-label">Poll:</span>
+                    <div class="poll-interval-buttons">
+                        <button class="poll-btn" data-interval="1000">1s</button>
+                        <button class="poll-btn" data-interval="5000">5s</button>
+                        <button class="poll-btn" data-interval="10000">10s</button>
+                        <button class="poll-btn" data-interval="30000">30s</button>
+                        <button class="poll-btn" data-interval="60000">1m</button>
+                        <button class="poll-btn" data-interval="300000">5m</button>
+                    </div>
+                </div>
                 <div class="servers-status" id="servers-status" title="Статус серверов UniSet2">
                     <!-- Динамически заполняется из JS -->
                 </div>

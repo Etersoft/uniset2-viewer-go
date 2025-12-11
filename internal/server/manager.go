@@ -40,11 +40,10 @@ type Manager struct {
 	supplier     string // supplier name for set/freeze/unfreeze
 
 	// Callbacks для SSE
-	objectCallback ObjectEventCallback
-	ioncCallback   IONCEventCallback
-
-	// Callback при изменении статуса сервера
-	statusCallback func(status Status)
+	objectCallback  ObjectEventCallback
+	ioncCallback    IONCEventCallback
+	statusCallback  StatusEventCallback
+	objectsCallback ObjectsChangedCallback
 }
 
 // NewManager создаёт новый менеджер серверов
@@ -78,10 +77,17 @@ func (m *Manager) SetIONCCallback(cb IONCEventCallback) {
 }
 
 // SetStatusCallback устанавливает callback для изменения статуса серверов
-func (m *Manager) SetStatusCallback(cb func(status Status)) {
+func (m *Manager) SetStatusCallback(cb StatusEventCallback) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.statusCallback = cb
+}
+
+// SetObjectsCallback устанавливает callback для обновления списка объектов
+func (m *Manager) SetObjectsCallback(cb ObjectsChangedCallback) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.objectsCallback = cb
 }
 
 // AddServer добавляет новый сервер
@@ -107,6 +113,8 @@ func (m *Manager) AddServer(cfg config.ServerConfig) error {
 		m.supplier,
 		m.objectCallback,
 		m.ioncCallback,
+		m.statusCallback,
+		m.objectsCallback,
 	)
 
 	m.instances[cfg.ID] = instance
@@ -167,6 +175,28 @@ func (m *Manager) ListServers() []Status {
 		result = append(result, instance.GetStatus())
 	}
 	return result
+}
+
+// GetPollInterval возвращает текущий интервал опроса
+func (m *Manager) GetPollInterval() time.Duration {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.pollInterval
+}
+
+// SetPollInterval изменяет интервал опроса для всех серверов
+func (m *Manager) SetPollInterval(interval time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.pollInterval = interval
+
+	// Обновляем интервал для всех экземпляров
+	for _, instance := range m.instances {
+		instance.SetHealthInterval(interval)
+	}
+
+	slog.Info("Poll interval changed", "interval", interval)
 }
 
 // GetAllObjects возвращает объекты со всех серверов (плоский список)

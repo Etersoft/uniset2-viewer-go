@@ -1994,3 +1994,237 @@ func TestGetIONCLostConsumers_InvalidServer(t *testing.T) {
 		t.Errorf("expected status 404 for invalid server, got %d", w.Code)
 	}
 }
+
+// ============================================================================
+// Poll Interval API Tests
+// ============================================================================
+
+func TestGetPollInterval(t *testing.T) {
+	unisetServer := mockUnisetServer()
+	defer unisetServer.Close()
+
+	handlers := setupTestHandlers(unisetServer)
+
+	req := httptest.NewRequest("GET", "/api/settings/poll-interval", nil)
+	w := httptest.NewRecorder()
+
+	handlers.GetPollInterval(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	var response map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+
+	interval, ok := response["interval"].(float64)
+	if !ok {
+		t.Fatal("expected interval field in response")
+	}
+
+	// Default interval is 5 seconds = 5000ms
+	if interval != 5000 {
+		t.Errorf("expected interval=5000, got %v", interval)
+	}
+}
+
+func TestGetPollInterval_WithServerManager(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]string{})
+	}))
+	defer server.Close()
+
+	handlers := setupTestHandlersWithServerManager(map[string]*httptest.Server{
+		"server1": server,
+	})
+
+	req := httptest.NewRequest("GET", "/api/settings/poll-interval", nil)
+	w := httptest.NewRecorder()
+
+	handlers.GetPollInterval(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	var response map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &response)
+
+	_, ok := response["interval"].(float64)
+	if !ok {
+		t.Error("expected interval field in response")
+	}
+}
+
+func TestSetPollInterval(t *testing.T) {
+	unisetServer := mockUnisetServer()
+	defer unisetServer.Close()
+
+	handlers := setupTestHandlers(unisetServer)
+
+	body := `{"interval": 10000}`
+	req := httptest.NewRequest("POST", "/api/settings/poll-interval", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.SetPollInterval(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var response map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+
+	interval, ok := response["interval"].(float64)
+	if !ok {
+		t.Fatal("expected interval field in response")
+	}
+
+	if interval != 10000 {
+		t.Errorf("expected interval=10000, got %v", interval)
+	}
+
+	if response["status"] != "ok" {
+		t.Errorf("expected status=ok, got %v", response["status"])
+	}
+
+	// Verify the interval was actually changed
+	req = httptest.NewRequest("GET", "/api/settings/poll-interval", nil)
+	w = httptest.NewRecorder()
+	handlers.GetPollInterval(w, req)
+
+	json.Unmarshal(w.Body.Bytes(), &response)
+	if response["interval"].(float64) != 10000 {
+		t.Error("interval was not persisted")
+	}
+}
+
+func TestSetPollInterval_InvalidBody(t *testing.T) {
+	unisetServer := mockUnisetServer()
+	defer unisetServer.Close()
+
+	handlers := setupTestHandlers(unisetServer)
+
+	body := `invalid json`
+	req := httptest.NewRequest("POST", "/api/settings/poll-interval", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.SetPollInterval(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
+	}
+}
+
+func TestSetPollInterval_TooSmall(t *testing.T) {
+	unisetServer := mockUnisetServer()
+	defer unisetServer.Close()
+
+	handlers := setupTestHandlers(unisetServer)
+
+	// Interval less than 1000ms should be rejected
+	body := `{"interval": 500}`
+	req := httptest.NewRequest("POST", "/api/settings/poll-interval", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.SetPollInterval(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400 for too small interval, got %d", w.Code)
+	}
+}
+
+func TestSetPollInterval_TooLarge(t *testing.T) {
+	unisetServer := mockUnisetServer()
+	defer unisetServer.Close()
+
+	handlers := setupTestHandlers(unisetServer)
+
+	// Interval more than 300000ms (5 minutes) should be rejected
+	body := `{"interval": 600000}`
+	req := httptest.NewRequest("POST", "/api/settings/poll-interval", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.SetPollInterval(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400 for too large interval, got %d", w.Code)
+	}
+}
+
+func TestSetPollInterval_MinValue(t *testing.T) {
+	unisetServer := mockUnisetServer()
+	defer unisetServer.Close()
+
+	handlers := setupTestHandlers(unisetServer)
+
+	// Minimum allowed value is 1000ms
+	body := `{"interval": 1000}`
+	req := httptest.NewRequest("POST", "/api/settings/poll-interval", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.SetPollInterval(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200 for minimum interval, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestSetPollInterval_MaxValue(t *testing.T) {
+	unisetServer := mockUnisetServer()
+	defer unisetServer.Close()
+
+	handlers := setupTestHandlers(unisetServer)
+
+	// Maximum allowed value is 300000ms (5 minutes)
+	body := `{"interval": 300000}`
+	req := httptest.NewRequest("POST", "/api/settings/poll-interval", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.SetPollInterval(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200 for maximum interval, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestSetPollInterval_WithServerManager(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]string{})
+	}))
+	defer server.Close()
+
+	handlers := setupTestHandlersWithServerManager(map[string]*httptest.Server{
+		"server1": server,
+	})
+
+	body := `{"interval": 30000}`
+	req := httptest.NewRequest("POST", "/api/settings/poll-interval", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.SetPollInterval(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var response map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &response)
+
+	if response["interval"].(float64) != 30000 {
+		t.Errorf("expected interval=30000, got %v", response["interval"])
+	}
+}

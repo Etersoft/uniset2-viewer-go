@@ -84,6 +84,8 @@ func main() {
 	// Set callbacks for SSE broadcasting
 	serverMgr.SetObjectCallback(sseHub.BroadcastObjectDataWithServer)
 	serverMgr.SetIONCCallback(sseHub.BroadcastIONCSensorBatchWithServer)
+	serverMgr.SetStatusCallback(sseHub.BroadcastServerStatus)
+	serverMgr.SetObjectsCallback(sseHub.BroadcastObjectsList)
 
 	// Add servers from configuration
 	for _, srvCfg := range cfg.Servers {

@@ -207,6 +207,45 @@ header h1 {
     gap: 1rem;
 }
 
+/* Poll Interval Selector */
+.poll-interval-selector {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.poll-interval-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.poll-interval-buttons {
+    display: flex;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.poll-btn {
+    padding: 4px 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 11px;
+    transition: all 0.15s ease;
+}
+
+.poll-btn:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.poll-btn.active {
+    background: var(--accent-blue);
+    color: white;
+}
+
 /* SSE Status Indicator */
 .sse-status {
     display: flex;
@@ -258,6 +297,89 @@ header h1 {
     color: var(--text-muted);
     font-size: 11px;
     margin-left: 4px;
+}
+
+/* Server Status Indicators */
+.servers-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+}
+
+.servers-status:empty {
+    display: none;
+}
+
+.server-indicator {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: help;
+    position: relative;
+}
+
+.server-indicator-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.server-indicator.connected .server-indicator-dot {
+    background: var(--accent-green);
+    box-shadow: 0 0 6px var(--accent-green);
+}
+
+.server-indicator.disconnected .server-indicator-dot {
+    background: var(--accent-red);
+}
+
+.server-indicator.reconnecting .server-indicator-dot {
+    background: var(--accent-yellow);
+    animation: pulse 1s ease-in-out infinite;
+}
+
+.server-indicator-name {
+    font-size: 11px;
+    color: var(--text-secondary);
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.server-indicator.disconnected .server-indicator-name {
+    color: var(--accent-red);
+}
+
+/* Tooltip for server indicator */
+.server-indicator::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 11px;
+    color: var(--text-primary);
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    z-index: 1000;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.server-indicator:hover::after {
+    opacity: 1;
+    visibility: visible;
 }
 
 /* Time range selector */
@@ -520,6 +642,16 @@ header h1 {
     color: #c8daf8;
 }
 
+.tab-server-badge.disconnected {
+    background: #6a2a2a;
+    color: #e8a8a8;
+}
+
+.tab-btn.active .tab-server-badge.disconnected {
+    background: #8a3a3a;
+    color: #f0b8b8;
+}
+
 /* Server badge in objects list */
 .objects-list li .server-badge {
     display: inline-block;
@@ -556,6 +688,51 @@ header h1 {
 
 .tab-panel.active {
     display: block;
+}
+
+/* Неактивное состояние таба при потере связи с сервером */
+.tab-panel.server-disconnected {
+    position: relative;
+    pointer-events: none;
+    opacity: 0.5;
+}
+
+.tab-panel.server-disconnected::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 100;
+    pointer-events: none;
+}
+
+.tab-panel.server-disconnected::after {
+    content: 'Сервер недоступен';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(139, 58, 58, 0.95);
+    color: #f0b8b8;
+    padding: 1rem 2rem;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    z-index: 101;
+    border: 1px solid #a04040;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.tab-btn.server-disconnected {
+    opacity: 0.6;
+}
+
+.tab-btn.server-disconnected .tab-server-badge {
+    background: #6a2a2a;
+    color: #e8a8a8;
 }
 
 .placeholder {

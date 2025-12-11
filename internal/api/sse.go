@@ -73,9 +73,12 @@ func (h *SSEHub) Broadcast(event SSEEvent) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
+	// События server_status и objects_list отправляются всем клиентам
+	isGlobalEvent := event.Type == "server_status" || event.Type == "objects_list"
+
 	for client := range h.clients {
-		// Отправляем если клиент подписан на все объекты или на конкретный
-		if client.objectName == "" || client.objectName == event.ObjectName {
+		// Отправляем если: глобальное событие ИЛИ клиент подписан на все объекты ИЛИ на конкретный
+		if isGlobalEvent || client.objectName == "" || client.objectName == event.ObjectName {
 			select {
 			case client.events <- event:
 			default:
@@ -108,6 +111,20 @@ func (h *SSEHub) BroadcastServerStatus(serverID, serverName string, connected bo
 		Data: map[string]interface{}{
 			"connected": connected,
 			"lastError": lastError,
+		},
+		Timestamp: time.Now(),
+	})
+}
+
+// BroadcastObjectsList отправляет обновлённый список объектов (при восстановлении связи)
+func (h *SSEHub) BroadcastObjectsList(serverID, serverName string, objects []string) {
+	h.Broadcast(SSEEvent{
+		Type:       "objects_list",
+		ServerID:   serverID,
+		ServerName: serverName,
+		Data: map[string]interface{}{
+			"objects":   objects,
+			"connected": true,
 		},
 		Timestamp: time.Now(),
 	})

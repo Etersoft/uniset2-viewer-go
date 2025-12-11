@@ -18,8 +18,9 @@ const state = window.state = {
         connected: false,
         pollInterval: 5000, // будет обновлено с сервера
         reconnectAttempts: 0,
-        maxReconnectAttempts: 5,
-        reconnectDelay: 1000
+        maxReconnectAttempts: 10,
+        baseReconnectDelay: 1000,   // начальная задержка (1s)
+        maxReconnectDelay: 30000    // максимальная задержка (30s)
     }
 };
 
@@ -73,6 +74,99 @@ function updateSSEStatus(status, lastUpdate = null) {
 
     textEl.textContent = text;
     container.title = title;
+}
+
+// Обновление индикаторов статуса серверов в header
+function renderServersStatus() {
+    const container = document.getElementById('servers-status');
+    if (!container) return;
+
+    // Если только один сервер - не показываем индикаторы
+    if (state.servers.size <= 1) {
+        container.innerHTML = '';
+        return;
+    }
+
+    const indicators = [];
+    state.servers.forEach((server, serverId) => {
+        const status = server.connected ? 'connected' : 'disconnected';
+        const statusText = server.connected ? 'Подключен' : 'Отключен';
+        const tooltip = `${server.name}\n${server.url}\n${statusText}`;
+
+        indicators.push(`
+            <div class="server-indicator ${status}"
+                 data-server-id="${serverId}"
+                 data-tooltip="${tooltip.replace(/\n/g, ' | ')}">
+                <span class="server-indicator-dot"></span>
+                <span class="server-indicator-name">${escapeHtml(server.name)}</span>
+            </div>
+        `);
+    });
+
+    container.innerHTML = indicators.join('');
+}
+
+// Обновить статус конкретного сервера
+function updateServerStatus(serverId, connected) {
+    const server = state.servers.get(serverId);
+    if (!server) return;
+
+    server.connected = connected;
+
+    // Обновляем индикатор в header
+    const indicator = document.querySelector(`.server-indicator[data-server-id="${serverId}"]`);
+    if (indicator) {
+        indicator.classList.remove('connected', 'disconnected', 'reconnecting');
+        indicator.classList.add(connected ? 'connected' : 'disconnected');
+
+        const statusText = connected ? 'Подключен' : 'Отключен';
+        indicator.dataset.tooltip = `${server.name} | ${server.url} | ${statusText}`;
+    }
+
+    // Обновляем бейджи серверов в списке объектов (sidebar)
+    const objectItems = document.querySelectorAll(`#objects-list li[data-server-id="${serverId}"]`);
+    objectItems.forEach(li => {
+        const badge = li.querySelector('.server-badge');
+        if (badge) {
+            if (connected) {
+                badge.classList.remove('disconnected');
+                badge.title = `Сервер: ${server.name}`;
+            } else {
+                badge.classList.add('disconnected');
+                badge.title = `Сервер: ${server.name} (отключен)`;
+            }
+        }
+    });
+
+    // Обновляем бейджи серверов в табах
+    const tabBadges = document.querySelectorAll(`.tab-server-badge[data-server-id="${serverId}"]`);
+    tabBadges.forEach(badge => {
+        if (connected) {
+            badge.classList.remove('disconnected');
+        } else {
+            badge.classList.add('disconnected');
+        }
+    });
+
+    // Обновляем состояние кнопок табов (заголовки)
+    const tabButtons = document.querySelectorAll(`.tab-btn[data-server-id="${serverId}"]`);
+    tabButtons.forEach(btn => {
+        if (connected) {
+            btn.classList.remove('server-disconnected');
+        } else {
+            btn.classList.add('server-disconnected');
+        }
+    });
+
+    // Обновляем состояние панелей табов (контент)
+    const tabPanels = document.querySelectorAll(`.tab-panel[data-server-id="${serverId}"]`);
+    tabPanels.forEach(panel => {
+        if (connected) {
+            panel.classList.remove('server-disconnected');
+        } else {
+            panel.classList.add('server-disconnected');
+        }
+    });
 }
 
 function initSSE() {
@@ -251,14 +345,50 @@ function initSSE() {
         }
     });
 
+    // Обработка изменений статуса серверов
+    eventSource.addEventListener('server_status', (e) => {
+        try {
+            const event = JSON.parse(e.data);
+            const serverId = event.serverId;
+            const connected = event.data?.connected ?? false;
+            console.log(`SSE: Сервер ${serverId} ${connected ? 'подключен' : 'отключен'}`);
+            updateServerStatus(serverId, connected);
+        } catch (err) {
+            console.warn('SSE: Ошибка обработки server_status:', err);
+        }
+    });
+
+    // Обработка обновления списка объектов (при восстановлении связи)
+    eventSource.addEventListener('objects_list', (e) => {
+        try {
+            const event = JSON.parse(e.data);
+            const serverId = event.serverId;
+            const serverName = event.serverName;
+            const objects = event.data?.objects ?? [];
+            console.log(`SSE: Сервер ${serverId} восстановил связь, объектов: ${objects.length}`);
+
+            // Обновляем статус сервера
+            updateServerStatus(serverId, true);
+
+            // Обновляем список объектов в sidebar
+            refreshObjectsList();
+        } catch (err) {
+            console.warn('SSE: Ошибка обработки objects_list:', err);
+        }
+    });
+
     eventSource.onerror = (e) => {
         console.warn('SSE: Ошибка соединения');
         state.sse.connected = false;
 
         if (state.sse.reconnectAttempts < state.sse.maxReconnectAttempts) {
             state.sse.reconnectAttempts++;
-            const delay = state.sse.reconnectDelay * state.sse.reconnectAttempts;
-            console.log(`SSE: Переподключение через ${delay}ms (попытка ${state.sse.reconnectAttempts})`);
+            // Exponential backoff: baseDelay * 2^(attempt-1) с jitter ±10%
+            const expDelay = state.sse.baseReconnectDelay * Math.pow(2, state.sse.reconnectAttempts - 1);
+            const cappedDelay = Math.min(expDelay, state.sse.maxReconnectDelay);
+            const jitter = cappedDelay * 0.1 * (Math.random() * 2 - 1); // ±10%
+            const delay = Math.round(cappedDelay + jitter);
+            console.log(`SSE: Переподключение через ${delay}ms (попытка ${state.sse.reconnectAttempts}/${state.sse.maxReconnectAttempts})`);
             updateSSEStatus('reconnecting');
             setTimeout(initSSE, delay);
         } else {
@@ -3852,10 +3982,24 @@ async function fetchObjects() {
         });
     });
 
+    // Отображаем индикаторы статуса серверов
+    renderServersStatus();
+
     // Загружаем объекты со всех серверов
     const response = await fetch('/api/all-objects');
     if (!response.ok) throw new Error('Не удалось загрузить список объектов');
     return response.json();
+}
+
+// Обновить список объектов (вызывается при восстановлении связи с сервером)
+async function refreshObjectsList() {
+    try {
+        const data = await fetchObjects();
+        renderObjectsList(data);
+        console.log('Список объектов обновлён');
+    } catch (err) {
+        console.error('Ошибка обновления списка объектов:', err);
+    }
 }
 
 async function fetchObjectData(name, serverId = null) {
@@ -4770,8 +4914,11 @@ function createTab(tabKey, displayName, rendererInfo, initialData, serverId, ser
     renderer.objectType = rendererInfo.objectType;
 
     // Кнопка вкладки с индикатором типа и сервера
+    const serverData = state.servers.get(serverId);
+    const serverConnected = serverData?.connected !== false;
+
     const tabBtn = document.createElement('button');
-    tabBtn.className = 'tab-btn';
+    tabBtn.className = 'tab-btn' + (serverConnected ? '' : ' server-disconnected');
     tabBtn.dataset.name = tabKey;
     tabBtn.dataset.objectType = rendererInfo.rendererType;
     tabBtn.dataset.serverId = serverId;
@@ -4781,7 +4928,7 @@ function createTab(tabKey, displayName, rendererInfo, initialData, serverId, ser
     // Формируем HTML вкладки
     const tabHTML = `
         <span class="tab-type-badge">${badgeType}</span>
-        <span class="tab-server-badge">${serverName}</span>
+        <span class="tab-server-badge${serverConnected ? '' : ' disconnected'}" data-server-id="${serverId}">${serverName}</span>
         ${displayName}
         <span class="close">&times;</span>
     `;
@@ -4798,7 +4945,7 @@ function createTab(tabKey, displayName, rendererInfo, initialData, serverId, ser
 
     // Панель содержимого - создаётся рендерером
     const panel = document.createElement('div');
-    panel.className = 'tab-panel';
+    panel.className = 'tab-panel' + (serverConnected ? '' : ' server-disconnected');
     panel.dataset.name = tabKey;
     panel.dataset.objectType = rendererInfo.rendererType;
     panel.dataset.serverId = serverId;
@@ -5413,6 +5560,9 @@ window.toggleSection = function(sectionId) {
         saveCollapsedSections();
     }
 };
+
+// Глобальная функция для обновления статуса сервера (для тестов)
+window.updateServerStatus = updateServerStatus;
 
 // Хранилище данных таймеров для локального обновления timeleft
 const timerDataCache = {};
@@ -6651,6 +6801,55 @@ document.addEventListener('DOMContentLoaded', () => {
         saveSettings();
     });
 
+    // Инициализация селектора poll interval
+    initPollIntervalSelector();
+
     // Загрузка сохранённых настроек
     loadSettings();
 });
+
+// Инициализация селектора интервала опроса
+function initPollIntervalSelector() {
+    const buttons = document.querySelectorAll('.poll-btn');
+    const savedInterval = localStorage.getItem('pollInterval');
+
+    // Установить активную кнопку
+    const setActive = (interval) => {
+        buttons.forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.interval === String(interval));
+        });
+    };
+
+    // Восстановить из localStorage или использовать значение с сервера
+    if (savedInterval) {
+        setActive(savedInterval);
+    } else {
+        // По умолчанию 1s
+        setActive(1000);
+    }
+
+    // Обработчики кликов
+    buttons.forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const interval = parseInt(btn.dataset.interval);
+            setActive(interval);
+            localStorage.setItem('pollInterval', interval);
+
+            // Отправляем на сервер
+            try {
+                const response = await fetch('/api/settings/poll-interval', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ interval })
+                });
+                if (response.ok) {
+                    console.log(`Poll interval изменён на ${interval}ms`);
+                } else {
+                    console.warn('Не удалось изменить poll interval');
+                }
+            } catch (err) {
+                console.error('Ошибка изменения poll interval:', err);
+            }
+        });
+    });
+}
