@@ -128,7 +128,7 @@ test.describe('OPCUAExchange renderer', () => {
 
       // Check that at least first row contains AI badge
       const firstRow = rows.first();
-      await expect(firstRow.locator('.opcua-type-AI')).toBeVisible();
+      await expect(firstRow.locator('.type-AI')).toBeVisible();
     });
 
     test('should reset filter on ESC key', async ({ page }) => {
@@ -218,14 +218,14 @@ test.describe('OPCUAExchange renderer', () => {
       await page.waitForSelector(`#opcua-sensors-${OPCUA_OBJECT} tr`);
 
       // Check that type badges exist with proper classes
-      const badges = panel.locator('.opcua-type-badge');
+      const badges = panel.locator('.type-badge');
       const count = await badges.count();
       expect(count).toBeGreaterThan(0);
 
       // Verify first badge has correct class
       const firstBadge = badges.first();
       const badgeClass = await firstBadge.getAttribute('class');
-      expect(badgeClass).toMatch(/opcua-type-(AI|AO|DI|DO)/);
+      expect(badgeClass).toMatch(/type-(AI|AO|DI|DO)/);
     });
 
     test('should have resize handle for sensors section', async ({ page }) => {

@@ -13,6 +13,11 @@
     --accent-red: #f2495c;
     --accent-purple: #b877d9;
     --accent-cyan: #5794f2;
+
+    /* Component Variables */
+    --comp-border-radius: 4px;
+    --comp-border-radius-sm: 3px;
+    --comp-transition: 0.15s ease;
 }
 
 * {
@@ -20,6 +25,148 @@
     padding: 0;
     box-sizing: border-box;
 }
+
+/* ============================================================================
+   BASE COMPONENTS (reusable across IONC, OPCUA, etc.)
+   ============================================================================ */
+
+/* --- Filter Bar --- */
+.filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+/* --- Type Filter Dropdown --- */
+.type-filter {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--comp-border-radius);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    cursor: pointer;
+    outline: none;
+}
+
+.type-filter:focus {
+    border-color: var(--accent-blue);
+}
+
+/* --- Sensor Count Badge --- */
+.sensor-count {
+    background: var(--accent-blue);
+    color: white;
+    font-size: 0.7rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 10px;
+    margin-left: 0.5rem;
+    white-space: nowrap;
+}
+
+/* --- Type Badges --- */
+.type-badge {
+    display: inline-block;
+    padding: 0.15rem 0.4rem;
+    border-radius: var(--comp-border-radius-sm);
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.type-badge.type-AI { background: var(--accent-blue); color: white; }
+.type-badge.type-DI { background: var(--accent-green); color: white; }
+.type-badge.type-AO { background: var(--accent-orange); color: white; }
+.type-badge.type-DO { background: var(--accent-purple); color: white; }
+
+/* --- Sensors Table --- */
+.sensors-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.sensors-table th {
+    position: sticky;
+    top: 0;
+    background: var(--bg-tertiary);
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    font-weight: 500;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
+    z-index: 10;
+}
+
+.sensors-table td {
+    padding: 0.4rem 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: middle;
+}
+
+.sensors-table tbody tr:hover {
+    background: var(--bg-hover);
+}
+
+/* --- Pin Toggle --- */
+.pin-toggle {
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 20px;
+    color: var(--text-muted);
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    text-align: center;
+    user-select: none;
+    transition: color var(--comp-transition);
+}
+
+.pin-toggle:hover {
+    color: var(--text-primary);
+}
+
+.pin-toggle.pinned {
+    color: var(--accent-orange);
+}
+
+/* --- Resize Handle --- */
+.resize-handle {
+    height: 6px;
+    background: var(--bg-tertiary);
+    cursor: ns-resize;
+    border-top: 1px solid var(--border-color);
+    transition: background var(--comp-transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.resize-handle:hover {
+    background: var(--accent-blue);
+}
+
+.resize-handle::after {
+    content: '';
+    width: 40px;
+    height: 2px;
+    background: var(--text-muted);
+    border-radius: 1px;
+}
+
+/* --- Actions Bar --- */
+.actions-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+/* ============================================================================
+   END BASE COMPONENTS
+   ============================================================================ */
 
 body {
     font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -1403,8 +1550,7 @@ header h1 {
     font-size: 13px;
 }
 
-.opcua-param-input,
-.opcua-filter-input {
+.opcua-param-input {
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     color: var(--text-primary);
@@ -1413,14 +1559,12 @@ header h1 {
     width: 100%;
 }
 
-.opcua-param-input:focus,
-.opcua-filter-input:focus {
+.opcua-param-input:focus {
     border-color: var(--accent-blue);
     outline: none;
 }
 
-.opcua-param-input::placeholder,
-.opcua-filter-input::placeholder {
+.opcua-param-input::placeholder {
     color: var(--text-muted);
 }
 
@@ -1438,34 +1582,6 @@ header h1 {
 .opcua-diagnostics-scroll {
     height: 100%;
     overflow-y: auto;
-}
-
-.opcua-sensors-resize-handle,
-.opcua-diagnostics-resize-handle {
-    height: 6px;
-    background: var(--bg-tertiary);
-    cursor: ns-resize;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    margin-top: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.15s ease;
-}
-
-.opcua-sensors-resize-handle:hover,
-.opcua-diagnostics-resize-handle:hover {
-    background: var(--accent-blue);
-}
-
-.opcua-sensors-resize-handle::after,
-.opcua-diagnostics-resize-handle::after {
-    content: '';
-    width: 40px;
-    height: 2px;
-    background: var(--text-muted);
-    border-radius: 1px;
 }
 
 .opcua-autorefresh {
@@ -1495,58 +1611,6 @@ header h1 {
 .opcua-errors-table td,
 .opcua-errors-table th {
     white-space: nowrap;
-}
-
-/* OPCUAExchange type badges (like IONC) */
-.opcua-type-badge {
-    display: inline-block;
-    padding: 0.15rem 0.4rem;
-    border-radius: 3px;
-    font-size: 0.75rem;
-    font-weight: 500;
-}
-.opcua-type-AI { background: var(--accent-blue); color: white; }
-.opcua-type-DI { background: var(--accent-green); color: white; }
-.opcua-type-AO { background: var(--accent-orange); color: white; }
-.opcua-type-DO { background: var(--accent-purple); color: white; }
-
-/* OPCUAExchange type filter dropdown */
-.opcua-type-filter {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.8rem;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-    cursor: pointer;
-}
-
-.opcua-type-filter:focus {
-    border-color: var(--accent-blue);
-    outline: none;
-}
-
-/* OPCUAExchange sensor count badge */
-.opcua-sensor-count {
-    background: var(--accent-blue);
-    color: white;
-    font-size: 0.7rem;
-    padding: 0.15rem 0.5rem;
-    border-radius: 10px;
-    margin-left: 0.5rem;
-}
-
-/* OPCUAExchange filter bar in header */
-.opcua-filter-bar {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-left: auto;
-    padding-right: 0.5rem;
-}
-
-.opcua-filter-bar .opcua-filter-input {
-    width: 180px;
 }
 
 /* OPCUAExchange virtual scroll styles */
@@ -2525,69 +2589,32 @@ header h1 {
     align-items: center;
 }
 
-.ionc-filter-bar {
-    display: flex;
-    gap: 0.5rem;
-    margin-left: 0.5rem;
-    align-items: center;
-}
-
-.ionc-filter-input {
-    width: 180px;
-    padding: 0.25rem 0.5rem;
-    font-size: 0.8rem;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-}
-
-.ionc-filter-input:focus {
-    outline: none;
-    border-color: var(--accent-blue);
-}
-
-.ionc-type-filter {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.8rem;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-    cursor: pointer;
-}
-
-.ionc-sensor-count {
-    background: var(--accent-blue);
-    color: white;
-    font-size: 0.7rem;
-    padding: 0.15rem 0.5rem;
-    border-radius: 10px;
-    margin-left: 0.5rem;
-}
-
 .ionc-sensors-table-container {
-    overflow-x: auto;
+    position: relative;
+    overflow: hidden;
     height: 400px;
-    max-height: 400px;
-    overflow-y: auto;
 }
 
 .ionc-sensors-table-container:focus {
     outline: none;
 }
 
-.ionc-resize-handle {
-    height: 6px;
-    background: var(--border-color);
-    cursor: ns-resize;
-    margin-top: 4px;
-    border-radius: 3px;
-    transition: background 0.2s;
+/* IONC Virtual Scroll */
+.ionc-sensors-viewport {
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
-.ionc-resize-handle:hover {
-    background: var(--accent-blue);
+.ionc-sensors-spacer {
+    width: 100%;
+    pointer-events: none;
+}
+
+.ionc-loading-more {
+    text-align: center;
+    padding: 1rem;
+    color: var(--text-muted);
 }
 
 .ionc-sensors-table {
@@ -2628,28 +2655,6 @@ header h1 {
 .ionc-col-consumers { width: 50px; text-align: center; }
 .ionc-col-actions { width: 80px; text-align: center; white-space: nowrap; }
 
-/* Pin toggle - закрепление датчика */
-.ionc-pin-toggle {
-    cursor: pointer;
-    font-size: 14px;
-    line-height: 20px;
-    color: var(--text-muted);
-    display: inline-block;
-    width: 20px;
-    height: 20px;
-    text-align: center;
-    user-select: none;
-    transition: color 0.15s;
-}
-
-.ionc-pin-toggle:hover {
-    color: var(--text-primary);
-}
-
-.ionc-pin-toggle.pinned {
-    color: var(--accent-orange);
-}
-
 .ionc-unpin-all {
     cursor: pointer;
     font-size: 11px;
@@ -2660,59 +2665,6 @@ header h1 {
 .ionc-unpin-all:hover {
     color: var(--accent-red);
 }
-
-/* Chart toggle - добавление на график */
-.ionc-chart-toggle {
-    display: inline-flex;
-    align-items: center;
-}
-
-.ionc-chart-checkbox {
-    display: none;
-}
-
-.ionc-chart-label {
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 18px;
-    height: 18px;
-    border-radius: 3px;
-    transition: all 0.15s;
-}
-
-.ionc-chart-label svg {
-    width: 14px;
-    height: 14px;
-    stroke: var(--text-muted);
-    transition: stroke 0.15s;
-}
-
-.ionc-chart-label:hover svg {
-    stroke: var(--text-primary);
-}
-
-.ionc-chart-checkbox:checked + .ionc-chart-label {
-    background: var(--accent-blue);
-}
-
-.ionc-chart-checkbox:checked + .ionc-chart-label svg {
-    stroke: white;
-}
-
-.ionc-type-badge {
-    display: inline-block;
-    padding: 0.15rem 0.4rem;
-    border-radius: 3px;
-    font-size: 0.75rem;
-    font-weight: 500;
-}
-
-.ionc-type-AI { background: var(--accent-blue); color: white; }
-.ionc-type-DI { background: var(--accent-green); color: white; }
-.ionc-type-AO { background: var(--accent-orange); color: white; }
-.ionc-type-DO { background: var(--accent-purple); color: white; }
 
 .ionc-value {
     font-family: 'JetBrains Mono', monospace;

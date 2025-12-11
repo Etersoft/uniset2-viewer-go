@@ -63,7 +63,7 @@ test.describe('IONotifyController (SharedMemory)', () => {
     await page.waitForSelector('.ionc-sensors-tbody tr:not(.ionc-loading)', { timeout: 10000 });
 
     // Проверяем что счётчик датчиков отображается
-    const countBadge = page.locator('.ionc-sensor-count');
+    const countBadge = page.locator('.sensor-count');
     await expect(countBadge).toBeVisible();
 
     // Счётчик должен быть больше 0
@@ -82,7 +82,7 @@ test.describe('IONotifyController (SharedMemory)', () => {
     const firstRow = rows.first();
     await expect(firstRow.locator('.ionc-col-id')).toBeVisible();
     await expect(firstRow.locator('.ionc-col-name')).toBeVisible();
-    await expect(firstRow.locator('.ionc-type-badge')).toBeVisible();
+    await expect(firstRow.locator('.type-badge')).toBeVisible();
     await expect(firstRow.locator('.ionc-value')).toBeVisible();
   });
 
@@ -91,7 +91,7 @@ test.describe('IONotifyController (SharedMemory)', () => {
 
     // Проверяем наличие кнопки добавления на график
     const firstRow = page.locator('.ionc-sensors-tbody tr.ionc-sensor-row').first();
-    const chartToggle = firstRow.locator('.ionc-chart-toggle');
+    const chartToggle = firstRow.locator('.chart-toggle');
     await expect(chartToggle).toBeVisible();
   });
 
@@ -100,7 +100,7 @@ test.describe('IONotifyController (SharedMemory)', () => {
 
     // Проверяем наличие кнопки закрепления в первой строке
     const firstRow = page.locator('.ionc-sensors-tbody tr.ionc-sensor-row').first();
-    const pinToggle = firstRow.locator('.ionc-pin-toggle');
+    const pinToggle = firstRow.locator('.pin-toggle');
     await expect(pinToggle).toBeVisible();
 
     // Проверяем что кнопка содержит символ ○ (не закреплено)
@@ -112,7 +112,7 @@ test.describe('IONotifyController (SharedMemory)', () => {
 
     // Кликаем на кнопку закрепления первого датчика
     const firstRow = page.locator('.ionc-sensors-tbody tr.ionc-sensor-row').first();
-    const pinToggle = firstRow.locator('.ionc-pin-toggle');
+    const pinToggle = firstRow.locator('.pin-toggle');
 
     // До клика - не закреплён
     await expect(pinToggle).not.toHaveClass(/pinned/);
@@ -139,7 +139,7 @@ test.describe('IONotifyController (SharedMemory)', () => {
     }
 
     // Закрепляем первый датчик
-    const firstPinToggle = page.locator('.ionc-sensors-tbody tr.ionc-sensor-row').first().locator('.ionc-pin-toggle');
+    const firstPinToggle = page.locator('.ionc-sensors-tbody tr.ionc-sensor-row').first().locator('.pin-toggle');
     await firstPinToggle.click();
 
     // Теперь должен отображаться только 1 датчик (закреплённый)
@@ -158,7 +158,7 @@ test.describe('IONotifyController (SharedMemory)', () => {
     }
 
     // Закрепляем первый датчик
-    const firstPinToggle = page.locator('.ionc-sensors-tbody tr.ionc-sensor-row').first().locator('.ionc-pin-toggle');
+    const firstPinToggle = page.locator('.ionc-sensors-tbody tr.ionc-sensor-row').first().locator('.pin-toggle');
     await firstPinToggle.click();
     await page.waitForTimeout(100);
 
@@ -183,13 +183,13 @@ test.describe('IONotifyController (SharedMemory)', () => {
 
     // Находим чекбокс графика первого датчика
     const firstRow = page.locator('.ionc-sensors-tbody tr.ionc-sensor-row').first();
-    const chartCheckbox = firstRow.locator('.ionc-chart-checkbox');
+    const chartCheckbox = firstRow.locator('.chart-toggle input[type="checkbox"]');
 
     // До клика - не отмечен
     await expect(chartCheckbox).not.toBeChecked();
 
     // Кликаем на label (сам checkbox скрыт)
-    const chartLabel = firstRow.locator('.ionc-chart-label');
+    const chartLabel = firstRow.locator('.chart-toggle-label');
     await chartLabel.click();
 
     // После клика - отмечен
@@ -205,8 +205,8 @@ test.describe('IONotifyController (SharedMemory)', () => {
 
     // Добавляем датчик на график
     const firstRow = page.locator('.ionc-sensors-tbody tr.ionc-sensor-row').first();
-    const chartCheckbox = firstRow.locator('.ionc-chart-checkbox');
-    const chartLabel = firstRow.locator('.ionc-chart-label');
+    const chartCheckbox = firstRow.locator('.chart-toggle input[type="checkbox"]');
+    const chartLabel = firstRow.locator('.chart-toggle-label');
 
     await chartLabel.click();
     await expect(chartCheckbox).toBeChecked();
@@ -231,7 +231,7 @@ test.describe('IONotifyController (SharedMemory)', () => {
     await page.waitForSelector('.ionc-sensors-tbody tr.ionc-sensor-row', { timeout: 10000 });
 
     // Закрепляем первый датчик
-    const firstPinToggle = page.locator('.ionc-sensors-tbody tr.ionc-sensor-row').first().locator('.ionc-pin-toggle');
+    const firstPinToggle = page.locator('.ionc-sensors-tbody tr.ionc-sensor-row').first().locator('.pin-toggle');
     const firstSensorId = await firstPinToggle.getAttribute('data-id');
     await firstPinToggle.click();
     await page.waitForTimeout(100);
@@ -241,7 +241,7 @@ test.describe('IONotifyController (SharedMemory)', () => {
     expect(pinnedCount).toBe(1);
 
     // Вводим поисковый запрос — должны показаться все датчики, соответствующие фильтру
-    const filterInput = page.locator('.ionc-filter-input');
+    const filterInput = page.locator('.filter-input');
     await filterInput.fill('Sensor');
     await page.waitForTimeout(400); // debounce 300ms + buffer
 
@@ -251,7 +251,7 @@ test.describe('IONotifyController (SharedMemory)', () => {
 
     // Закрепляем ещё один датчик из результатов поиска
     const secondRow = page.locator('.ionc-sensors-tbody tr.ionc-sensor-row').nth(1);
-    const secondPinToggle = secondRow.locator('.ionc-pin-toggle');
+    const secondPinToggle = secondRow.locator('.pin-toggle');
     const secondSensorId = await secondPinToggle.getAttribute('data-id');
 
     // Убедимся что это другой датчик
@@ -270,9 +270,9 @@ test.describe('IONotifyController (SharedMemory)', () => {
   });
 
   test('should reset filter and lose focus on ESC', async ({ page }) => {
-    await page.waitForSelector('.ionc-filter-input', { timeout: 10000 });
+    await page.waitForSelector('.filter-input', { timeout: 10000 });
 
-    const filterInput = page.locator('.ionc-filter-input');
+    const filterInput = page.locator('.filter-input');
 
     // Вводим текст в фильтр
     await filterInput.fill('test');
@@ -290,9 +290,9 @@ test.describe('IONotifyController (SharedMemory)', () => {
   });
 
   test('should lose focus on ESC even when filter is empty', async ({ page }) => {
-    await page.waitForSelector('.ionc-filter-input', { timeout: 10000 });
+    await page.waitForSelector('.filter-input', { timeout: 10000 });
 
-    const filterInput = page.locator('.ionc-filter-input');
+    const filterInput = page.locator('.filter-input');
 
     // Фокусируемся на пустом поле
     await filterInput.focus();
@@ -308,7 +308,7 @@ test.describe('IONotifyController (SharedMemory)', () => {
   test('should reset filter on ESC when table is focused', async ({ page }) => {
     await page.waitForSelector('.ionc-sensors-tbody tr.ionc-sensor-row', { timeout: 10000 });
 
-    const filterInput = page.locator('.ionc-filter-input');
+    const filterInput = page.locator('.filter-input');
     const sensorsContainer = page.locator('.ionc-sensors-table-container');
 
     // Вводим фильтр
@@ -336,10 +336,10 @@ test.describe('IONotifyController (SharedMemory)', () => {
   });
 
   test('should have filter input', async ({ page }) => {
-    await page.waitForSelector('.ionc-filter-bar', { timeout: 10000 });
+    await page.waitForSelector('.filter-bar', { timeout: 10000 });
 
     // Проверяем наличие поля фильтра
-    const filterInput = page.locator('.ionc-filter-input');
+    const filterInput = page.locator('.filter-input');
     await expect(filterInput).toBeVisible();
     await expect(filterInput).toHaveAttribute('placeholder', 'Фильтр...');
   });
@@ -359,7 +359,7 @@ test.describe('IONotifyController (SharedMemory)', () => {
     const firstName = await page.locator('.ionc-sensors-tbody tr.ionc-sensor-row:first-child .ionc-col-name').textContent();
 
     // Вводим часть имени в фильтр
-    const filterInput = page.locator('.ionc-filter-input');
+    const filterInput = page.locator('.filter-input');
     await filterInput.fill(firstName?.substring(0, 5) || 'Sensor');
 
     // Ждём debounce и перезагрузки
@@ -371,9 +371,9 @@ test.describe('IONotifyController (SharedMemory)', () => {
   });
 
   test('should have type filter dropdown', async ({ page }) => {
-    await page.waitForSelector('.ionc-type-filter', { timeout: 10000 });
+    await page.waitForSelector('.type-filter', { timeout: 10000 });
 
-    const typeFilter = page.locator('.ionc-type-filter');
+    const typeFilter = page.locator('.type-filter');
     await expect(typeFilter).toBeVisible();
 
     // Проверяем наличие опций
@@ -388,7 +388,7 @@ test.describe('IONotifyController (SharedMemory)', () => {
     await page.waitForSelector('.ionc-sensors-tbody tr.ionc-sensor-row', { timeout: 10000 });
 
     // Выбираем тип AI
-    const typeFilter = page.locator('.ionc-type-filter');
+    const typeFilter = page.locator('.type-filter');
     await typeFilter.selectOption('AI');
 
     // Ждём перезагрузки
@@ -400,7 +400,7 @@ test.describe('IONotifyController (SharedMemory)', () => {
 
     if (count > 0) {
       // Проверяем что все badge имеют тип AI
-      const badges = page.locator('.ionc-sensors-tbody .ionc-type-badge');
+      const badges = page.locator('.ionc-sensors-tbody .type-badge');
       for (let i = 0; i < await badges.count(); i++) {
         await expect(badges.nth(i)).toHaveText('AI');
       }
@@ -423,35 +423,30 @@ test.describe('IONotifyController (SharedMemory)', () => {
     await page.waitForSelector('.ionc-sensors-section', { timeout: 10000 });
 
     // Проверяем наличие ручки для изменения размера
-    const resizeHandle = page.locator('.ionc-resize-handle');
+    const resizeHandle = page.locator('.resize-handle');
     await expect(resizeHandle).toBeVisible();
   });
 
-  test('should display pagination when many sensors', async ({ page }) => {
+  test('should use infinite scroll instead of pagination', async ({ page }) => {
     await page.waitForSelector('.ionc-sensors-tbody tr.ionc-sensor-row', { timeout: 10000 });
 
-    // Проверяем наличие пагинации
+    // Проверяем что пагинации НЕТ (используется infinite scroll)
     const pagination = page.locator('.ionc-pagination');
-    await expect(pagination).toBeVisible();
+    await expect(pagination).not.toBeVisible();
 
-    // Должна быть информация о количестве
-    await expect(pagination).toContainText(/Всего|Стр\./);
+    // Проверяем наличие viewport для виртуального скролла
+    const viewport = page.locator('.ionc-sensors-viewport');
+    await expect(viewport).toBeVisible();
   });
 
-  test('should navigate pagination', async ({ page }) => {
-    await page.waitForSelector('.ionc-pagination', { timeout: 10000 });
+  test('should have loading indicator for infinite scroll', async ({ page }) => {
+    await page.waitForSelector('.ionc-sensors-tbody tr.ionc-sensor-row', { timeout: 10000 });
 
-    const pagination = page.locator('.ionc-pagination');
-    const nextBtn = pagination.locator('.ionc-page-btn:has-text("»")');
-
-    // Если кнопка "вперёд" активна, кликаем
-    if (await nextBtn.isEnabled()) {
-      await nextBtn.click();
-      await page.waitForTimeout(500);
-
-      // Проверяем что данные обновились
-      await expect(page.locator('.ionc-sensors-table')).toBeVisible();
-    }
+    // Проверяем наличие индикатора загрузки (скрыт по умолчанию)
+    const loadingIndicator = page.locator('.ionc-loading-more');
+    await expect(loadingIndicator).toBeAttached();
+    // Изначально скрыт
+    await expect(loadingIndicator).not.toBeVisible();
   });
 
   test('should have action buttons for each sensor', async ({ page }) => {
@@ -699,16 +694,16 @@ test.describe('IONotifyController (SharedMemory)', () => {
   });
 
   test('should display type badges with correct colors', async ({ page }) => {
-    await page.waitForSelector('.ionc-type-badge', { timeout: 10000 });
+    await page.waitForSelector('.type-badge', { timeout: 10000 });
 
     // Проверяем что badges отображаются
-    const badges = page.locator('.ionc-type-badge');
+    const badges = page.locator('.type-badge');
     await expect(badges).not.toHaveCount(0);
 
     // Проверяем что у badge есть класс типа
     const firstBadge = badges.first();
     const badgeClass = await firstBadge.getAttribute('class');
-    expect(badgeClass).toMatch(/ionc-type-(AI|DI|AO|DO)/);
+    expect(badgeClass).toMatch(/type-(AI|DI|AO|DO)/);
   });
 
   test('should highlight frozen sensors', async ({ page }) => {
@@ -804,7 +799,7 @@ test.describe('IONotifyController (SharedMemory)', () => {
 
     // Добавляем датчик на график
     const firstRow = page.locator('.ionc-sensors-tbody tr.ionc-sensor-row').first();
-    const chartLabel = firstRow.locator('.ionc-chart-label');
+    const chartLabel = firstRow.locator('.chart-toggle-label');
     await chartLabel.click();
 
     // Ждём появления графика
@@ -841,7 +836,7 @@ test.describe('IONotifyController (SharedMemory)', () => {
 
     // Добавляем датчик на график
     const firstRow = page.locator('.ionc-sensors-tbody tr.ionc-sensor-row').first();
-    const chartLabel = firstRow.locator('.ionc-chart-label');
+    const chartLabel = firstRow.locator('.chart-toggle-label');
     await chartLabel.click();
 
     // Ждём появления графика
@@ -873,7 +868,7 @@ test.describe('IONotifyController (SharedMemory)', () => {
 
     // Добавляем датчик на график
     const firstRow = page.locator('.ionc-sensors-tbody tr.ionc-sensor-row').first();
-    const chartLabel = firstRow.locator('.ionc-chart-label');
+    const chartLabel = firstRow.locator('.chart-toggle-label');
     await chartLabel.click();
 
     // Ждём появления графика

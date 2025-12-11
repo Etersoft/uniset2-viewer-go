@@ -578,6 +578,51 @@ class BaseObjectRenderer {
             </table>
         `);
     }
+
+    // Построение URL с параметром server для multi-server режима
+    buildUrl(path) {
+        const tabState = state.tabs.get(this.tabKey);
+        const serverId = tabState?.serverId;
+        if (serverId) {
+            return `${path}${path.includes('?') ? '&' : '?'}server=${encodeURIComponent(serverId)}`;
+        }
+        return path;
+    }
+
+    // Базовый resize handler для секций
+    setupResize(containerSelector, handleSelector, storageKey, minHeight = 100, maxHeight = 800) {
+        const container = document.querySelector(containerSelector);
+        const handle = document.querySelector(handleSelector);
+        if (!container || !handle) return;
+
+        let startY, startHeight;
+
+        const onMouseMove = (e) => {
+            const delta = e.clientY - startY;
+            const newHeight = Math.min(maxHeight, Math.max(minHeight, startHeight + delta));
+            container.style.height = `${newHeight}px`;
+        };
+
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            localStorage.setItem(storageKey, container.style.height);
+        };
+
+        handle.addEventListener('mousedown', (e) => {
+            startY = e.clientY;
+            startHeight = container.offsetHeight;
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+            e.preventDefault();
+        });
+
+        // Восстановить из localStorage
+        const savedHeight = localStorage.getItem(storageKey);
+        if (savedHeight) {
+            container.style.height = savedHeight;
+        }
+    }
 }
 
 // Рендерер для UniSetManager (полный функционал)
@@ -775,23 +820,24 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
         this.sensorMap = new Map();
         this.filter = '';
         this.typeFilter = 'all';
-        this.offset = 0;
-        this.limit = 100;
         this.totalCount = 0;
         this.loading = false;
         this.subscribedSensorIds = new Set();
         // Для батчевого рендеринга
         this.pendingUpdates = new Map(); // id -> sensor
         this.renderScheduled = false;
-    }
 
-    buildUrl(path) {
-        const tabState = state.tabs.get(this.tabKey);
-        const serverId = tabState?.serverId;
-        if (serverId) {
-            return `${path}${path.includes('?') ? '&' : '?'}server=${encodeURIComponent(serverId)}`;
-        }
-        return path;
+        // Virtual scroll properties (как в OPCUA)
+        this.allSensors = [];           // Все загруженные сенсоры
+        this.rowHeight = 32;            // Высота строки (px)
+        this.bufferRows = 10;           // Буфер строк выше/ниже viewport
+        this.startIndex = 0;            // Первая видимая строка
+        this.endIndex = 0;              // Последняя видимая строка
+
+        // Infinite scroll properties
+        this.chunkSize = 200;           // Сенсоров за запрос
+        this.hasMore = true;            // Есть ли ещё данные
+        this.isLoadingChunk = false;    // Идёт загрузка
     }
 
     createPanelHTML() {
@@ -811,6 +857,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
         this.loadLostConsumers();
         setupChartsResize(this.objectName);
         setupIONCSensorsResize(this.objectName);
+        this.setupVirtualScroll();
     }
 
     createSensorsSection() {
@@ -821,10 +868,10 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                         <path d="M6 9l6 6 6-6"/>
                     </svg>
                     <span class="collapsible-title">Датчики</span>
-                    <span class="ionc-sensor-count" id="ionc-sensor-count-${this.objectName}">0</span>
-                    <div class="ionc-filter-bar" onclick="event.stopPropagation()">
-                        <input type="text" class="ionc-filter-input" id="ionc-filter-${this.objectName}" placeholder="Фильтр...">
-                        <select class="ionc-type-filter" id="ionc-type-filter-${this.objectName}">
+                    <span class="sensor-count" id="ionc-sensor-count-${this.objectName}">0</span>
+                    <div class="filter-bar" onclick="event.stopPropagation()">
+                        <input type="text" class="filter-input" id="ionc-filter-${this.objectName}" placeholder="Фильтр...">
+                        <select class="type-filter" id="ionc-type-filter-${this.objectName}">
                             <option value="all">Все</option>
                             <option value="AI">AI</option>
                             <option value="DI">DI</option>
@@ -839,29 +886,32 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                 </div>
                 <div class="collapsible-content" id="section-ionc-sensors-${this.objectName}">
                     <div class="ionc-sensors-table-container" id="ionc-sensors-container-${this.objectName}">
-                        <table class="ionc-sensors-table">
-                            <thead>
-                                <tr>
-                                    <th class="ionc-col-pin">
-                                        <span class="ionc-unpin-all" id="ionc-unpin-${this.objectName}" title="Снять все закрепления" style="display:none">✕</span>
-                                    </th>
-                                    <th class="ionc-col-chart"></th>
-                                    <th class="ionc-col-id">ID</th>
-                                    <th class="ionc-col-name">Имя</th>
-                                    <th class="ionc-col-type">Тип</th>
-                                    <th class="ionc-col-value">Значение</th>
-                                    <th class="ionc-col-flags">Статус</th>
-                                    <th class="ionc-col-consumers">Подписчики</th>
-                                    <th class="ionc-col-actions">Действия</th>
-                                </tr>
-                            </thead>
-                            <tbody class="ionc-sensors-tbody" id="ionc-sensors-tbody-${this.objectName}">
-                                <tr><td colspan="9" class="ionc-loading">Загрузка...</td></tr>
-                            </tbody>
-                        </table>
+                        <div class="ionc-sensors-viewport" id="ionc-sensors-viewport-${this.objectName}">
+                            <div class="ionc-sensors-spacer" id="ionc-sensors-spacer-${this.objectName}"></div>
+                            <table class="sensors-table ionc-sensors-table">
+                                <thead>
+                                    <tr>
+                                        <th class="ionc-col-pin">
+                                            <span class="ionc-unpin-all" id="ionc-unpin-${this.objectName}" title="Снять все закрепления" style="display:none">✕</span>
+                                        </th>
+                                        <th class="ionc-col-chart"></th>
+                                        <th class="ionc-col-id">ID</th>
+                                        <th class="ionc-col-name">Имя</th>
+                                        <th class="ionc-col-type">Тип</th>
+                                        <th class="ionc-col-value">Значение</th>
+                                        <th class="ionc-col-flags">Статус</th>
+                                        <th class="ionc-col-consumers">Подписчики</th>
+                                        <th class="ionc-col-actions">Действия</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="ionc-sensors-tbody" id="ionc-sensors-tbody-${this.objectName}">
+                                    <tr><td colspan="9" class="ionc-loading">Загрузка...</td></tr>
+                                </tbody>
+                            </table>
+                            <div class="ionc-loading-more" id="ionc-loading-more-${this.objectName}" style="display: none;">Загрузка...</div>
+                        </div>
                     </div>
-                    <div class="ionc-pagination" id="ionc-pagination-${this.objectName}"></div>
-                    <div class="ionc-resize-handle" id="ionc-resize-${this.objectName}"></div>
+                    <div class="resize-handle" id="ionc-resize-${this.objectName}"></div>
                 </div>
             </div>
         `;
@@ -888,7 +938,6 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                 clearTimeout(debounceTimer);
                 debounceTimer = setTimeout(() => {
                     this.filter = e.target.value;
-                    this.offset = 0;
                     this.loadSensors();
                 }, 300);
             });
@@ -899,7 +948,6 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                     if (filterInput.value) {
                         filterInput.value = '';
                         this.filter = '';
-                        this.offset = 0;
                         this.loadSensors();
                     }
                     filterInput.blur();
@@ -911,7 +959,6 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
         if (typeFilter) {
             typeFilter.addEventListener('change', (e) => {
                 this.typeFilter = e.target.value;
-                this.offset = 0;
                 this.loadSensors();
             });
         }
@@ -931,7 +978,6 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                 if (e.key === 'Escape' && filterInput && this.filter) {
                     filterInput.value = '';
                     this.filter = '';
-                    this.offset = 0;
                     this.loadSensors();
                     e.preventDefault();
                 }
@@ -943,13 +989,22 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
         if (this.loading) return;
         this.loading = true;
 
+        // Reset state
+        this.allSensors = [];
+        this.hasMore = true;
+        this.startIndex = 0;
+        this.endIndex = 0;
+
+        const viewport = document.getElementById(`ionc-sensors-viewport-${this.objectName}`);
+        if (viewport) viewport.scrollTop = 0;
+
         const tbody = document.getElementById(`ionc-sensors-tbody-${this.objectName}`);
         if (tbody) {
             tbody.innerHTML = '<tr><td colspan="9" class="ionc-loading">Загрузка...</td></tr>';
         }
 
         try {
-            const url = this.buildUrl(`/api/objects/${encodeURIComponent(this.objectName)}/ionc/sensors?offset=${this.offset}&limit=${this.limit}`);
+            const url = this.buildUrl(`/api/objects/${encodeURIComponent(this.objectName)}/ionc/sensors?offset=0&limit=${this.chunkSize}`);
             const response = await fetch(url);
             if (!response.ok) throw new Error('Failed to load sensors');
 
@@ -958,23 +1013,15 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
 
             // Фильтруем локально
             let sensors = data.sensors || [];
-            if (this.filter) {
-                const filterLower = this.filter.toLowerCase();
-                sensors = sensors.filter(s =>
-                    s.name.toLowerCase().includes(filterLower) ||
-                    String(s.id).includes(filterLower)
-                );
-            }
-            if (this.typeFilter !== 'all') {
-                sensors = sensors.filter(s => s.type === this.typeFilter);
-            }
+            sensors = this.applyLocalFilters(sensors);
 
-            this.sensors = sensors;
+            this.allSensors = sensors;
+            this.sensors = sensors; // Для совместимости с существующим кодом
             this.sensorMap.clear();
             sensors.forEach(s => this.sensorMap.set(s.id, s));
 
-            this.renderSensorsTable();
-            this.renderPagination();
+            this.hasMore = (data.sensors?.length || 0) === this.chunkSize;
+            this.updateVisibleRows();
             this.updateSensorCount();
 
             // Подписываемся на SSE обновления для загруженных датчиков
@@ -989,9 +1036,111 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
         }
     }
 
-    renderSensorsTable() {
+    applyLocalFilters(sensors) {
+        let result = sensors;
+        if (this.filter) {
+            const filterLower = this.filter.toLowerCase();
+            result = result.filter(s =>
+                s.name.toLowerCase().includes(filterLower) ||
+                String(s.id).includes(filterLower)
+            );
+        }
+        if (this.typeFilter !== 'all') {
+            result = result.filter(s => s.type === this.typeFilter);
+        }
+        return result;
+    }
+
+    async loadMoreSensors() {
+        if (this.isLoadingChunk || !this.hasMore) return;
+
+        this.isLoadingChunk = true;
+        this.showLoadingIndicator(true);
+
+        try {
+            const nextOffset = this.allSensors.length;
+            const url = this.buildUrl(`/api/objects/${encodeURIComponent(this.objectName)}/ionc/sensors?offset=${nextOffset}&limit=${this.chunkSize}`);
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Failed to load more sensors');
+
+            const data = await response.json();
+            let newSensors = data.sensors || [];
+
+            // Применить локальные фильтры
+            newSensors = this.applyLocalFilters(newSensors);
+
+            // Добавить к уже загруженным
+            this.allSensors = [...this.allSensors, ...newSensors];
+            this.sensors = this.allSensors; // Для совместимости
+            newSensors.forEach(s => this.sensorMap.set(s.id, s));
+
+            this.hasMore = (data.sensors?.length || 0) === this.chunkSize;
+            this.updateVisibleRows();
+            this.updateSensorCount();
+        } catch (err) {
+            console.error('Failed to load more sensors:', err);
+        } finally {
+            this.isLoadingChunk = false;
+            this.showLoadingIndicator(false);
+        }
+    }
+
+    setupVirtualScroll() {
+        const viewport = document.getElementById(`ionc-sensors-viewport-${this.objectName}`);
+        if (!viewport) return;
+
+        let ticking = false;
+        viewport.addEventListener('scroll', () => {
+            if (!ticking) {
+                requestAnimationFrame(() => {
+                    this.updateVisibleRows();
+                    this.checkInfiniteScroll(viewport);
+                    ticking = false;
+                });
+                ticking = true;
+            }
+        });
+    }
+
+    updateVisibleRows() {
+        const viewport = document.getElementById(`ionc-sensors-viewport-${this.objectName}`);
+        if (!viewport) return;
+
+        const scrollTop = viewport.scrollTop;
+        const viewportHeight = viewport.clientHeight;
+        const totalRows = this.allSensors.length;
+        const visibleRows = Math.ceil(viewportHeight / this.rowHeight);
+
+        this.startIndex = Math.max(0, Math.floor(scrollTop / this.rowHeight) - this.bufferRows);
+        this.endIndex = Math.min(totalRows, this.startIndex + visibleRows + 2 * this.bufferRows);
+
+        this.renderVisibleSensors();
+    }
+
+    checkInfiniteScroll(viewport) {
+        if (this.isLoadingChunk || !this.hasMore) return;
+
+        const scrollBottom = viewport.scrollTop + viewport.clientHeight;
+        const totalHeight = this.allSensors.length * this.rowHeight;
+        const threshold = 200; // Load more when 200px from bottom
+
+        if (totalHeight - scrollBottom < threshold) {
+            this.loadMoreSensors();
+        }
+    }
+
+    showLoadingIndicator(show) {
+        const el = document.getElementById(`ionc-loading-more-${this.objectName}`);
+        if (el) el.style.display = show ? 'block' : 'none';
+    }
+
+    renderVisibleSensors() {
         const tbody = document.getElementById(`ionc-sensors-tbody-${this.objectName}`);
-        if (!tbody) return;
+        const spacer = document.getElementById(`ionc-sensors-spacer-${this.objectName}`);
+        if (!tbody || !spacer) return;
+
+        // Установить высоту spacer для позиционирования
+        spacer.style.height = `${this.startIndex * this.rowHeight}px`;
 
         // Получаем закреплённые датчики
         const pinnedSensors = this.getPinnedSensors();
@@ -1006,9 +1155,9 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
         // Фильтруем датчики:
         // - если есть текстовый фильтр — показываем все (для поиска новых датчиков)
         // - иначе если есть закреплённые — показываем только их
-        let sensorsToShow = this.sensors;
+        let sensorsToShow = this.allSensors;
         if (!this.filter && hasPinned) {
-            sensorsToShow = this.sensors.filter(s => pinnedSensors.has(String(s.id)));
+            sensorsToShow = this.allSensors.filter(s => pinnedSensors.has(String(s.id)));
         }
 
         if (sensorsToShow.length === 0) {
@@ -1016,8 +1165,21 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
             return;
         }
 
-        tbody.innerHTML = sensorsToShow.map(sensor => this.renderSensorRow(sensor, pinnedSensors.has(String(sensor.id)))).join('');
+        // Virtual scroll: показываем только видимые строки
+        const visibleSensors = sensorsToShow.slice(this.startIndex, this.endIndex);
 
+        tbody.innerHTML = visibleSensors.map(sensor => this.renderSensorRow(sensor, pinnedSensors.has(String(sensor.id)))).join('');
+
+        // Привязать события к строкам
+        this.bindRowEvents(tbody);
+
+        // Обработчик кнопки "снять все"
+        if (unpinBtn) {
+            unpinBtn.onclick = () => this.unpinAll();
+        }
+    }
+
+    bindRowEvents(tbody) {
         // Добавляем обработчики событий
         tbody.querySelectorAll('.ionc-btn-set').forEach(btn => {
             btn.addEventListener('click', () => this.showSetDialog(parseInt(btn.dataset.id)));
@@ -1046,17 +1208,17 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
         tbody.querySelectorAll('.ionc-btn-consumers').forEach(btn => {
             btn.addEventListener('click', () => this.showConsumersDialog(parseInt(btn.dataset.id)));
         });
-        tbody.querySelectorAll('.ionc-pin-toggle').forEach(btn => {
+        tbody.querySelectorAll('.pin-toggle').forEach(btn => {
             btn.addEventListener('click', () => this.togglePin(parseInt(btn.dataset.id)));
         });
         tbody.querySelectorAll('.ionc-chart-checkbox').forEach(cb => {
             cb.addEventListener('change', () => this.toggleSensorChart(parseInt(cb.dataset.id)));
         });
+    }
 
-        // Обработчик кнопки "снять все"
-        if (unpinBtn) {
-            unpinBtn.onclick = () => this.unpinAll();
-        }
+    // Legacy alias for compatibility
+    renderSensorsTable() {
+        this.renderVisibleSensors();
     }
 
     renderSensorRow(sensor, isPinned) {
@@ -1075,7 +1237,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
             : `<button class="ionc-btn ionc-btn-freeze" data-id="${sensor.id}" title="Заморозить">❄</button>`;
 
         // Кнопка закрепления (pin)
-        const pinToggleClass = isPinned ? 'ionc-pin-toggle pinned' : 'ionc-pin-toggle';
+        const pinToggleClass = isPinned ? 'pin-toggle pinned' : 'pin-toggle';
         const pinIcon = isPinned ? '📌' : '○';
         const pinTitle = isPinned ? 'Открепить' : 'Закрепить';
 
@@ -1091,14 +1253,14 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                     </span>
                 </td>
                 <td class="ionc-col-chart">
-                    <span class="ionc-chart-toggle">
+                    <span class="chart-toggle">
                         <input type="checkbox"
-                               class="ionc-chart-checkbox"
+                               class="ionc-chart-checkbox chart-toggle-input"
                                id="ionc-chart-${this.objectName}-${varName}"
                                data-id="${sensor.id}"
                                data-name="${escapeHtml(sensor.name)}"
                                ${isOnChart ? 'checked' : ''}>
-                        <label class="ionc-chart-label" for="ionc-chart-${this.objectName}-${varName}">
+                        <label class="chart-toggle-label" for="ionc-chart-${this.objectName}-${varName}">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M3 3v18h18"/>
                                 <path d="M18 9l-5 5-4-4-3 3"/>
@@ -1108,7 +1270,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                 </td>
                 <td class="ionc-col-id">${sensor.id}</td>
                 <td class="ionc-col-name">${escapeHtml(sensor.name)}</td>
-                <td class="ionc-col-type"><span class="ionc-type-badge ionc-type-${sensor.type}">${sensor.type}</span></td>
+                <td class="ionc-col-type"><span class="type-badge type-${sensor.type}">${sensor.type}</span></td>
                 <td class="ionc-col-value">
                     <span class="ionc-value" id="ionc-value-${this.objectName}-${sensor.id}">${sensor.value}</span>
                 </td>
@@ -1207,59 +1369,13 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
         // Не перерисовываем таблицу - checkbox сам обновляется
     }
 
-    renderPagination() {
-        const container = document.getElementById(`ionc-pagination-${this.objectName}`);
-        if (!container) return;
-
-        const totalPages = Math.ceil(this.totalCount / this.limit);
-        const currentPage = Math.floor(this.offset / this.limit) + 1;
-
-        if (totalPages <= 1) {
-            container.innerHTML = `<span class="ionc-pagination-info">Всего: ${this.totalCount}</span>`;
-            return;
-        }
-
-        let html = `<span class="ionc-pagination-info">Стр. ${currentPage} из ${totalPages} (всего ${this.totalCount})</span>`;
-        html += '<div class="ionc-pagination-buttons">';
-
-        // Prev button
-        html += `<button class="ionc-page-btn" ${currentPage === 1 ? 'disabled' : ''} data-page="${currentPage - 1}">«</button>`;
-
-        // Page numbers
-        const maxButtons = 5;
-        let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
-        let endPage = Math.min(totalPages, startPage + maxButtons - 1);
-        if (endPage - startPage < maxButtons - 1) {
-            startPage = Math.max(1, endPage - maxButtons + 1);
-        }
-
-        for (let i = startPage; i <= endPage; i++) {
-            const activeClass = i === currentPage ? 'active' : '';
-            html += `<button class="ionc-page-btn ${activeClass}" data-page="${i}">${i}</button>`;
-        }
-
-        // Next button
-        html += `<button class="ionc-page-btn" ${currentPage === totalPages ? 'disabled' : ''} data-page="${currentPage + 1}">»</button>`;
-        html += '</div>';
-
-        container.innerHTML = html;
-
-        // Add event listeners
-        container.querySelectorAll('.ionc-page-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const page = parseInt(btn.dataset.page);
-                if (page >= 1 && page <= totalPages) {
-                    this.offset = (page - 1) * this.limit;
-                    this.loadSensors();
-                }
-            });
-        });
-    }
-
     updateSensorCount() {
         const countEl = document.getElementById(`ionc-sensor-count-${this.objectName}`);
         if (countEl) {
-            countEl.textContent = this.totalCount;
+            const loaded = this.allSensors.length;
+            const total = this.totalCount;
+            countEl.textContent = this.hasMore ? `${loaded}+` : `${loaded}`;
+            countEl.title = `Загружено: ${loaded} из ${total}`;
         }
     }
 
@@ -1865,15 +1981,6 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
         }
     }
 
-    buildUrl(path) {
-        const tabState = state.tabs.get(this.tabKey);
-        const serverId = tabState?.serverId;
-        if (serverId) {
-            return `${path}${path.includes('?') ? '&' : '?'}server=${encodeURIComponent(serverId)}`;
-        }
-        return path;
-    }
-
     async fetchJSON(path, options = {}) {
         const url = this.buildUrl(path);
         const response = await fetch(url, options);
@@ -1936,9 +2043,9 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
 
     createOPCUASensorsSection() {
         return this.createCollapsibleSection('opcua-sensors', 'Датчики', `
-            <div class="opcua-actions">
-                <input type="text" class="opcua-filter-input" id="opcua-sensors-filter-${this.objectName}" placeholder="Фильтр по имени...">
-                <select class="opcua-type-filter" id="opcua-type-filter-${this.objectName}">
+            <div class="filter-bar opcua-actions">
+                <input type="text" class="filter-input" id="opcua-sensors-filter-${this.objectName}" placeholder="Фильтр по имени...">
+                <select class="type-filter" id="opcua-type-filter-${this.objectName}">
                     <option value="all">Все типы</option>
                     <option value="AI">AI</option>
                     <option value="AO">AO</option>
@@ -1946,13 +2053,13 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
                     <option value="DO">DO</option>
                 </select>
                 <button class="btn" id="opcua-sensors-refresh-${this.objectName}">Обновить</button>
-                <span class="opcua-sensor-count" id="opcua-sensor-count-${this.objectName}">0</span>
+                <span class="sensor-count" id="opcua-sensor-count-${this.objectName}">0</span>
                 <span class="opcua-note" id="opcua-sensors-note-${this.objectName}"></span>
             </div>
             <div class="opcua-sensors-container" id="opcua-sensors-container-${this.objectName}" style="height: ${this.sensorsHeight}px">
                 <div class="opcua-sensors-viewport" id="opcua-sensors-viewport-${this.objectName}">
                     <div class="opcua-sensors-spacer" id="opcua-sensors-spacer-${this.objectName}"></div>
-                    <table class="variables-table opcua-sensors-table">
+                    <table class="sensors-table variables-table opcua-sensors-table">
                         <thead>
                             <tr>
                                 <th>ID</th>
@@ -1971,7 +2078,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
                 </div>
                 <div class="opcua-sensor-details" id="opcua-sensor-details-${this.objectName}"></div>
             </div>
-            <div class="opcua-sensors-resize-handle" id="opcua-sensors-resize-${this.objectName}"></div>
+            <div class="resize-handle" id="opcua-sensors-resize-${this.objectName}"></div>
         `, { sectionId: `opcua-sensors-section-${this.objectName}` });
     }
 
@@ -2307,7 +2414,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
         // Render visible rows with type badges
         tbody.innerHTML = visibleSensors.map(sensor => {
             const iotype = sensor.iotype || sensor.type || '';
-            const typeBadgeClass = iotype ? `opcua-type-badge opcua-type-${iotype}` : '';
+            const typeBadgeClass = iotype ? `type-badge type-${iotype}` : '';
             return `
             <tr data-sensor-id="${sensor.id || ''}">
                 <td>${sensor.id ?? '—'}</td>
