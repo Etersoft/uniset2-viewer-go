@@ -3048,6 +3048,7 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
 
         // Virtual scroll properties
         this.allRegisters = [];
+        this.devicesDict = {};
         this.registersTotal = 0;
         this.rowHeight = 32;
         this.bufferRows = 10;
@@ -3493,6 +3494,7 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
 
     async loadRegisters() {
         this.allRegisters = [];
+        this.devicesDict = {};
         this.hasMore = true;
         this.isLoadingChunk = false;
         await this.loadRegisterChunk(0);
@@ -3517,6 +3519,11 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
             const data = await this.fetchJSON(url);
             const registers = data.registers || [];
             this.registersTotal = data.total || 0;
+
+            // Merge devices dictionary
+            if (data.devices) {
+                Object.assign(this.devicesDict, data.devices);
+            }
 
             if (offset === 0) {
                 this.allRegisters = registers;
@@ -3545,15 +3552,16 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
         if (!tbody) return;
 
         const html = this.allRegisters.map(reg => {
-            const device = reg.device || {};
+            const deviceAddr = reg.device;
+            const deviceInfo = this.devicesDict[deviceAddr] || {};
             const regInfo = reg.register || {};
-            const respondClass = device.respond ? 'ok' : 'fail';
+            const respondClass = deviceInfo.respond ? 'ok' : 'fail';
             return `
                 <tr>
                     <td>${reg.id}</td>
                     <td>${escapeHtml(reg.name || '')}</td>
                     <td>${reg.iotype || ''}</td>
-                    <td><span class="mb-respond ${respondClass}">${device.addr || ''}</span></td>
+                    <td><span class="mb-respond ${respondClass}">${deviceAddr || ''}</span></td>
                     <td>${regInfo.mbreg || ''}</td>
                     <td>${regInfo.mbfunc || ''}</td>
                     <td>${reg.value !== undefined ? reg.value : ''}</td>

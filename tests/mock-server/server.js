@@ -262,10 +262,7 @@ for (let i = 1; i <= 100; i++) {
     iotype: iotype,
     value: isAnalog ? (100 + i * 2) : (i % 2),
     vtype: mbVtypes[iotype],
-    device: {
-      addr: devAddr,
-      respond: mbDevices[devAddr - 1].respond
-    },
+    device: devAddr,  // now just addr, details in devices dict
     register: {
       mbreg: 100 + i,
       mbfunc: mbFuncs[iotype],
@@ -510,8 +507,25 @@ const server = http.createServer((req, res) => {
     }
 
     const paginatedRegs = filtered.slice(offset, offset + limit);
+
+    // Build devices dictionary (only for devices in results)
+    const usedDevices = new Set(paginatedRegs.map(r => r.device));
+    const devicesDict = {};
+    for (const addr of usedDevices) {
+      const dev = mbDevices.find(d => d.addr === addr);
+      if (dev) {
+        devicesDict[addr] = {
+          respond: dev.respond,
+          dtype: dev.dtype,
+          mode: dev.mode,
+          safeMode: dev.safeMode
+        };
+      }
+    }
+
     res.end(JSON.stringify({
       result: 'OK',
+      devices: devicesDict,
       registers: paginatedRegs,
       total: filtered.length,
       count: paginatedRegs.length,
