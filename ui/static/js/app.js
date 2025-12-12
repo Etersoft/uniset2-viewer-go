@@ -3613,6 +3613,515 @@ registerRenderer('ModbusTCPMaster', ModbusMasterRenderer);
 registerRenderer('ModbusRTUMaster', ModbusMasterRenderer);
 
 // ============================================================================
+// ModbusSlaveRenderer - рендерер для ModbusSlave объектов
+// ============================================================================
+
+class ModbusSlaveRenderer extends BaseObjectRenderer {
+    static getTypeName() {
+        return 'ModbusSlave';
+    }
+
+    constructor(objectName, tabKey = null) {
+        super(objectName, tabKey);
+        this.status = null;
+        this.params = {};
+        // Параметры ModbusSlave отличаются от ModbusMaster
+        this.paramNames = [
+            'force',
+            'sockTimeout',
+            'sessTimeout',
+            'updateStatTime'
+        ];
+        this.registersHeight = this.loadRegistersHeight();
+
+        // Status auto-refresh config
+        this.statusIntervalStorageKey = 'uniset2-viewer-mbslave-status-interval';
+        this.statusIntervalBtnClass = 'mbs-interval-btn';
+        this.statusAutorefreshIdPrefix = 'mbs-status-autorefresh';
+        this.statusInterval = this.loadStatusInterval();
+        this.statusTimer = null;
+
+        // Virtual scroll properties
+        this.allRegisters = [];
+        this.devicesDict = {};
+        this.registersTotal = 0;
+        this.rowHeight = 32;
+        this.bufferRows = 10;
+        this.startIndex = 0;
+        this.endIndex = 0;
+
+        // Infinite scroll properties
+        this.chunkSize = 200;
+        this.hasMore = true;
+        this.isLoadingChunk = false;
+
+        // Filter state
+        this.filter = '';
+        this.typeFilter = 'all';
+        this.filterDebounce = null;
+    }
+
+    createPanelHTML() {
+        return `
+            ${this.createChartsSection()}
+            ${this.createMBSStatusSection()}
+            ${this.createMBSParamsSection()}
+            ${this.createMBSRegistersSection()}
+            ${this.createLogViewerSection()}
+            ${this.createLogServerSection()}
+            ${this.createObjectInfoSection()}
+        `;
+    }
+
+    initialize() {
+        this.bindEvents();
+        this.reloadAll();
+        setupChartsResize(this.objectName);
+        this.setupRegistersResize();
+        this.setupVirtualScroll();
+        this.startStatusAutoRefresh();
+    }
+
+    destroy() {
+        this.destroyLogViewer();
+        this.stopStatusAutoRefresh();
+    }
+
+    async reloadAll() {
+        await Promise.allSettled([
+            this.loadStatus(),
+            this.loadParams(),
+            this.loadRegisters()
+        ]);
+    }
+
+    bindEvents() {
+        this.bindStatusIntervalButtons();
+
+        const refreshParams = document.getElementById(`mbs-params-refresh-${this.objectName}`);
+        if (refreshParams) {
+            refreshParams.addEventListener('click', () => this.loadParams());
+        }
+
+        const saveParams = document.getElementById(`mbs-params-save-${this.objectName}`);
+        if (saveParams) {
+            saveParams.addEventListener('click', () => this.saveParams());
+        }
+
+        const refreshRegs = document.getElementById(`mbs-registers-refresh-${this.objectName}`);
+        if (refreshRegs) {
+            refreshRegs.addEventListener('click', () => this.loadRegisters());
+        }
+
+        const filterInput = document.getElementById(`mbs-registers-filter-${this.objectName}`);
+        if (filterInput) {
+            filterInput.addEventListener('input', () => {
+                clearTimeout(this.filterDebounce);
+                this.filterDebounce = setTimeout(() => {
+                    this.filter = filterInput.value.trim();
+                    this.loadRegisters();
+                }, 300);
+            });
+            filterInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    if (filterInput.value) {
+                        filterInput.value = '';
+                        this.filter = '';
+                        this.loadRegisters();
+                    }
+                    filterInput.blur();
+                    e.preventDefault();
+                }
+            });
+        }
+
+        const typeFilter = document.getElementById(`mbs-type-filter-${this.objectName}`);
+        if (typeFilter) {
+            typeFilter.addEventListener('change', () => {
+                this.typeFilter = typeFilter.value;
+                this.loadRegisters();
+            });
+        }
+    }
+
+    createMBSStatusSection() {
+        return this.createCollapsibleSection('mbs-status', 'Статус ModbusSlave', `
+            <div class="mb-actions">
+                <div class="mb-autorefresh" id="mbs-status-autorefresh-${this.objectName}">
+                    <span class="mb-autorefresh-label">Авто:</span>
+                    ${this.renderStatusIntervalButtons()}
+                    <span class="mb-last-update" id="mbs-status-last-${this.objectName}"></span>
+                </div>
+                <span class="mb-note" id="mbs-status-note-${this.objectName}"></span>
+            </div>
+            <table class="info-table">
+                <tbody id="mbs-status-${this.objectName}"></tbody>
+            </table>
+        `, { sectionId: `mbs-status-section-${this.objectName}` });
+    }
+
+    createMBSParamsSection() {
+        return this.createCollapsibleSection('mbs-params', 'Параметры', `
+            <div class="mb-actions">
+                <button class="btn" id="mbs-params-refresh-${this.objectName}">Обновить</button>
+                <button class="btn primary" id="mbs-params-save-${this.objectName}">Применить</button>
+                <span class="mb-note" id="mbs-params-note-${this.objectName}"></span>
+            </div>
+            <div class="mb-params-table-wrapper">
+                <table class="variables-table mb-params-table">
+                    <thead>
+                        <tr>
+                            <th>Параметр</th>
+                            <th>Текущее</th>
+                            <th>Новое значение</th>
+                        </tr>
+                    </thead>
+                    <tbody id="mbs-params-${this.objectName}"></tbody>
+                </table>
+            </div>
+        `, { sectionId: `mbs-params-section-${this.objectName}` });
+    }
+
+    createMBSRegistersSection() {
+        return this.createCollapsibleSection('mbs-registers', 'Регистры', `
+            <div class="filter-bar mb-actions">
+                <input type="text" class="filter-input" id="mbs-registers-filter-${this.objectName}" placeholder="Фильтр по имени...">
+                <select class="type-filter" id="mbs-type-filter-${this.objectName}">
+                    <option value="all">Все типы</option>
+                    <option value="AI">AI</option>
+                    <option value="AO">AO</option>
+                    <option value="DI">DI</option>
+                    <option value="DO">DO</option>
+                </select>
+                <button class="btn" id="mbs-registers-refresh-${this.objectName}">Обновить</button>
+                <span class="sensor-count" id="mbs-register-count-${this.objectName}">0</span>
+                <span class="mb-note" id="mbs-registers-note-${this.objectName}"></span>
+            </div>
+            <div class="mb-registers-container" id="mbs-registers-container-${this.objectName}" style="height: ${this.registersHeight}px">
+                <div class="mb-registers-viewport" id="mbs-registers-viewport-${this.objectName}">
+                    <div class="mb-registers-spacer" id="mbs-registers-spacer-${this.objectName}"></div>
+                    <table class="sensors-table variables-table mb-registers-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Имя</th>
+                                <th>Тип</th>
+                                <th>MB Addr</th>
+                                <th>Регистр</th>
+                                <th>Доступ</th>
+                                <th>Значение</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mbs-registers-tbody-${this.objectName}"></tbody>
+                    </table>
+                    <div class="mb-loading-more" id="mbs-loading-more-${this.objectName}" style="display: none;">Загрузка...</div>
+                </div>
+            </div>
+            <div class="resize-handle" id="mbs-registers-resize-${this.objectName}"></div>
+        `, { sectionId: `mbs-registers-section-${this.objectName}` });
+    }
+
+    async loadStatus() {
+        try {
+            const data = await this.fetchJSON(`/api/objects/${encodeURIComponent(this.objectName)}/modbus/status`);
+            this.status = data.status || null;
+            this.renderStatus();
+            this.updateStatusTimestamp();
+            this.setNote(`mbs-status-note-${this.objectName}`, '');
+        } catch (err) {
+            this.setNote(`mbs-status-note-${this.objectName}`, err.message, true);
+        }
+    }
+
+    renderStatus() {
+        const tbody = document.getElementById(`mbs-status-${this.objectName}`);
+        if (!tbody) return;
+
+        tbody.innerHTML = '';
+
+        if (!this.status) {
+            tbody.innerHTML = '<tr><td colspan="2" class="text-muted">Нет данных</td></tr>';
+            return;
+        }
+
+        const status = this.status;
+        const rows = [
+            { label: 'Имя', value: status.name },
+            { label: 'TCP', value: status.tcp ? `${status.tcp.ip}:${status.tcp.port}` : null },
+            { label: 'Monitor', value: status.monitor },
+            { label: 'force', value: status.force },
+            { label: 'sockTimeout', value: status.sockTimeout },
+            { label: 'sessTimeout', value: status.sessTimeout },
+            { label: 'updateStatTime', value: status.updateStatTime }
+        ];
+
+        // Статистика
+        if (status.stat) {
+            rows.push({ label: 'connectionCount', value: status.stat.connectionCount });
+            rows.push({ label: 'smPingOK', value: status.stat.smPingOK });
+            rows.push({ label: 'restartTCPServerCount', value: status.stat.restartTCPServerCount });
+        }
+
+        // TCP сессии
+        if (status.tcp_sessions) {
+            rows.push({ label: 'Сессий', value: `${status.tcp_sessions.count} / ${status.tcp_sessions.max_sessions}` });
+        }
+
+        // Обслуживаемые адреса
+        if (status.myaddr) {
+            rows.push({ label: 'MB адреса', value: status.myaddr });
+        }
+
+        rows.forEach(row => {
+            if (row.value === undefined || row.value === null) return;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="info-label">${row.label}</td>
+                <td class="info-value">${formatValue(row.value)}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    async loadParams() {
+        try {
+            const query = this.paramNames.map(n => `name=${encodeURIComponent(n)}`).join('&');
+            const data = await this.fetchJSON(`/api/objects/${encodeURIComponent(this.objectName)}/modbus/params?${query}`);
+            this.params = data.params || {};
+            this.renderParams();
+            this.setNote(`mbs-params-note-${this.objectName}`, '');
+        } catch (err) {
+            this.setNote(`mbs-params-note-${this.objectName}`, err.message, true);
+        }
+    }
+
+    renderParams() {
+        const tbody = document.getElementById(`mbs-params-${this.objectName}`);
+        if (!tbody) return;
+
+        tbody.innerHTML = '';
+
+        this.paramNames.forEach(name => {
+            const value = this.params[name];
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="param-name">${name}</td>
+                <td class="param-value">${value !== undefined ? value : '—'}</td>
+                <td class="param-input">
+                    <input type="text" class="param-field" data-param="${name}" placeholder="${value !== undefined ? value : ''}" />
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    async saveParams() {
+        const inputs = document.querySelectorAll(`#mbs-params-${this.objectName} input.param-field`);
+        const params = {};
+
+        inputs.forEach(input => {
+            const name = input.dataset.param;
+            const val = input.value.trim();
+            if (val !== '') {
+                params[name] = val;
+            }
+        });
+
+        if (Object.keys(params).length === 0) {
+            this.setNote(`mbs-params-note-${this.objectName}`, 'Нет изменений');
+            return;
+        }
+
+        try {
+            await this.fetchJSON(`/api/objects/${encodeURIComponent(this.objectName)}/modbus/params`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ params })
+            });
+            this.setNote(`mbs-params-note-${this.objectName}`, 'Сохранено');
+            this.loadParams();
+        } catch (err) {
+            this.setNote(`mbs-params-note-${this.objectName}`, err.message, true);
+        }
+    }
+
+    async loadRegisters() {
+        this.allRegisters = [];
+        this.devicesDict = {};
+        this.hasMore = true;
+        this.isLoadingChunk = false;
+        await this.loadRegisterChunk(0);
+    }
+
+    async loadRegisterChunk(offset) {
+        if (this.isLoadingChunk || !this.hasMore) return;
+        this.isLoadingChunk = true;
+
+        const loadingEl = document.getElementById(`mbs-loading-more-${this.objectName}`);
+        if (loadingEl) loadingEl.style.display = 'block';
+
+        try {
+            let url = `/api/objects/${encodeURIComponent(this.objectName)}/modbus/registers?offset=${offset}&limit=${this.chunkSize}`;
+            if (this.filter) {
+                url += `&filter=${encodeURIComponent(this.filter)}`;
+            }
+            if (this.typeFilter && this.typeFilter !== 'all') {
+                url += `&iotype=${encodeURIComponent(this.typeFilter)}`;
+            }
+
+            const data = await this.fetchJSON(url);
+            const registers = data.registers || [];
+            this.registersTotal = data.total || 0;
+
+            // Merge devices dictionary
+            if (data.devices) {
+                Object.assign(this.devicesDict, data.devices);
+            }
+
+            if (offset === 0) {
+                this.allRegisters = registers;
+            } else {
+                this.allRegisters = this.allRegisters.concat(registers);
+            }
+
+            this.hasMore = this.allRegisters.length < this.registersTotal;
+            this.renderRegisters();
+            this.setNote(`mbs-registers-note-${this.objectName}`, '');
+
+            const countEl = document.getElementById(`mbs-register-count-${this.objectName}`);
+            if (countEl) {
+                countEl.textContent = `${this.registersTotal} регистров`;
+            }
+        } catch (err) {
+            this.setNote(`mbs-registers-note-${this.objectName}`, err.message, true);
+        } finally {
+            this.isLoadingChunk = false;
+            if (loadingEl) loadingEl.style.display = 'none';
+        }
+    }
+
+    renderRegisters() {
+        const tbody = document.getElementById(`mbs-registers-tbody-${this.objectName}`);
+        if (!tbody) return;
+
+        // ModbusSlave формат: device - это mbaddr, нет mbfunc, есть amode
+        const html = this.allRegisters.map(reg => {
+            const mbAddr = reg.device;
+            return `
+                <tr>
+                    <td>${reg.id}</td>
+                    <td>${escapeHtml(reg.name || '')}</td>
+                    <td>${reg.iotype || ''}</td>
+                    <td>${mbAddr || ''}</td>
+                    <td>${reg.mbreg !== undefined ? reg.mbreg : ''}</td>
+                    <td>${reg.amode || ''}</td>
+                    <td>${reg.value !== undefined ? reg.value : ''}</td>
+                </tr>
+            `;
+        }).join('');
+
+        tbody.innerHTML = html;
+    }
+
+    setupVirtualScroll() {
+        const viewport = document.getElementById(`mbs-registers-viewport-${this.objectName}`);
+        if (!viewport) return;
+
+        viewport.addEventListener('scroll', () => {
+            const scrollTop = viewport.scrollTop;
+            const viewportHeight = viewport.clientHeight;
+            const scrollHeight = viewport.scrollHeight;
+
+            // Загружаем следующий чанк когда остается 100px до конца
+            if (scrollHeight - scrollTop - viewportHeight < 100) {
+                this.loadRegisterChunk(this.allRegisters.length);
+            }
+        });
+    }
+
+    loadRegistersHeight() {
+        try {
+            const saved = JSON.parse(localStorage.getItem('uniset2-viewer-mbs-registers') || '{}');
+            const value = saved[this.objectName];
+            if (typeof value === 'number' && value > 0) {
+                return value;
+            }
+        } catch (err) {
+            console.warn('Failed to load registers height:', err);
+        }
+        return 320;
+    }
+
+    saveRegistersHeight(value) {
+        this.registersHeight = value;
+        try {
+            const saved = JSON.parse(localStorage.getItem('uniset2-viewer-mbs-registers') || '{}');
+            saved[this.objectName] = value;
+            localStorage.setItem('uniset2-viewer-mbs-registers', JSON.stringify(saved));
+        } catch (err) {
+            console.warn('Failed to save registers height:', err);
+        }
+    }
+
+    setupRegistersResize() {
+        const handle = document.getElementById(`mbs-registers-resize-${this.objectName}`);
+        const container = document.getElementById(`mbs-registers-container-${this.objectName}`);
+        if (!handle || !container) return;
+
+        container.style.height = `${this.registersHeight}px`;
+
+        let startY = 0;
+        let startHeight = 0;
+        let isResizing = false;
+
+        const onMouseMove = (e) => {
+            if (!isResizing) return;
+            const delta = e.clientY - startY;
+            const newHeight = Math.max(200, Math.min(700, startHeight + delta));
+            container.style.height = `${newHeight}px`;
+        };
+
+        const onMouseUp = () => {
+            if (!isResizing) return;
+            isResizing = false;
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            const newHeight = parseInt(container.style.height, 10);
+            if (!Number.isNaN(newHeight)) {
+                this.saveRegistersHeight(newHeight);
+            }
+        };
+
+        handle.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            isResizing = true;
+            startY = e.clientY;
+            startHeight = container.offsetHeight;
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+            document.body.style.cursor = 'ns-resize';
+            document.body.style.userSelect = 'none';
+        });
+    }
+
+    update(data) {
+        renderObjectInfo(this.objectName, data.object);
+        renderLogServer(this.objectName, data.LogServer);
+        updateChartLegends(this.objectName, data);
+        this.initLogViewer(data.LogServer);
+    }
+}
+
+// ModbusSlave рендерер (по extensionType)
+registerRenderer('ModbusSlave', ModbusSlaveRenderer);
+
+// Fallback для старых версий (по objectType)
+registerRenderer('MBSlave', ModbusSlaveRenderer);
+registerRenderer('MBSlave1', ModbusSlaveRenderer);
+
+// ============================================================================
 // Конец системы рендереров
 // ============================================================================
 
