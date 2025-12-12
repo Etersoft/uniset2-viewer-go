@@ -236,8 +236,8 @@ type IONCLostConsumersResponse struct {
 }
 
 // GetIONCSensors возвращает список датчиков из IONotifyController объекта
-// GET /{objectName}/sensors?offset=N&limit=M&filter=text&iotype=AI
-func (c *Client) GetIONCSensors(objectName string, offset, limit int, filter, iotype string) (*IONCSensorsResponse, error) {
+// GET /{objectName}/sensors?offset=N&limit=M&search=text&iotype=AI
+func (c *Client) GetIONCSensors(objectName string, offset, limit int, search, iotype string) (*IONCSensorsResponse, error) {
 	values := url.Values{}
 	if offset > 0 {
 		values.Set("offset", strconv.Itoa(offset))
@@ -245,8 +245,8 @@ func (c *Client) GetIONCSensors(objectName string, offset, limit int, filter, io
 	if limit > 0 {
 		values.Set("limit", strconv.Itoa(limit))
 	}
-	if filter != "" {
-		values.Set("filter", filter)
+	if search != "" {
+		values.Set("search", search)
 	}
 	if iotype != "" && iotype != "all" {
 		values.Set("iotype", iotype)
@@ -271,9 +271,9 @@ func (c *Client) GetIONCSensors(objectName string, offset, limit int, filter, io
 }
 
 // GetIONCSensorValues получает значения конкретных датчиков
-// GET /{objectName}/get?id1,name2,id3
+// GET /{objectName}/get?filter=id1,name2,id3
 func (c *Client) GetIONCSensorValues(objectName string, sensors string) (*IONCSensorsResponse, error) {
-	path := fmt.Sprintf("%s/get?%s", objectName, sensors)
+	path := fmt.Sprintf("%s/get?filter=%s", objectName, url.QueryEscape(sensors))
 
 	data, err := c.doGet(path)
 	if err != nil {

@@ -350,6 +350,64 @@ function initSSE() {
         }
     });
 
+    // Обработка батча обновлений Modbus регистров (ModbusMaster, ModbusSlave)
+    eventSource.addEventListener('modbus_register_batch', (e) => {
+        try {
+            const event = JSON.parse(e.data);
+            const { objectName, serverId } = event;
+            const registers = event.data; // массив регистров
+
+            // Формируем ключ вкладки: serverId:objectName
+            const tabKey = `${serverId}:${objectName}`;
+
+            // Находим вкладку с Modbus рендерером
+            const tabState = state.tabs.get(tabKey);
+            if (!tabState) return;
+
+            // Проверяем, что это Modbus рендерер (Master или Slave)
+            const renderer = tabState.renderer;
+            if (!renderer) return;
+
+            const isModbusRenderer = renderer.constructor.name === 'ModbusMasterRenderer' ||
+                                     renderer.constructor.name === 'ModbusSlaveRenderer';
+            if (!isModbusRenderer) return;
+
+            // Вызываем обработчик обновления регистров
+            if (typeof renderer.handleModbusRegisterUpdates === 'function') {
+                renderer.handleModbusRegisterUpdates(registers);
+            }
+        } catch (err) {
+            console.warn('SSE: Ошибка обработки modbus_register_batch:', err);
+        }
+    });
+
+    // Обработка батча обновлений OPCUA датчиков (OPCUAExchange)
+    eventSource.addEventListener('opcua_sensor_batch', (e) => {
+        try {
+            const event = JSON.parse(e.data);
+            const { objectName, serverId } = event;
+            const sensors = event.data; // массив датчиков
+
+            // Формируем ключ вкладки: serverId:objectName
+            const tabKey = `${serverId}:${objectName}`;
+
+            // Находим вкладку с OPCUA рендерером
+            const tabState = state.tabs.get(tabKey);
+            if (!tabState) return;
+
+            // Проверяем, что это OPCUAExchange рендерер
+            const renderer = tabState.renderer;
+            if (!renderer || renderer.constructor.name !== 'OPCUAExchangeRenderer') return;
+
+            // Вызываем обработчик обновления датчиков
+            if (typeof renderer.handleOPCUASensorUpdates === 'function') {
+                renderer.handleOPCUASensorUpdates(sensors);
+            }
+        } catch (err) {
+            console.warn('SSE: Ошибка обработки opcua_sensor_batch:', err);
+        }
+    });
+
     // Обработка изменений статуса серверов
     eventSource.addEventListener('server_status', (e) => {
         try {
@@ -1271,7 +1329,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
             // Серверная фильтрация (если не включена UI фильтрация)
             if (!useUIFilter) {
                 if (this.filter) {
-                    url += `&filter=${encodeURIComponent(this.filter)}`;
+                    url += `&search=${encodeURIComponent(this.filter)}`;
                 }
                 if (this.typeFilter && this.typeFilter !== 'all') {
                     url += `&iotype=${this.typeFilter}`;
@@ -1343,7 +1401,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
             // Серверная фильтрация (если не включена UI фильтрация)
             if (!useUIFilter) {
                 if (this.filter) {
-                    url += `&filter=${encodeURIComponent(this.filter)}`;
+                    url += `&search=${encodeURIComponent(this.filter)}`;
                 }
                 if (this.typeFilter && this.typeFilter !== 'all') {
                     url += `&iotype=${this.typeFilter}`;
@@ -2149,12 +2207,11 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
         this.loadingNote = '';
         this.diagnosticsHeight = this.loadDiagnosticsHeight();
         this.sensorsHeight = this.loadSensorsHeight();
-        // Status auto-refresh config
-        this.statusIntervalStorageKey = 'uniset2-viewer-opcua-status-interval';
-        this.statusIntervalBtnClass = 'opcua-interval-btn';
-        this.statusAutorefreshIdPrefix = 'opcua-status-autorefresh';
-        this.statusInterval = this.loadStatusInterval();
-        this.statusTimer = null;
+
+        // SSE подписки
+        this.subscribedSensorIds = new Set();
+        this.pendingUpdates = [];
+        this.renderScheduled = false;
 
         // Virtual scroll properties
         this.allSensors = [];
@@ -2196,12 +2253,11 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
         this.setupDiagnosticsResize();
         this.setupSensorsResize();
         this.setupVirtualScroll();
-        this.startStatusAutoRefresh();
     }
 
     destroy() {
         this.destroyLogViewer();
-        this.stopStatusAutoRefresh();
+        this.unsubscribeFromSSE();
     }
 
     async reloadAll() {
@@ -2214,8 +2270,6 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
     }
 
     bindEvents() {
-        this.bindStatusIntervalButtons();
-
         const refreshParams = document.getElementById(`opcua-params-refresh-${this.objectName}`);
         if (refreshParams) {
             refreshParams.addEventListener('click', () => this.loadParams());
@@ -2224,11 +2278,6 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
         const saveParams = document.getElementById(`opcua-params-save-${this.objectName}`);
         if (saveParams) {
             saveParams.addEventListener('click', () => this.saveParams());
-        }
-
-        const refreshSensors = document.getElementById(`opcua-sensors-refresh-${this.objectName}`);
-        if (refreshSensors) {
-            refreshSensors.addEventListener('click', () => this.loadSensors());
         }
 
         const filterInput = document.getElementById(`opcua-sensors-filter-${this.objectName}`);
@@ -2280,11 +2329,6 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
     createOPCUAStatusSection() {
         return this.createCollapsibleSection('opcua-status', 'Статус OPC UA', `
             <div class="opcua-actions">
-                <div class="opcua-autorefresh" id="opcua-status-autorefresh-${this.objectName}">
-                    <span class="opcua-autorefresh-label">Авто:</span>
-                    ${this.renderStatusIntervalButtons()}
-                    <span class="opcua-last-update" id="opcua-status-last-${this.objectName}"></span>
-                </div>
                 <span class="opcua-note" id="opcua-status-note-${this.objectName}"></span>
             </div>
             <table class="info-table">
@@ -2338,7 +2382,6 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
                     <option value="DI">DI</option>
                     <option value="DO">DO</option>
                 </select>
-                <button class="btn" id="opcua-sensors-refresh-${this.objectName}">Обновить</button>
                 <span class="sensor-count" id="opcua-sensor-count-${this.objectName}">0</span>
                 <span class="opcua-note" id="opcua-sensors-note-${this.objectName}"></span>
             </div>
@@ -2371,7 +2414,6 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
     createOPCUADiagnosticsSection() {
         return this.createCollapsibleSection('opcua-diagnostics', 'Диагностика', `
             <div class="opcua-actions">
-                <button class="btn" id="opcua-diagnostics-refresh-${this.objectName}">Обновить</button>
                 <span class="opcua-note" id="opcua-diagnostics-note-${this.objectName}"></span>
             </div>
             <div class="opcua-diagnostics-container" id="opcua-diagnostics-container-${this.objectName}" style="height: ${this.diagnosticsHeight}px">
@@ -2594,7 +2636,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
             // Серверная фильтрация (если не включена UI фильтрация)
             if (!useUIFilter) {
                 if (this.filter) {
-                    url += `&filter=${encodeURIComponent(this.filter)}`;
+                    url += `&search=${encodeURIComponent(this.filter)}`;
                 }
                 if (this.typeFilter && this.typeFilter !== 'all') {
                     url += `&iotype=${this.typeFilter}`;
@@ -2615,6 +2657,9 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
             this.updateVisibleRows();
             this.updateSensorCount();
             this.setNote(`opcua-sensors-note-${this.objectName}`, '');
+
+            // Подписываемся на SSE обновления после загрузки
+            this.subscribeToSSE();
         } catch (err) {
             this.setNote(`opcua-sensors-note-${this.objectName}`, err.message, true);
         }
@@ -2651,7 +2696,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
             // Серверная фильтрация (если не включена UI фильтрация)
             if (!useUIFilter) {
                 if (this.filter) {
-                    url += `&filter=${encodeURIComponent(this.filter)}`;
+                    url += `&search=${encodeURIComponent(this.filter)}`;
                 }
                 if (this.typeFilter && this.typeFilter !== 'all') {
                     url += `&iotype=${this.typeFilter}`;
@@ -3036,6 +3081,125 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
         }
     }
 
+    // === SSE подписка на обновления датчиков ===
+
+    async subscribeToSSE() {
+        if (this.allSensors.length === 0) return;
+
+        // Собираем ID датчиков
+        const sensorIds = this.allSensors.map(s => s.id);
+
+        // Пропускаем, если уже подписаны на те же датчики
+        const newIds = new Set(sensorIds);
+        if (this.subscribedSensorIds.size === newIds.size &&
+            [...newIds].every(id => this.subscribedSensorIds.has(id))) {
+            return;
+        }
+
+        try {
+            await this.fetchJSON(`/api/objects/${encodeURIComponent(this.objectName)}/opcua/subscribe`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sensor_ids: sensorIds })
+            });
+
+            this.subscribedSensorIds = newIds;
+            console.log(`OPCUA SSE: подписка на ${sensorIds.length} датчиков`, this.objectName);
+        } catch (err) {
+            console.warn('OPCUA SSE: ошибка подписки:', err);
+        }
+    }
+
+    async unsubscribeFromSSE() {
+        if (this.subscribedSensorIds.size === 0) return;
+
+        try {
+            const sensorIds = [...this.subscribedSensorIds];
+            await this.fetchJSON(`/api/objects/${encodeURIComponent(this.objectName)}/opcua/unsubscribe`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sensor_ids: sensorIds })
+            });
+
+            console.log(`OPCUA SSE: отписка от ${sensorIds.length} датчиков`, this.objectName);
+            this.subscribedSensorIds.clear();
+        } catch (err) {
+            console.warn('OPCUA SSE: ошибка отписки:', err);
+        }
+    }
+
+    handleOPCUASensorUpdates(sensors) {
+        if (!Array.isArray(sensors) || sensors.length === 0) return;
+
+        // Добавляем в очередь на обновление
+        this.pendingUpdates.push(...sensors);
+
+        // Планируем батчевый рендеринг
+        if (!this.renderScheduled) {
+            this.renderScheduled = true;
+            requestAnimationFrame(() => this.batchRenderUpdates());
+        }
+    }
+
+    batchRenderUpdates() {
+        this.renderScheduled = false;
+
+        if (this.pendingUpdates.length === 0) return;
+
+        const updates = this.pendingUpdates;
+        this.pendingUpdates = [];
+
+        // Создаём map для быстрого поиска
+        const updateMap = new Map();
+        updates.forEach(sensor => {
+            updateMap.set(sensor.id, sensor);
+        });
+
+        // Обновляем данные в allSensors
+        let hasChanges = false;
+        this.allSensors.forEach((sensor, index) => {
+            const update = updateMap.get(sensor.id);
+            if (update && update.value !== sensor.value) {
+                this.allSensors[index] = { ...sensor, value: update.value, tick: update.tick };
+                hasChanges = true;
+            }
+        });
+
+        if (!hasChanges) return;
+
+        // Обновляем видимые строки в DOM
+        const tbody = document.getElementById(`opcua-sensors-${this.objectName}`);
+        if (!tbody) return;
+
+        const rows = tbody.querySelectorAll('tr');
+        rows.forEach((row, index) => {
+            const sensor = this.allSensors[this.startIndex + index];
+            if (!sensor) return;
+
+            const update = updateMap.get(sensor.id);
+            if (update && update.value !== undefined) {
+                // Value ячейка (4-я колонка)
+                const valueCell = row.querySelector('td:nth-child(4)');
+                if (valueCell) {
+                    const oldValue = valueCell.textContent;
+                    const newValue = String(update.value);
+                    if (oldValue !== newValue) {
+                        valueCell.textContent = newValue;
+                        // CSS анимация изменения
+                        valueCell.classList.remove('value-changed');
+                        void valueCell.offsetWidth; // force reflow
+                        valueCell.classList.add('value-changed');
+                    }
+                }
+                // Tick ячейка (5-я колонка)
+                const tickCell = row.querySelector('td:nth-child(5)');
+                if (tickCell && update.tick !== undefined) {
+                    tickCell.textContent = String(update.tick);
+                }
+            }
+        });
+    }
+
     update(data) {
         renderObjectInfo(this.objectName, data.object);
         renderLogServer(this.objectName, data.LogServer);
@@ -3068,12 +3232,11 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
         ];
         this.devices = [];
         this.registersHeight = this.loadRegistersHeight();
-        // Status auto-refresh config
-        this.statusIntervalStorageKey = 'uniset2-viewer-modbus-status-interval';
-        this.statusIntervalBtnClass = 'mb-interval-btn';
-        this.statusAutorefreshIdPrefix = 'mb-status-autorefresh';
-        this.statusInterval = this.loadStatusInterval();
-        this.statusTimer = null;
+
+        // SSE подписки
+        this.subscribedRegisterIds = new Set();
+        this.pendingUpdates = [];
+        this.renderScheduled = false;
 
         // Virtual scroll properties
         this.allRegisters = [];
@@ -3114,12 +3277,11 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
         setupChartsResize(this.objectName);
         this.setupRegistersResize();
         this.setupVirtualScroll();
-        this.startStatusAutoRefresh();
     }
 
     destroy() {
         this.destroyLogViewer();
-        this.stopStatusAutoRefresh();
+        this.unsubscribeFromSSE();
     }
 
     async reloadAll() {
@@ -3132,8 +3294,6 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
     }
 
     bindEvents() {
-        this.bindStatusIntervalButtons();
-
         const refreshParams = document.getElementById(`mb-params-refresh-${this.objectName}`);
         if (refreshParams) {
             refreshParams.addEventListener('click', () => this.loadParams());
@@ -3142,16 +3302,6 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
         const saveParams = document.getElementById(`mb-params-save-${this.objectName}`);
         if (saveParams) {
             saveParams.addEventListener('click', () => this.saveParams());
-        }
-
-        const refreshDevices = document.getElementById(`mb-devices-refresh-${this.objectName}`);
-        if (refreshDevices) {
-            refreshDevices.addEventListener('click', () => this.loadDevices());
-        }
-
-        const refreshRegs = document.getElementById(`mb-registers-refresh-${this.objectName}`);
-        if (refreshRegs) {
-            refreshRegs.addEventListener('click', () => this.loadRegisters());
         }
 
         const filterInput = document.getElementById(`mb-registers-filter-${this.objectName}`);
@@ -3188,11 +3338,6 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
     createMBStatusSection() {
         return this.createCollapsibleSection('mb-status', 'Статус Modbus', `
             <div class="mb-actions">
-                <div class="mb-autorefresh" id="mb-status-autorefresh-${this.objectName}">
-                    <span class="mb-autorefresh-label">Авто:</span>
-                    ${this.renderStatusIntervalButtons()}
-                    <span class="mb-last-update" id="mb-status-last-${this.objectName}"></span>
-                </div>
                 <span class="mb-note" id="mb-status-note-${this.objectName}"></span>
             </div>
             <table class="info-table">
@@ -3226,7 +3371,6 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
     createMBDevicesSection() {
         return this.createCollapsibleSection('mb-devices', 'Устройства (Slaves)', `
             <div class="mb-actions">
-                <button class="btn" id="mb-devices-refresh-${this.objectName}">Обновить</button>
                 <span class="mb-device-count" id="mb-device-count-${this.objectName}">0</span>
                 <span class="mb-note" id="mb-devices-note-${this.objectName}"></span>
             </div>
@@ -3245,7 +3389,6 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
                     <option value="DI">DI</option>
                     <option value="DO">DO</option>
                 </select>
-                <button class="btn" id="mb-registers-refresh-${this.objectName}">Обновить</button>
                 <span class="sensor-count" id="mb-register-count-${this.objectName}">0</span>
                 <span class="mb-note" id="mb-registers-note-${this.objectName}"></span>
             </div>
@@ -3446,7 +3589,7 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
         try {
             let url = `/api/objects/${encodeURIComponent(this.objectName)}/modbus/registers?offset=${offset}&limit=${this.chunkSize}`;
             if (this.filter) {
-                url += `&filter=${encodeURIComponent(this.filter)}`;
+                url += `&search=${encodeURIComponent(this.filter)}`;
             }
             if (this.typeFilter && this.typeFilter !== 'all') {
                 url += `&iotype=${encodeURIComponent(this.typeFilter)}`;
@@ -3475,6 +3618,9 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
             if (countEl) {
                 countEl.textContent = `${this.registersTotal} регистров`;
             }
+
+            // Подписываемся на SSE обновления после загрузки
+            this.subscribeToSSE();
         } catch (err) {
             this.setNote(`mb-registers-note-${this.objectName}`, err.message, true);
         } finally {
@@ -3592,6 +3738,120 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
         });
     }
 
+    // === SSE подписка на обновления регистров ===
+
+    async subscribeToSSE() {
+        if (this.allRegisters.length === 0) return;
+
+        // Собираем ID видимых регистров
+        const registerIds = this.allRegisters.map(r => r.id);
+
+        // Пропускаем, если уже подписаны на те же регистры
+        const newIds = new Set(registerIds);
+        if (this.subscribedRegisterIds.size === newIds.size &&
+            [...newIds].every(id => this.subscribedRegisterIds.has(id))) {
+            return;
+        }
+
+        try {
+            await this.fetchJSON(`/api/objects/${encodeURIComponent(this.objectName)}/modbus/subscribe`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ register_ids: registerIds })
+            });
+
+            this.subscribedRegisterIds = newIds;
+            console.log(`ModbusMaster SSE: подписка на ${registerIds.length} регистров`, this.objectName);
+        } catch (err) {
+            console.warn('ModbusMaster SSE: ошибка подписки:', err);
+        }
+    }
+
+    async unsubscribeFromSSE() {
+        if (this.subscribedRegisterIds.size === 0) return;
+
+        try {
+            const registerIds = [...this.subscribedRegisterIds];
+            await this.fetchJSON(`/api/objects/${encodeURIComponent(this.objectName)}/modbus/unsubscribe`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ register_ids: registerIds })
+            });
+
+            console.log(`ModbusMaster SSE: отписка от ${registerIds.length} регистров`, this.objectName);
+            this.subscribedRegisterIds.clear();
+        } catch (err) {
+            console.warn('ModbusMaster SSE: ошибка отписки:', err);
+        }
+    }
+
+    handleModbusRegisterUpdates(registers) {
+        if (!Array.isArray(registers) || registers.length === 0) return;
+
+        // Добавляем в очередь на обновление
+        this.pendingUpdates.push(...registers);
+
+        // Планируем батчевый рендеринг
+        if (!this.renderScheduled) {
+            this.renderScheduled = true;
+            requestAnimationFrame(() => this.batchRenderUpdates());
+        }
+    }
+
+    batchRenderUpdates() {
+        this.renderScheduled = false;
+
+        if (this.pendingUpdates.length === 0) return;
+
+        const updates = this.pendingUpdates;
+        this.pendingUpdates = [];
+
+        // Создаём map для быстрого поиска
+        const updateMap = new Map();
+        updates.forEach(reg => {
+            updateMap.set(reg.id, reg);
+        });
+
+        // Обновляем данные в allRegisters
+        let hasChanges = false;
+        this.allRegisters.forEach((reg, index) => {
+            const update = updateMap.get(reg.id);
+            if (update && update.value !== reg.value) {
+                this.allRegisters[index] = { ...reg, value: update.value };
+                hasChanges = true;
+            }
+        });
+
+        if (!hasChanges) return;
+
+        // Обновляем только изменившиеся ячейки в DOM
+        const tbody = document.getElementById(`mb-registers-tbody-${this.objectName}`);
+        if (!tbody) return;
+
+        const rows = tbody.querySelectorAll('tr');
+        rows.forEach((row, index) => {
+            const reg = this.allRegisters[index];
+            if (!reg) return;
+
+            const update = updateMap.get(reg.id);
+            if (update && update.value !== undefined) {
+                // В ModbusMaster значение в 7-й ячейке (Значение), MB Val в 8-й
+                const valueCell = row.querySelector('td:nth-child(7)');
+                if (valueCell) {
+                    const oldValue = valueCell.textContent;
+                    const newValue = String(update.value);
+                    if (oldValue !== newValue) {
+                        valueCell.textContent = newValue;
+                        // CSS анимация изменения
+                        valueCell.classList.remove('value-changed');
+                        void valueCell.offsetWidth; // force reflow
+                        valueCell.classList.add('value-changed');
+                    }
+                }
+            }
+        });
+    }
+
     update(data) {
         renderObjectInfo(this.objectName, data.object);
         renderLogServer(this.objectName, data.LogServer);
@@ -3638,12 +3898,10 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
         ];
         this.registersHeight = this.loadRegistersHeight();
 
-        // Status auto-refresh config
-        this.statusIntervalStorageKey = 'uniset2-viewer-mbslave-status-interval';
-        this.statusIntervalBtnClass = 'mbs-interval-btn';
-        this.statusAutorefreshIdPrefix = 'mbs-status-autorefresh';
-        this.statusInterval = this.loadStatusInterval();
-        this.statusTimer = null;
+        // SSE подписки
+        this.subscribedRegisterIds = new Set();
+        this.pendingUpdates = [];
+        this.renderScheduled = false;
 
         // Virtual scroll properties
         this.allRegisters = [];
@@ -3683,12 +3941,11 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
         setupChartsResize(this.objectName);
         this.setupRegistersResize();
         this.setupVirtualScroll();
-        this.startStatusAutoRefresh();
     }
 
     destroy() {
         this.destroyLogViewer();
-        this.stopStatusAutoRefresh();
+        this.unsubscribeFromSSE();
     }
 
     async reloadAll() {
@@ -3700,8 +3957,6 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
     }
 
     bindEvents() {
-        this.bindStatusIntervalButtons();
-
         const refreshParams = document.getElementById(`mbs-params-refresh-${this.objectName}`);
         if (refreshParams) {
             refreshParams.addEventListener('click', () => this.loadParams());
@@ -3710,11 +3965,6 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
         const saveParams = document.getElementById(`mbs-params-save-${this.objectName}`);
         if (saveParams) {
             saveParams.addEventListener('click', () => this.saveParams());
-        }
-
-        const refreshRegs = document.getElementById(`mbs-registers-refresh-${this.objectName}`);
-        if (refreshRegs) {
-            refreshRegs.addEventListener('click', () => this.loadRegisters());
         }
 
         const filterInput = document.getElementById(`mbs-registers-filter-${this.objectName}`);
@@ -3751,11 +4001,6 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
     createMBSStatusSection() {
         return this.createCollapsibleSection('mbs-status', 'Статус ModbusSlave', `
             <div class="mb-actions">
-                <div class="mb-autorefresh" id="mbs-status-autorefresh-${this.objectName}">
-                    <span class="mb-autorefresh-label">Авто:</span>
-                    ${this.renderStatusIntervalButtons()}
-                    <span class="mb-last-update" id="mbs-status-last-${this.objectName}"></span>
-                </div>
                 <span class="mb-note" id="mbs-status-note-${this.objectName}"></span>
             </div>
             <table class="info-table">
@@ -3797,7 +4042,6 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
                     <option value="DI">DI</option>
                     <option value="DO">DO</option>
                 </select>
-                <button class="btn" id="mbs-registers-refresh-${this.objectName}">Обновить</button>
                 <span class="sensor-count" id="mbs-register-count-${this.objectName}">0</span>
                 <span class="mb-note" id="mbs-registers-note-${this.objectName}"></span>
             </div>
@@ -3967,7 +4211,7 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
         try {
             let url = `/api/objects/${encodeURIComponent(this.objectName)}/modbus/registers?offset=${offset}&limit=${this.chunkSize}`;
             if (this.filter) {
-                url += `&filter=${encodeURIComponent(this.filter)}`;
+                url += `&search=${encodeURIComponent(this.filter)}`;
             }
             if (this.typeFilter && this.typeFilter !== 'all') {
                 url += `&iotype=${encodeURIComponent(this.typeFilter)}`;
@@ -3996,6 +4240,9 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
             if (countEl) {
                 countEl.textContent = `${this.registersTotal} регистров`;
             }
+
+            // Подписываемся на SSE обновления после загрузки
+            this.subscribeToSSE();
         } catch (err) {
             this.setNote(`mbs-registers-note-${this.objectName}`, err.message, true);
         } finally {
@@ -4107,6 +4354,119 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
             document.addEventListener('mouseup', onMouseUp);
             document.body.style.cursor = 'ns-resize';
             document.body.style.userSelect = 'none';
+        });
+    }
+
+    // === SSE подписка на обновления регистров ===
+
+    async subscribeToSSE() {
+        if (this.allRegisters.length === 0) return;
+
+        // Собираем ID видимых регистров
+        const registerIds = this.allRegisters.map(r => r.id);
+
+        // Пропускаем, если уже подписаны на те же регистры
+        const newIds = new Set(registerIds);
+        if (this.subscribedRegisterIds.size === newIds.size &&
+            [...newIds].every(id => this.subscribedRegisterIds.has(id))) {
+            return;
+        }
+
+        try {
+            await this.fetchJSON(`/api/objects/${encodeURIComponent(this.objectName)}/modbus/subscribe`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ register_ids: registerIds })
+            });
+
+            this.subscribedRegisterIds = newIds;
+            console.log(`ModbusSlave SSE: подписка на ${registerIds.length} регистров`, this.objectName);
+        } catch (err) {
+            console.warn('ModbusSlave SSE: ошибка подписки:', err);
+        }
+    }
+
+    async unsubscribeFromSSE() {
+        if (this.subscribedRegisterIds.size === 0) return;
+
+        try {
+            const registerIds = [...this.subscribedRegisterIds];
+            await this.fetchJSON(`/api/objects/${encodeURIComponent(this.objectName)}/modbus/unsubscribe`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ register_ids: registerIds })
+            });
+
+            console.log(`ModbusSlave SSE: отписка от ${registerIds.length} регистров`, this.objectName);
+            this.subscribedRegisterIds.clear();
+        } catch (err) {
+            console.warn('ModbusSlave SSE: ошибка отписки:', err);
+        }
+    }
+
+    handleModbusRegisterUpdates(registers) {
+        if (!Array.isArray(registers) || registers.length === 0) return;
+
+        // Добавляем в очередь на обновление
+        this.pendingUpdates.push(...registers);
+
+        // Планируем батчевый рендеринг
+        if (!this.renderScheduled) {
+            this.renderScheduled = true;
+            requestAnimationFrame(() => this.batchRenderUpdates());
+        }
+    }
+
+    batchRenderUpdates() {
+        this.renderScheduled = false;
+
+        if (this.pendingUpdates.length === 0) return;
+
+        const updates = this.pendingUpdates;
+        this.pendingUpdates = [];
+
+        // Создаём map для быстрого поиска
+        const updateMap = new Map();
+        updates.forEach(reg => {
+            updateMap.set(reg.id, reg);
+        });
+
+        // Обновляем данные в allRegisters
+        let hasChanges = false;
+        this.allRegisters.forEach((reg, index) => {
+            const update = updateMap.get(reg.id);
+            if (update && update.value !== reg.value) {
+                this.allRegisters[index] = { ...reg, value: update.value };
+                hasChanges = true;
+            }
+        });
+
+        if (!hasChanges) return;
+
+        // Обновляем только изменившиеся ячейки в DOM
+        const tbody = document.getElementById(`mbs-registers-tbody-${this.objectName}`);
+        if (!tbody) return;
+
+        const rows = tbody.querySelectorAll('tr');
+        rows.forEach((row, index) => {
+            const reg = this.allRegisters[index];
+            if (!reg) return;
+
+            const update = updateMap.get(reg.id);
+            if (update && update.value !== undefined) {
+                const valueCell = row.querySelector('td:last-child');
+                if (valueCell) {
+                    const oldValue = valueCell.textContent;
+                    const newValue = String(update.value);
+                    if (oldValue !== newValue) {
+                        valueCell.textContent = newValue;
+                        // CSS анимация изменения
+                        valueCell.classList.remove('value-changed');
+                        void valueCell.offsetWidth; // force reflow
+                        valueCell.classList.add('value-changed');
+                    }
+                }
+            }
         });
     }
 

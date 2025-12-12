@@ -347,15 +347,15 @@ const server = http.createServer((req, res) => {
     const urlObj = new URL(url, `http://localhost:${PORT}`);
     const offset = parseInt(urlObj.searchParams.get('offset') || '0');
     const limit = parseInt(urlObj.searchParams.get('limit') || '100');
-    const filter = (urlObj.searchParams.get('filter') || '').toLowerCase();
+    const search = (urlObj.searchParams.get('search') || '').toLowerCase();
     const iotype = (urlObj.searchParams.get('iotype') || '').toUpperCase();
 
     // Apply filters
     let filtered = mockSensors;
-    if (filter) {
+    if (search) {
       filtered = filtered.filter(s =>
-        s.name.toLowerCase().includes(filter) ||
-        String(s.id).includes(filter)
+        s.name.toLowerCase().includes(search) ||
+        String(s.id).includes(search)
       );
     }
     if (iotype && iotype !== 'ALL') {
@@ -433,15 +433,15 @@ const server = http.createServer((req, res) => {
     const urlObj = new URL(url, `http://localhost:${PORT}`);
     const offset = parseInt(urlObj.searchParams.get('offset') || '0', 10);
     const limit = parseInt(urlObj.searchParams.get('limit') || '50', 10);
-    const filter = (urlObj.searchParams.get('filter') || '').toLowerCase();
+    const search = (urlObj.searchParams.get('search') || '').toLowerCase();
     const iotype = (urlObj.searchParams.get('iotype') || '').toUpperCase();
 
     // Apply filters
     let filtered = opcuaSensors;
-    if (filter) {
+    if (search) {
       filtered = filtered.filter(s =>
-        s.name.toLowerCase().includes(filter) ||
-        String(s.id).includes(filter)
+        s.name.toLowerCase().includes(search) ||
+        String(s.id).includes(search)
       );
     }
     if (iotype && iotype !== 'ALL') {
@@ -495,12 +495,12 @@ const server = http.createServer((req, res) => {
     const urlObj = new URL(url, `http://localhost:${PORT}`);
     const offset = parseInt(urlObj.searchParams.get('offset') || '0', 10);
     const limit = parseInt(urlObj.searchParams.get('limit') || '50', 10);
-    const filter = (urlObj.searchParams.get('filter') || '').toLowerCase();
+    const search = (urlObj.searchParams.get('search') || '').toLowerCase();
     const iotype = (urlObj.searchParams.get('iotype') || '').toUpperCase();
 
     let filtered = mbRegisters;
-    if (filter) {
-      filtered = filtered.filter(r => r.name.toLowerCase().includes(filter));
+    if (search) {
+      filtered = filtered.filter(r => r.name.toLowerCase().includes(search));
     }
     if (iotype && iotype !== 'ALL') {
       filtered = filtered.filter(r => r.iotype === iotype);

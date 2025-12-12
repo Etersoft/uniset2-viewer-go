@@ -142,7 +142,8 @@ func (c *Client) SetOPCUAParams(objectName string, params map[string]interface{}
 }
 
 // GetOPCUASensors возвращает список сенсоров
-func (c *Client) GetOPCUASensors(objectName, filter string, limit, offset int) (*OPCUASensorsResponse, error) {
+// search - текстовый поиск по имени
+func (c *Client) GetOPCUASensors(objectName, search string, limit, offset int) (*OPCUASensorsResponse, error) {
 	values := url.Values{}
 	if limit > 0 {
 		values.Set("limit", strconv.Itoa(limit))
@@ -150,8 +151,8 @@ func (c *Client) GetOPCUASensors(objectName, filter string, limit, offset int) (
 	if offset > 0 {
 		values.Set("offset", strconv.Itoa(offset))
 	}
-	if filter != "" {
-		values.Set("filter", filter)
+	if search != "" {
+		values.Set("search", search)
 	}
 
 	path := fmt.Sprintf("%s/sensors", objectName)

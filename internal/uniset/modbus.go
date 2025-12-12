@@ -158,7 +158,8 @@ func (c *Client) SetMBParams(objectName string, params map[string]interface{}) (
 }
 
 // GetMBRegisters возвращает список регистров (датчиков)
-func (c *Client) GetMBRegisters(objectName, filter, iotype string, limit, offset int) (*MBRegistersResponse, error) {
+// search - текстовый поиск по имени
+func (c *Client) GetMBRegisters(objectName, search, iotype string, limit, offset int) (*MBRegistersResponse, error) {
 	values := url.Values{}
 	if limit > 0 {
 		values.Set("limit", strconv.Itoa(limit))
@@ -166,8 +167,8 @@ func (c *Client) GetMBRegisters(objectName, filter, iotype string, limit, offset
 	if offset > 0 {
 		values.Set("offset", strconv.Itoa(offset))
 	}
-	if filter != "" {
-		values.Set("filter", filter)
+	if search != "" {
+		values.Set("search", search)
 	}
 	if iotype != "" {
 		values.Set("iotype", iotype)
@@ -297,6 +298,26 @@ func (c *Client) ReleaseMBControl(objectName string) (*MBControlResponse, error)
 	}
 
 	var resp MBControlResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, fmt.Errorf("unmarshal failed: %w", err)
+	}
+	if err := ensureMBResult(resp.Result, resp.Error); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// GetMBRegisterValues получает значения конкретных регистров по ID
+// GET /{objectName}/registers?ids=id1,id2,id3
+func (c *Client) GetMBRegisterValues(objectName string, registerIDs string) (*MBRegistersResponse, error) {
+	path := fmt.Sprintf("%s/registers?ids=%s", objectName, registerIDs)
+
+	data, err := c.doGet(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var resp MBRegistersResponse
 	if err := json.Unmarshal(data, &resp); err != nil {
 		return nil, fmt.Errorf("unmarshal failed: %w", err)
 	}
