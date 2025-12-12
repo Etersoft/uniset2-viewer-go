@@ -110,6 +110,41 @@
     background: var(--bg-hover);
 }
 
+/* --- Virtual Scroll Common Styles --- */
+.virtual-scroll-viewport,
+.opcua-sensors-viewport,
+.ionc-sensors-viewport,
+.mb-registers-viewport {
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.virtual-scroll-spacer,
+.opcua-sensors-spacer,
+.ionc-sensors-spacer,
+.mb-registers-spacer {
+    width: 100%;
+    pointer-events: none;
+}
+
+.loading-more,
+.opcua-loading-more,
+.ionc-loading-more,
+.mb-loading-more {
+    text-align: center;
+    padding: 0.75rem;
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+.no-data-message,
+.opcua-no-sensors {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-muted);
+}
+
 /* --- Pin Toggle --- */
 .pin-toggle {
     cursor: pointer;
@@ -1891,18 +1926,7 @@ header h1 {
     white-space: nowrap;
 }
 
-/* OPCUAExchange virtual scroll styles */
-.opcua-sensors-viewport {
-    height: 100%;
-    overflow-y: auto;
-    overflow-x: hidden;
-}
-
-.opcua-sensors-spacer {
-    width: 100%;
-    pointer-events: none;
-}
-
+/* OPCUAExchange virtual scroll styles (common styles in Virtual Scroll Common Styles section) */
 .opcua-sensors-table {
     width: 100%;
     border-collapse: collapse;
@@ -1924,19 +1948,7 @@ header h1 {
     background: var(--bg-hover);
 }
 
-/* OPCUAExchange loading indicator */
-.opcua-loading-more {
-    text-align: center;
-    padding: 0.75rem;
-    color: var(--text-muted);
-    font-size: 13px;
-}
-
-.opcua-no-sensors {
-    text-align: center;
-    padding: 2rem;
-    color: var(--text-muted);
-}
+/* Note: .opcua-loading-more and .opcua-no-sensors styles moved to common Virtual Scroll section */
 
 /* State badges for LogServer */
 .state-badge {
@@ -2877,24 +2889,7 @@ header h1 {
     outline: none;
 }
 
-/* IONC Virtual Scroll */
-.ionc-sensors-viewport {
-    height: 100%;
-    overflow-y: auto;
-    overflow-x: hidden;
-}
-
-.ionc-sensors-spacer {
-    width: 100%;
-    pointer-events: none;
-}
-
-.ionc-loading-more {
-    text-align: center;
-    padding: 1rem;
-    color: var(--text-muted);
-}
-
+/* IONC Virtual Scroll (common styles in Virtual Scroll Common Styles section) */
 .ionc-sensors-table {
     width: 100%;
     border-collapse: collapse;

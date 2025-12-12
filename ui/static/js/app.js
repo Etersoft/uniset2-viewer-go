@@ -506,6 +506,294 @@ function closeSSE() {
 // Реестр рендереров по типу объекта
 const objectRenderers = new Map();
 
+// ============================================================================
+// Миксины для переиспользования общей функциональности
+// ============================================================================
+
+/**
+ * Миксин для виртуального скролла с infinite loading
+ * Требует: viewportId, itemsArray, rowHeight, loadMoreFn, renderFn
+ */
+const VirtualScrollMixin = {
+    // Инициализация свойств виртуального скролла
+    initVirtualScrollProps() {
+        this.rowHeight = 32;
+        this.bufferRows = 10;
+        this.startIndex = 0;
+        this.endIndex = 0;
+        this.chunkSize = 200;
+        this.hasMore = true;
+        this.isLoadingChunk = false;
+    },
+
+    // Настройка обработчика скролла
+    setupVirtualScrollFor(viewportId) {
+        const viewport = document.getElementById(viewportId);
+        if (!viewport) return;
+
+        let ticking = false;
+        viewport.addEventListener('scroll', () => {
+            if (!ticking) {
+                requestAnimationFrame(() => {
+                    this.updateVisibleRowsFor(viewportId);
+                    this.checkInfiniteScrollFor(viewport);
+                    ticking = false;
+                });
+                ticking = true;
+            }
+        });
+    },
+
+    // Обновление видимых строк
+    updateVisibleRowsFor(viewportId) {
+        const viewport = document.getElementById(viewportId);
+        if (!viewport) return;
+
+        const scrollTop = viewport.scrollTop;
+        const viewportHeight = viewport.clientHeight;
+        const items = this.getVirtualScrollItems();
+        const totalRows = items.length;
+        const visibleRows = Math.ceil(viewportHeight / this.rowHeight);
+
+        this.startIndex = Math.max(0, Math.floor(scrollTop / this.rowHeight) - this.bufferRows);
+        this.endIndex = Math.min(totalRows, this.startIndex + visibleRows + 2 * this.bufferRows);
+
+        this.renderVisibleItems();
+    },
+
+    // Проверка необходимости подгрузки
+    checkInfiniteScrollFor(viewport) {
+        if (this.isLoadingChunk || !this.hasMore) return;
+
+        const scrollBottom = viewport.scrollTop + viewport.clientHeight;
+        const items = this.getVirtualScrollItems();
+        const totalHeight = items.length * this.rowHeight;
+        const threshold = 200;
+
+        if (totalHeight - scrollBottom < threshold) {
+            this.loadMoreItems();
+        }
+    },
+
+    // Показать/скрыть индикатор загрузки
+    showLoadingIndicatorFor(elementId, show) {
+        const el = document.getElementById(elementId);
+        if (el) el.style.display = show ? 'block' : 'none';
+    },
+
+    // Получить видимый срез данных
+    getVisibleSlice() {
+        const items = this.getVirtualScrollItems();
+        return items.slice(this.startIndex, this.endIndex);
+    }
+};
+
+/**
+ * Миксин для SSE подписок на обновления датчиков/регистров
+ * Требует: objectName, apiPath, idField
+ */
+const SSESubscriptionMixin = {
+    // Инициализация свойств SSE
+    initSSEProps() {
+        this.subscribedIds = new Set();
+        this.pendingUpdates = [];
+        this.renderScheduled = false;
+    },
+
+    // Подписка на SSE обновления
+    async subscribeToSSEFor(apiPath, ids, idField = 'sensor_ids') {
+        if (ids.length === 0) return;
+
+        // Пропускаем если уже подписаны на те же ID
+        const newIds = new Set(ids);
+        if (this.subscribedIds.size === newIds.size &&
+            [...newIds].every(id => this.subscribedIds.has(id))) {
+            return;
+        }
+
+        try {
+            const url = this.buildUrl(`/api/objects/${encodeURIComponent(this.objectName)}${apiPath}/subscribe`);
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ [idField]: ids })
+            });
+
+            if (response.ok) {
+                this.subscribedIds = newIds;
+                console.log(`SSE: подписка на ${ids.length} элементов для ${this.objectName}`);
+            }
+        } catch (err) {
+            console.warn('SSE: ошибка подписки:', err);
+        }
+    },
+
+    // Отписка от SSE обновлений
+    async unsubscribeFromSSEFor(apiPath, idField = 'sensor_ids') {
+        if (this.subscribedIds.size === 0) return;
+
+        try {
+            const ids = [...this.subscribedIds];
+            const url = this.buildUrl(`/api/objects/${encodeURIComponent(this.objectName)}${apiPath}/unsubscribe`);
+            await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ [idField]: ids })
+            });
+
+            console.log(`SSE: отписка от ${ids.length} элементов для ${this.objectName}`);
+            this.subscribedIds.clear();
+        } catch (err) {
+            console.warn('SSE: ошибка отписки:', err);
+        }
+    },
+
+    // Планирование батчевого рендера обновлений
+    scheduleBatchRender(renderFn) {
+        if (this.renderScheduled) return;
+        this.renderScheduled = true;
+
+        requestAnimationFrame(() => {
+            if (this.pendingUpdates.length > 0) {
+                renderFn(this.pendingUpdates);
+                this.pendingUpdates = [];
+            }
+            this.renderScheduled = false;
+        });
+    }
+};
+
+/**
+ * Миксин для изменяемых по высоте секций с сохранением в localStorage
+ */
+const ResizableSectionMixin = {
+    // Загрузка сохранённой высоты
+    loadSectionHeight(storageKey, defaultHeight = 320) {
+        try {
+            const saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
+            const value = saved[this.objectName];
+            if (typeof value === 'number' && value > 0) {
+                return value;
+            }
+        } catch (err) {
+            console.warn('Failed to load section height:', err);
+        }
+        return defaultHeight;
+    },
+
+    // Сохранение высоты
+    saveSectionHeight(storageKey, value) {
+        try {
+            const saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
+            saved[this.objectName] = value;
+            localStorage.setItem(storageKey, JSON.stringify(saved));
+        } catch (err) {
+            console.warn('Failed to save section height:', err);
+        }
+    },
+
+    // Настройка resize для секции
+    setupSectionResize(handleId, containerId, storageKey, heightProp) {
+        const handle = document.getElementById(handleId);
+        const container = document.getElementById(containerId);
+        if (!handle || !container) return;
+
+        container.style.height = `${this[heightProp]}px`;
+
+        let startY = 0;
+        let startHeight = 0;
+        let isResizing = false;
+
+        const onMouseMove = (e) => {
+            if (!isResizing) return;
+            const delta = e.clientY - startY;
+            const newHeight = Math.max(100, Math.min(800, startHeight + delta));
+            container.style.height = `${newHeight}px`;
+        };
+
+        const onMouseUp = () => {
+            if (!isResizing) return;
+            isResizing = false;
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            handle.classList.remove('resizing');
+            const newHeight = parseInt(container.style.height, 10);
+            this[heightProp] = newHeight;
+            this.saveSectionHeight(storageKey, newHeight);
+        };
+
+        handle.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            isResizing = true;
+            startY = e.clientY;
+            startHeight = container.offsetHeight;
+            handle.classList.add('resizing');
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+        });
+    }
+};
+
+/**
+ * Миксин для фильтрации списка элементов
+ */
+const FilterMixin = {
+    // Инициализация свойств фильтрации
+    initFilterProps() {
+        this.filter = '';
+        this.typeFilter = 'all';
+        this.filterDebounce = null;
+    },
+
+    // Применение локальных фильтров к списку
+    applyFilters(items, nameField = 'name', typeField = 'type') {
+        let result = items;
+
+        if (this.filter) {
+            const filterLower = this.filter.toLowerCase();
+            result = result.filter(item =>
+                (item[nameField] || '').toLowerCase().includes(filterLower) ||
+                String(item.id).includes(filterLower)
+            );
+        }
+
+        if (this.typeFilter && this.typeFilter !== 'all') {
+            result = result.filter(item => item[typeField] === this.typeFilter);
+        }
+
+        return result;
+    },
+
+    // Настройка debounced фильтра
+    setupFilterInput(inputId, onFilter, delay = 300) {
+        const input = document.getElementById(inputId);
+        if (!input) return;
+
+        input.addEventListener('input', (e) => {
+            clearTimeout(this.filterDebounce);
+            this.filterDebounce = setTimeout(() => {
+                this.filter = e.target.value;
+                onFilter();
+            }, delay);
+        });
+    }
+};
+
+// Функция для применения миксина к классу
+function applyMixin(targetClass, mixin) {
+    Object.getOwnPropertyNames(mixin).forEach(name => {
+        if (name !== 'constructor') {
+            Object.defineProperty(
+                targetClass.prototype,
+                name,
+                Object.getOwnPropertyDescriptor(mixin, name)
+            );
+        }
+    });
+}
+
+// ============================================================================
+
 // Базовый класс рендерера (общий функционал)
 class BaseObjectRenderer {
     constructor(objectName, tabKey = null) {
@@ -2175,7 +2463,13 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
     }
 }
 
-// ============================================================================ 
+// Apply mixins to IONotifyControllerRenderer
+applyMixin(IONotifyControllerRenderer, VirtualScrollMixin);
+applyMixin(IONotifyControllerRenderer, SSESubscriptionMixin);
+applyMixin(IONotifyControllerRenderer, ResizableSectionMixin);
+applyMixin(IONotifyControllerRenderer, FilterMixin);
+
+// ============================================================================
 // OPCUAExchangeRenderer - рендерер для OPCUAExchange extensionType
 // ============================================================================
 
@@ -3208,6 +3502,12 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
     }
 }
 
+// Apply mixins to OPCUAExchangeRenderer
+applyMixin(OPCUAExchangeRenderer, VirtualScrollMixin);
+applyMixin(OPCUAExchangeRenderer, SSESubscriptionMixin);
+applyMixin(OPCUAExchangeRenderer, ResizableSectionMixin);
+applyMixin(OPCUAExchangeRenderer, FilterMixin);
+
 // ============================================================================
 // ModbusMasterRenderer - рендерер для ModbusMaster объектов
 // ============================================================================
@@ -3860,6 +4160,12 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
     }
 }
 
+// Apply mixins to ModbusMasterRenderer
+applyMixin(ModbusMasterRenderer, VirtualScrollMixin);
+applyMixin(ModbusMasterRenderer, SSESubscriptionMixin);
+applyMixin(ModbusMasterRenderer, ResizableSectionMixin);
+applyMixin(ModbusMasterRenderer, FilterMixin);
+
 // Регистрируем стандартные рендереры
 registerRenderer('UniSetManager', UniSetManagerRenderer);
 registerRenderer('UniSetObject', UniSetObjectRenderer);
@@ -4477,6 +4783,12 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
         this.initLogViewer(data.LogServer);
     }
 }
+
+// Apply mixins to ModbusSlaveRenderer
+applyMixin(ModbusSlaveRenderer, VirtualScrollMixin);
+applyMixin(ModbusSlaveRenderer, SSESubscriptionMixin);
+applyMixin(ModbusSlaveRenderer, ResizableSectionMixin);
+applyMixin(ModbusSlaveRenderer, FilterMixin);
 
 // ModbusSlave рендерер (по extensionType)
 registerRenderer('ModbusSlave', ModbusSlaveRenderer);
