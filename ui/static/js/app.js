@@ -1049,6 +1049,12 @@ class BaseObjectRenderer {
         }
     }
 
+    // Общий метод для обработки LogServer (рендеринг секции + инициализация LogViewer)
+    handleLogServer(logServerData) {
+        renderLogServer(this.objectName, logServerData);
+        this.initLogViewer(logServerData);
+    }
+
     createStatisticsSection() {
         return this.createCollapsibleSection('statistics', 'Статистика', `
             <div id="statistics-${this.objectName}"></div>
@@ -1273,12 +1279,9 @@ class UniSetManagerRenderer extends BaseObjectRenderer {
         renderIO(this.objectName, 'outputs', data.io?.out || {});
         renderTimers(this.objectName, data.Timers || {});
         renderObjectInfo(this.objectName, data.object);
-        renderLogServer(this.objectName, data.LogServer);
         renderStatistics(this.objectName, data.Statistics);
         updateChartLegends(this.objectName, data);
-
-        // Инициализируем LogViewer если есть LogServer
-        this.initLogViewer(data.LogServer);
+        this.handleLogServer(data.LogServer);
     }
 
     destroy() {
@@ -1313,12 +1316,9 @@ class UniSetObjectRenderer extends BaseObjectRenderer {
         const allVariables = { ...(data.Variables || {}), ...(data.extra || {}) };
         renderVariables(this.objectName, allVariables);
         renderObjectInfo(this.objectName, data.object);
-        renderLogServer(this.objectName, data.LogServer);
         renderStatistics(this.objectName, data.Statistics);
         updateChartLegends(this.objectName, data);
-
-        // Инициализируем LogViewer если есть LogServer
-        this.initLogViewer(data.LogServer);
+        this.handleLogServer(data.LogServer);
     }
 
     destroy() {
@@ -2357,10 +2357,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
     update(data) {
         // При обновлении объекта обновляем информацию
         renderObjectInfo(this.objectName, data.object);
-        renderLogServer(this.objectName, data.LogServer);
-
-        // Инициализируем LogViewer если есть LogServer
-        this.initLogViewer(data.LogServer);
+        this.handleLogServer(data.LogServer);
     }
 
     // Обработка SSE обновления датчика (батчевая версия)
@@ -3499,9 +3496,8 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
 
     update(data) {
         renderObjectInfo(this.objectName, data.object);
-        renderLogServer(this.objectName, data.LogServer);
         updateChartLegends(this.objectName, data);
-        this.initLogViewer(data.LogServer);
+        this.handleLogServer(data.LogServer);
     }
 }
 
@@ -4157,9 +4153,8 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
 
     update(data) {
         renderObjectInfo(this.objectName, data.object);
-        renderLogServer(this.objectName, data.LogServer);
         updateChartLegends(this.objectName, data);
-        this.initLogViewer(data.LogServer);
+        this.handleLogServer(data.LogServer);
     }
 }
 
@@ -4781,9 +4776,8 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
 
     update(data) {
         renderObjectInfo(this.objectName, data.object);
-        renderLogServer(this.objectName, data.LogServer);
         updateChartLegends(this.objectName, data);
-        this.initLogViewer(data.LogServer);
+        this.handleLogServer(data.LogServer);
     }
 }
 
@@ -5089,6 +5083,9 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
             configTable.appendChild(configTbody);
             configContainer.appendChild(configTable);
         }
+
+        // Render LogServer section
+        this.handleLogServer(status.LogServer);
     }
 
     async loadParams() {
