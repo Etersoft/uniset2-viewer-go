@@ -2,7 +2,7 @@
 // Экспортируем на window для тестов
 const state = window.state = {
     objects: [],
-    servers: new Map(), // serverId -> { id, url, name, connected }
+    servers: new Map(), // serverId -> { id, url, name, connected, objectCount }
     tabs: new Map(), // tabKey -> { charts, updateInterval, chartStartTime, objectType, renderer, serverId, serverName, displayName }
     activeTab: null,
     sensors: new Map(), // sensorId -> sensorInfo
@@ -10,6 +10,8 @@ const state = window.state = {
     timeRange: 900, // секунды (по умолчанию 15 минут)
     sidebarCollapsed: false, // свёрнутая боковая панель
     collapsedSections: {}, // состояние спойлеров
+    collapsedServerGroups: new Set(), // свёрнутые группы серверов в списке объектов
+    serversSectionCollapsed: false, // свёрнута ли секция "Сервера"
     capabilities: {
         smEnabled: false // по умолчанию SM отключен
     },
@@ -81,36 +83,6 @@ function updateSSEStatus(status, lastUpdate = null) {
     container.title = title;
 }
 
-// Обновление индикаторов статуса серверов в header
-function renderServersStatus() {
-    const container = document.getElementById('servers-status');
-    if (!container) return;
-
-    // Если только один сервер - не показываем индикаторы
-    if (state.servers.size <= 1) {
-        container.innerHTML = '';
-        return;
-    }
-
-    const indicators = [];
-    state.servers.forEach((server, serverId) => {
-        const status = server.connected ? 'connected' : 'disconnected';
-        const statusText = server.connected ? 'Подключен' : 'Отключен';
-        const tooltip = `${server.name}\n${server.url}\n${statusText}`;
-
-        indicators.push(`
-            <div class="server-indicator ${status}"
-                 data-server-id="${serverId}"
-                 data-tooltip="${tooltip.replace(/\n/g, ' | ')}">
-                <span class="server-indicator-dot"></span>
-                <span class="server-indicator-name">${escapeHtml(server.name)}</span>
-            </div>
-        `);
-    });
-
-    container.innerHTML = indicators.join('');
-}
-
 // Обновить статус конкретного сервера
 function updateServerStatus(serverId, connected) {
     const server = state.servers.get(serverId);
@@ -118,30 +90,41 @@ function updateServerStatus(serverId, connected) {
 
     server.connected = connected;
 
-    // Обновляем индикатор в header
-    const indicator = document.querySelector(`.server-indicator[data-server-id="${serverId}"]`);
-    if (indicator) {
-        indicator.classList.remove('connected', 'disconnected', 'reconnecting');
-        indicator.classList.add(connected ? 'connected' : 'disconnected');
-
-        const statusText = connected ? 'Подключен' : 'Отключен';
-        indicator.dataset.tooltip = `${server.name} | ${server.url} | ${statusText}`;
+    // Обновляем группу сервера в списке объектов
+    const serverGroup = document.querySelector(`.server-group[data-server-id="${serverId}"]`);
+    if (serverGroup) {
+        const statusDot = serverGroup.querySelector('.server-group-header .server-status-dot');
+        if (statusDot) {
+            statusDot.classList.toggle('disconnected', !connected);
+        }
     }
 
-    // Обновляем бейджи серверов в списке объектов (sidebar)
-    const objectItems = document.querySelectorAll(`#objects-list li[data-server-id="${serverId}"]`);
-    objectItems.forEach(li => {
-        const badge = li.querySelector('.server-badge');
-        if (badge) {
-            if (connected) {
-                badge.classList.remove('disconnected');
-                badge.title = `Сервер: ${server.name}`;
-            } else {
-                badge.classList.add('disconnected');
-                badge.title = `Сервер: ${server.name} (отключен)`;
+    // Обновляем элемент сервера в секции "Сервера"
+    const serverItem = document.querySelector(`.server-item[data-server-id="${serverId}"]`);
+    if (serverItem) {
+        const statusDot = serverItem.querySelector('.server-status-dot');
+        if (statusDot) {
+            statusDot.classList.toggle('disconnected', !connected);
+        }
+        // Обновляем статистику
+        const statsEl = serverItem.querySelector('.server-stats');
+        if (statsEl) {
+            const objectCount = server.objectCount || 0;
+            const connectedCount = connected ? objectCount : 0;
+            statsEl.textContent = objectCount > 0 ? `${connectedCount}/${objectCount}` : '-/-';
+
+            statsEl.classList.remove('all-connected', 'some-disconnected', 'all-disconnected');
+            if (objectCount > 0) {
+                if (connectedCount === objectCount) {
+                    statsEl.classList.add('all-connected');
+                } else if (connectedCount === 0) {
+                    statsEl.classList.add('all-disconnected');
+                } else {
+                    statsEl.classList.add('some-disconnected');
+                }
             }
         }
-    });
+    }
 
     // Обновляем бейджи серверов в табах
     const tabBadges = document.querySelectorAll(`.tab-server-badge[data-server-id="${serverId}"]`);
@@ -6317,8 +6300,8 @@ async function fetchObjects() {
         });
     });
 
-    // Отображаем индикаторы статуса серверов
-    renderServersStatus();
+    // Отображаем секцию серверов в sidebar
+    renderServersSection();
 
     // Загружаем объекты со всех серверов
     const response = await fetch('/api/all-objects');
@@ -7176,6 +7159,7 @@ function renderObjectsList(data) {
 
     if (!data || !data.objects || data.objects.length === 0) {
         list.innerHTML = '<li class="loading">Объекты не найдены</li>';
+        renderServersSection();
         return;
     }
 
@@ -7184,8 +7168,41 @@ function renderObjectsList(data) {
         const serverId = serverData.serverId;
         const serverName = serverData.serverName || serverId;
         const serverConnected = serverData.connected !== false;
+        const objectCount = serverData.objects?.length || 0;
 
-        if (!serverData.objects || serverData.objects.length === 0) return;
+        // Обновляем информацию о сервере в state
+        const existingServer = state.servers.get(serverId);
+        if (existingServer) {
+            existingServer.objectCount = objectCount;
+        }
+
+        if (objectCount === 0) return;
+
+        // Создаём группу для сервера
+        const group = document.createElement('div');
+        group.className = 'server-group';
+        group.dataset.serverId = serverId;
+        if (state.collapsedServerGroups.has(serverId)) {
+            group.classList.add('collapsed');
+        }
+
+        // Заголовок группы
+        const header = document.createElement('div');
+        header.className = 'server-group-header';
+        header.innerHTML = `
+            <svg class="collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M6 9l6 6 6-6"/>
+            </svg>
+            <span class="server-status-dot${serverConnected ? '' : ' disconnected'}"></span>
+            <span class="server-name">${escapeHtml(serverName)}</span>
+            <span class="server-objects-count">${objectCount}</span>
+        `;
+        header.addEventListener('click', () => toggleServerGroup(serverId));
+        group.appendChild(header);
+
+        // Список объектов группы
+        const objectsList = document.createElement('ul');
+        objectsList.className = 'server-group-objects';
 
         serverData.objects.forEach(name => {
             const li = document.createElement('li');
@@ -7193,23 +7210,123 @@ function renderObjectsList(data) {
             li.dataset.serverId = serverId;
             li.dataset.serverName = serverName;
 
-            // Бейдж сервера + имя объекта
-            const badge = document.createElement('span');
-            badge.className = 'server-badge' + (serverConnected ? '' : ' disconnected');
-            badge.textContent = serverName;
-            badge.title = `Сервер: ${serverName}${serverConnected ? '' : ' (отключен)'}`;
-
             const nameSpan = document.createElement('span');
             nameSpan.className = 'object-name';
             nameSpan.textContent = name;
 
-            li.appendChild(badge);
             li.appendChild(nameSpan);
-
             li.addEventListener('click', () => openObjectTab(name, serverId, serverName));
-            list.appendChild(li);
+            objectsList.appendChild(li);
         });
+
+        group.appendChild(objectsList);
+        list.appendChild(group);
     });
+
+    // Рендерим секцию серверов
+    renderServersSection();
+}
+
+// Переключить свёрнутость группы сервера в списке объектов
+function toggleServerGroup(serverId) {
+    const group = document.querySelector(`.server-group[data-server-id="${serverId}"]`);
+    if (!group) return;
+
+    if (state.collapsedServerGroups.has(serverId)) {
+        state.collapsedServerGroups.delete(serverId);
+        group.classList.remove('collapsed');
+    } else {
+        state.collapsedServerGroups.add(serverId);
+        group.classList.add('collapsed');
+    }
+    saveSettings();
+}
+
+// Рендеринг секции "Сервера" в sidebar
+function renderServersSection() {
+    const section = document.getElementById('servers-section');
+    const list = document.getElementById('servers-list');
+    const countEl = document.getElementById('servers-count');
+    const header = document.getElementById('servers-section-header');
+
+    if (!section || !list) return;
+
+    // Применяем сохранённое состояние свёрнутости
+    if (state.serversSectionCollapsed) {
+        section.classList.add('collapsed');
+    } else {
+        section.classList.remove('collapsed');
+    }
+
+    // Обработчик клика на заголовок секции
+    if (!header.dataset.listenerAdded) {
+        header.addEventListener('click', toggleServersSection);
+        header.dataset.listenerAdded = 'true';
+    }
+
+    // Обновляем счётчик
+    if (countEl) {
+        countEl.textContent = state.servers.size;
+    }
+
+    // Рендерим список серверов
+    list.innerHTML = '';
+
+    state.servers.forEach((server, serverId) => {
+        const li = document.createElement('li');
+        li.className = 'server-item' + (server.connected ? ' connected' : ' disconnected');
+        li.dataset.serverId = serverId;
+
+        const objectCount = server.objectCount || 0;
+        const connectedCount = server.connected ? objectCount : 0;
+
+        let statsClass = '';
+        if (objectCount === 0) {
+            statsClass = '';
+        } else if (connectedCount === objectCount) {
+            statsClass = 'all-connected';
+        } else if (connectedCount === 0) {
+            statsClass = 'all-disconnected';
+        } else {
+            statsClass = 'some-disconnected';
+        }
+
+        const statusClass = server.connected ? '' : ' disconnected';
+        const displayName = server.name || `${server.url.replace(/^https?:\/\//, '')}`;
+        const statsText = objectCount > 0 ? `${connectedCount}/${objectCount}` : '-/-';
+
+        li.innerHTML = `
+            <span class="server-status-dot${statusClass}"></span>
+            <span class="server-name" title="${escapeHtml(server.url)}">${escapeHtml(displayName)}</span>
+            <span class="server-stats ${statsClass}">${statsText}</span>
+        `;
+
+        // Клик на сервер — развернуть/свернуть его группу в списке объектов
+        li.addEventListener('click', () => {
+            // Находим группу сервера и прокручиваем к ней
+            const group = document.querySelector(`.server-group[data-server-id="${serverId}"]`);
+            if (group) {
+                // Если группа свёрнута — разворачиваем
+                if (state.collapsedServerGroups.has(serverId)) {
+                    toggleServerGroup(serverId);
+                }
+                // Прокручиваем к группе
+                group.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+
+        list.appendChild(li);
+    });
+}
+
+// Переключить свёрнутость секции "Сервера"
+function toggleServersSection() {
+    const section = document.getElementById('servers-section');
+    if (!section) return;
+
+    state.serversSectionCollapsed = !state.serversSectionCollapsed;
+    section.classList.toggle('collapsed', state.serversSectionCollapsed);
+    saveSettings();
 }
 
 async function openObjectTab(name, serverId, serverName) {
@@ -9063,7 +9180,9 @@ function setTimeRange(range) {
 function saveSettings() {
     const settings = {
         timeRange: state.timeRange,
-        sidebarCollapsed: state.sidebarCollapsed
+        sidebarCollapsed: state.sidebarCollapsed,
+        collapsedServerGroups: Array.from(state.collapsedServerGroups),
+        serversSectionCollapsed: state.serversSectionCollapsed
     };
     localStorage.setItem('uniset2-viewer-settings', JSON.stringify(settings));
 }
@@ -9087,6 +9206,16 @@ function loadSettings() {
             if (settings.sidebarCollapsed) {
                 state.sidebarCollapsed = settings.sidebarCollapsed;
                 document.getElementById('sidebar').classList.add('collapsed');
+            }
+
+            // Восстановить свёрнутые группы серверов
+            if (settings.collapsedServerGroups && Array.isArray(settings.collapsedServerGroups)) {
+                state.collapsedServerGroups = new Set(settings.collapsedServerGroups);
+            }
+
+            // Восстановить состояние секции "Сервера"
+            if (settings.serversSectionCollapsed !== undefined) {
+                state.serversSectionCollapsed = settings.serversSectionCollapsed;
             }
         }
     } catch (err) {

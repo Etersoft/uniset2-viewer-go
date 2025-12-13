@@ -661,32 +661,27 @@ test.describe('UniSet2 Viewer UI', () => {
     expect(orderAfterReload).not.toEqual(initialOrder);
   });
 
-  // === Тесты на бейджи серверов ===
+  // === Тесты на группы серверов ===
 
-  test('should display server badges for connected servers with green color', async ({ page }) => {
+  test('should display server groups for connected servers with green status dot', async ({ page }) => {
     await page.goto('/');
 
     // Ждём загрузки списка объектов
-    await page.waitForSelector('#objects-list li', { timeout: 10000 });
+    await page.waitForSelector('.server-group', { timeout: 10000 });
 
-    // Проверяем что есть бейджи серверов
-    const badges = page.locator('#objects-list li .server-badge');
-    await expect(badges.first()).toBeVisible();
+    // Проверяем что есть группы серверов
+    const groupHeaders = page.locator('.server-group-header');
+    await expect(groupHeaders.first()).toBeVisible();
 
-    // Все бейджи должны быть без класса disconnected (сервер подключён)
-    const allBadges = await badges.all();
-    for (const badge of allBadges) {
-      await expect(badge).not.toHaveClass(/disconnected/);
+    // Все status dots должны быть без класса disconnected (сервер подключён)
+    const statusDots = page.locator('.server-group-header .server-status-dot');
+    const allDots = await statusDots.all();
+    for (const dot of allDots) {
+      await expect(dot).not.toHaveClass(/disconnected/);
     }
-
-    // Проверяем цвет фона подключённого сервера (зелёный #2a6a3a)
-    const firstBadge = badges.first();
-    const bgColor = await firstBadge.evaluate(el => getComputedStyle(el).backgroundColor);
-    // RGB для #2a6a3a = rgb(42, 106, 58)
-    expect(bgColor).toBe('rgb(42, 106, 58)');
   });
 
-  test('should display server badge with disconnected class when server is down', async ({ page }) => {
+  test('should display server group with disconnected status when server is down', async ({ page }) => {
     // Мокаем ответ API чтобы симулировать отключённый сервер
     await page.route('**/api/all-objects', async route => {
       await route.fulfill({
@@ -729,25 +724,19 @@ test.describe('UniSet2 Viewer UI', () => {
     await page.goto('/');
 
     // Ждём загрузки списка объектов
-    await page.waitForSelector('#objects-list li', { timeout: 10000 });
+    await page.waitForSelector('.server-group', { timeout: 10000 });
 
-    // Находим бейдж подключённого сервера (используем точное совпадение)
-    const connectedBadge = page.locator('#objects-list li .server-badge').filter({ hasText: /^Connected Server$/ });
-    await expect(connectedBadge).toBeVisible();
-    await expect(connectedBadge).not.toHaveClass(/disconnected/);
+    // Находим заголовок группы подключённого сервера
+    const connectedGroup = page.locator('.server-group[data-server-id="test-server-1"] .server-group-header');
+    await expect(connectedGroup).toBeVisible();
+    const connectedDot = connectedGroup.locator('.server-status-dot');
+    await expect(connectedDot).not.toHaveClass(/disconnected/);
 
-    // Проверяем зелёный цвет
-    const connectedBgColor = await connectedBadge.evaluate(el => getComputedStyle(el).backgroundColor);
-    expect(connectedBgColor).toBe('rgb(42, 106, 58)'); // #2a6a3a
-
-    // Находим бейдж отключённого сервера
-    const disconnectedBadge = page.locator('#objects-list li .server-badge').filter({ hasText: /^Disconnected Server$/ });
-    await expect(disconnectedBadge).toBeVisible();
-    await expect(disconnectedBadge).toHaveClass(/disconnected/);
-
-    // Проверяем красный цвет
-    const disconnectedBgColor = await disconnectedBadge.evaluate(el => getComputedStyle(el).backgroundColor);
-    expect(disconnectedBgColor).toBe('rgb(106, 42, 42)'); // #6a2a2a
+    // Находим заголовок группы отключённого сервера
+    const disconnectedGroup = page.locator('.server-group[data-server-id="test-server-2"] .server-group-header');
+    await expect(disconnectedGroup).toBeVisible();
+    const disconnectedDot = disconnectedGroup.locator('.server-status-dot');
+    await expect(disconnectedDot).toHaveClass(/disconnected/);
   });
 
   test('should have clear cache button', async ({ page }) => {
@@ -789,7 +778,7 @@ test.describe('UniSet2 Viewer UI', () => {
     expect(afterClear).toBeNull();
   });
 
-  test('should display server status indicators in header for multi-server setup', async ({ page }) => {
+  test('should display server status indicators in sidebar for multi-server setup', async ({ page }) => {
     // Мокаем ответ API с несколькими серверами
     await page.route('**/api/all-objects', async route => {
       await route.fulfill({
@@ -822,26 +811,43 @@ test.describe('UniSet2 Viewer UI', () => {
     await page.goto('/');
     await page.waitForSelector('#objects-list li', { timeout: 10000 });
 
-    // Проверяем что контейнер индикаторов серверов появился
-    const statusContainer = page.locator('#servers-status');
-    await expect(statusContainer).toBeVisible();
+    // Проверяем что секция серверов в sidebar появилась
+    const serversSection = page.locator('#servers-section');
+    await expect(serversSection).toBeVisible();
 
-    // Проверяем индикаторы
-    const connectedIndicator = page.locator('.server-indicator[data-server-id="srv1"]');
-    await expect(connectedIndicator).toBeVisible();
-    await expect(connectedIndicator).toHaveClass(/connected/);
+    // Проверяем счётчик серверов
+    const serversCount = page.locator('#servers-count');
+    await expect(serversCount).toHaveText('2');
 
-    const disconnectedIndicator = page.locator('.server-indicator[data-server-id="srv2"]');
-    await expect(disconnectedIndicator).toBeVisible();
-    await expect(disconnectedIndicator).toHaveClass(/disconnected/);
+    // Проверяем индикаторы серверов
+    const connectedItem = page.locator('.server-item[data-server-id="srv1"]');
+    await expect(connectedItem).toBeVisible();
+    await expect(connectedItem).toHaveClass(/connected/);
+
+    const disconnectedItem = page.locator('.server-item[data-server-id="srv2"]');
+    await expect(disconnectedItem).toBeVisible();
+    await expect(disconnectedItem).toHaveClass(/disconnected/);
 
     // Проверяем имена серверов
-    await expect(connectedIndicator.locator('.server-indicator-name')).toHaveText('Server1');
-    await expect(disconnectedIndicator.locator('.server-indicator-name')).toHaveText('Server2');
+    await expect(connectedItem.locator('.server-name')).toHaveText('Server1');
+    await expect(disconnectedItem.locator('.server-name')).toHaveText('Server2');
   });
 
-  test('should hide server status indicators for single server setup', async ({ page }) => {
+  test('should display server status in sidebar for single server setup', async ({ page }) => {
     // Мокаем ответ API с одним сервером
+    await page.route('**/api/all-objects', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          count: 1,
+          objects: [
+            { serverId: 'srv1', serverName: 'Server1', connected: true, objects: ['Obj1'] }
+          ]
+        })
+      });
+    });
+
     await page.route('**/api/servers', async route => {
       await route.fulfill({
         status: 200,
@@ -856,12 +862,20 @@ test.describe('UniSet2 Viewer UI', () => {
     await page.goto('/');
     await page.waitForSelector('#objects-list li', { timeout: 10000 });
 
-    // Контейнер должен быть пустым (CSS :empty скрывает его)
-    const statusContainer = page.locator('#servers-status');
-    await expect(statusContainer).toBeEmpty();
+    // Секция серверов должна быть видна даже для одного сервера
+    const serversSection = page.locator('#servers-section');
+    await expect(serversSection).toBeVisible();
+
+    // Счётчик показывает 1
+    const serversCount = page.locator('#servers-count');
+    await expect(serversCount).toHaveText('1');
+
+    // Сервер должен отображаться
+    const serverItem = page.locator('.server-item[data-server-id="srv1"]');
+    await expect(serverItem).toBeVisible();
   });
 
-  test('should show correct tooltip for server badges', async ({ page }) => {
+  test('should show correct tooltip for server items in sidebar', async ({ page }) => {
     // Мокаем ответ API
     await page.route('**/api/all-objects', async route => {
       await route.fulfill({
@@ -903,15 +917,14 @@ test.describe('UniSet2 Viewer UI', () => {
 
     await page.goto('/');
 
-    await page.waitForSelector('#objects-list li', { timeout: 10000 });
+    await page.waitForSelector('.server-item', { timeout: 10000 });
 
-    // Проверяем title для подключённого сервера
-    const connectedBadge = page.locator('#objects-list li .server-badge', { hasText: 'Server1' });
-    await expect(connectedBadge).toHaveAttribute('title', 'Сервер: Server1');
+    // Проверяем title для сервера (показывает URL)
+    const server1Name = page.locator('.server-item[data-server-id="srv1"] .server-name');
+    await expect(server1Name).toHaveAttribute('title', 'http://server1');
 
-    // Проверяем title для отключённого сервера (содержит "(отключен)")
-    const disconnectedBadge = page.locator('#objects-list li .server-badge', { hasText: 'Server2' });
-    await expect(disconnectedBadge).toHaveAttribute('title', 'Сервер: Server2 (отключен)');
+    const server2Name = page.locator('.server-item[data-server-id="srv2"] .server-name');
+    await expect(server2Name).toHaveAttribute('title', 'http://server2');
   });
 
   test('should disable tab panel when server disconnects', async ({ page }) => {

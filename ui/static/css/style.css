@@ -346,89 +346,6 @@ header h1 {
     margin-left: 4px;
 }
 
-/* Server Status Indicators */
-.servers-status {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 10px;
-    background: var(--bg-tertiary);
-    border-radius: 4px;
-}
-
-.servers-status:empty {
-    display: none;
-}
-
-.server-indicator {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    cursor: help;
-    position: relative;
-}
-
-.server-indicator-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--text-muted);
-    transition: background-color 0.3s ease, box-shadow 0.3s ease;
-}
-
-.server-indicator.connected .server-indicator-dot {
-    background: var(--accent-green);
-    box-shadow: 0 0 6px var(--accent-green);
-}
-
-.server-indicator.disconnected .server-indicator-dot {
-    background: var(--accent-red);
-}
-
-.server-indicator.reconnecting .server-indicator-dot {
-    background: var(--accent-yellow);
-    animation: pulse 1s ease-in-out infinite;
-}
-
-.server-indicator-name {
-    font-size: 11px;
-    color: var(--text-secondary);
-    max-width: 80px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.server-indicator.disconnected .server-indicator-name {
-    color: var(--accent-red);
-}
-
-/* Tooltip for server indicator */
-.server-indicator::after {
-    content: attr(data-tooltip);
-    position: absolute;
-    bottom: calc(100% + 8px);
-    left: 50%;
-    transform: translateX(-50%);
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    padding: 6px 10px;
-    font-size: 11px;
-    color: var(--text-primary);
-    white-space: nowrap;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.2s ease, visibility 0.2s ease;
-    z-index: 1000;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-.server-indicator:hover::after {
-    opacity: 1;
-    visibility: visible;
-}
-
 /* Time range selector */
 .time-range-selector {
     display: flex;
@@ -720,6 +637,198 @@ header h1 {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* === Server Groups in Objects List === */
+.server-group {
+    margin-bottom: 0.25rem;
+}
+
+.server-group-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.75rem;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+    font-weight: 500;
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-color);
+    user-select: none;
+}
+
+.server-group-header:hover {
+    background: var(--bg-hover);
+}
+
+.server-group-header .collapse-icon {
+    width: 12px;
+    height: 12px;
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+}
+
+.server-group.collapsed .server-group-header .collapse-icon {
+    transform: rotate(-90deg);
+}
+
+.server-group-header .server-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    flex-shrink: 0;
+}
+
+.server-group-header .server-status-dot.disconnected {
+    background: var(--accent-red);
+}
+
+.server-group-header .server-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.server-group-header .server-objects-count {
+    color: var(--text-muted);
+    font-size: 0.7rem;
+}
+
+.server-group-objects {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.server-group.collapsed .server-group-objects {
+    display: none;
+}
+
+/* === Servers Section in Sidebar === */
+.servers-section {
+    margin-top: 1rem;
+    border-top: 1px solid var(--border-color);
+    padding-top: 0.5rem;
+}
+
+.servers-section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    user-select: none;
+}
+
+.servers-section-header:hover {
+    background: var(--bg-hover);
+}
+
+.servers-section-header .collapse-icon {
+    width: 14px;
+    height: 14px;
+    transition: transform 0.2s ease;
+}
+
+.servers-section.collapsed .servers-section-header .collapse-icon {
+    transform: rotate(-90deg);
+}
+
+.servers-section-header .servers-section-title {
+    flex: 1;
+}
+
+.servers-section-header .servers-count {
+    background: var(--accent-blue);
+    color: white;
+    font-size: 0.65rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 10px;
+    font-weight: 500;
+}
+
+.servers-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.servers-section.collapsed .servers-list {
+    display: none;
+}
+
+.server-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem 0.5rem 1.5rem;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: var(--text-primary);
+    transition: background 0.15s ease;
+}
+
+.server-item:hover {
+    background: var(--bg-hover);
+}
+
+.server-item .server-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    flex-shrink: 0;
+}
+
+.server-item .server-status-dot.disconnected {
+    background: var(--accent-red);
+}
+
+.server-item .server-status-dot.unknown {
+    background: var(--text-muted);
+}
+
+.server-item .server-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.server-item .server-stats {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+
+.server-item .server-stats.all-connected {
+    color: var(--accent-green);
+}
+
+.server-item .server-stats.some-disconnected {
+    color: var(--accent-orange);
+}
+
+.server-item .server-stats.all-disconnected {
+    color: var(--accent-red);
+}
+
+/* Collapsed sidebar - hide servers section details */
+.sidebar.collapsed .servers-section-header .servers-section-title,
+.sidebar.collapsed .servers-section-header .servers-count {
+    display: none;
+}
+
+.sidebar.collapsed .servers-list {
+    display: none;
 }
 
 .tabs-content {

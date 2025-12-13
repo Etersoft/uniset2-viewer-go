@@ -27,9 +27,7 @@
                         <button class="poll-btn" data-interval="300000">5m</button>
                     </div>
                 </div>
-                <div class="servers-status" id="servers-status" title="Статус серверов UniSet2">
-                    <!-- Динамически заполняется из JS -->
-                </div>
+                <!-- Статусы серверов перенесены в sidebar -->
                 <div class="sse-status" id="sse-status" title="Состояние SSE подключения">
                     <span class="sse-status-dot"></span>
                     <span class="sse-status-text">Подключение...</span>
@@ -65,6 +63,17 @@
                 </div>
                 <div class="sidebar-content">
                     <ul id="objects-list" class="objects-list"></ul>
+
+                    <div class="servers-section" id="servers-section">
+                        <div class="servers-section-header" id="servers-section-header">
+                            <svg class="collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M6 9l6 6 6-6"/>
+                            </svg>
+                            <span class="servers-section-title">Сервера</span>
+                            <span class="servers-count" id="servers-count">0</span>
+                        </div>
+                        <ul id="servers-list" class="servers-list"></ul>
+                    </div>
                 </div>
             </aside>
 
