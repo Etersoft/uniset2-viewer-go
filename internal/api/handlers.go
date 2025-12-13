@@ -963,11 +963,6 @@ func (h *Handlers) SubscribeIONCSensors(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if h.ioncPoller == nil {
-		h.writeError(w, http.StatusServiceUnavailable, "IONC poller not available")
-		return
-	}
-
 	var req IONCSubscribeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.writeError(w, http.StatusBadRequest, "invalid request body")
@@ -976,6 +971,11 @@ func (h *Handlers) SubscribeIONCSensors(w http.ResponseWriter, r *http.Request) 
 
 	if len(req.SensorIDs) == 0 {
 		h.writeError(w, http.StatusBadRequest, "sensor_ids required")
+		return
+	}
+
+	if h.ioncPoller == nil {
+		h.writeError(w, http.StatusServiceUnavailable, "IONC poller not available")
 		return
 	}
 
@@ -1108,6 +1108,17 @@ func (h *Handlers) SubscribeModbusRegisters(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	var req ModbusSubscribeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if len(req.RegisterIDs) == 0 {
+		h.writeError(w, http.StatusBadRequest, "register_ids required")
+		return
+	}
+
 	// Пробуем получить poller из serverManager
 	var mbPoller *modbus.Poller
 	serverID := r.URL.Query().Get("server")
@@ -1122,17 +1133,6 @@ func (h *Handlers) SubscribeModbusRegisters(w http.ResponseWriter, r *http.Reque
 
 	if mbPoller == nil {
 		h.writeError(w, http.StatusServiceUnavailable, "Modbus poller not available")
-		return
-	}
-
-	var req ModbusSubscribeRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.writeError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-
-	if len(req.RegisterIDs) == 0 {
-		h.writeError(w, http.StatusBadRequest, "register_ids required")
 		return
 	}
 
@@ -1244,6 +1244,17 @@ func (h *Handlers) SubscribeOPCUASensors(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	var req OPCUASubscribeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if len(req.SensorIDs) == 0 {
+		h.writeError(w, http.StatusBadRequest, "sensor_ids required")
+		return
+	}
+
 	var opPoller *opcua.Poller
 	serverID := r.URL.Query().Get("server")
 	if h.serverManager != nil && serverID != "" {
@@ -1257,17 +1268,6 @@ func (h *Handlers) SubscribeOPCUASensors(w http.ResponseWriter, r *http.Request)
 
 	if opPoller == nil {
 		h.writeError(w, http.StatusServiceUnavailable, "OPCUA poller not available")
-		return
-	}
-
-	var req OPCUASubscribeRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.writeError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-
-	if len(req.SensorIDs) == 0 {
-		h.writeError(w, http.StatusBadRequest, "sensor_ids required")
 		return
 	}
 

@@ -119,6 +119,7 @@
     height: 100%;
     overflow-y: auto;
     overflow-x: hidden;
+    overflow-anchor: none; /* Disable scroll anchoring for virtual scroll */
 }
 
 .virtual-scroll-spacer,

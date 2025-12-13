@@ -8,8 +8,8 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      - UNISET_URL=http://localhost:9393
-    command: ./uniset2-viewer --addr :8000 --uniset-url http://localhost:9393 --confile /app/config/test.xml
+      - UNISET_URL=http://localhost:9191,http://localhost:9494
+    command: ./uniset2-viewer --addr :8000 --uniset-url http://localhost:9191 --uniset-url http://localhost:9494
     network_mode: host
     profiles:
       - dev

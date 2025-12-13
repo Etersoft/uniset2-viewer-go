@@ -1648,7 +1648,7 @@ func TestGetIONCSensorValues_WithServerParam(t *testing.T) {
 	})
 
 	// Test server1
-	req := httptest.NewRequest("GET", "/api/objects/SharedMemory/ionc/get?sensors=100&server=server1", nil)
+	req := httptest.NewRequest("GET", "/api/objects/SharedMemory/ionc/get?filter=100&server=server1", nil)
 	req.SetPathValue("name", "SharedMemory")
 	w := httptest.NewRecorder()
 
@@ -1659,7 +1659,7 @@ func TestGetIONCSensorValues_WithServerParam(t *testing.T) {
 	}
 
 	// Test server2
-	req = httptest.NewRequest("GET", "/api/objects/SharedMemory/ionc/get?sensors=100&server=server2", nil)
+	req = httptest.NewRequest("GET", "/api/objects/SharedMemory/ionc/get?filter=100&server=server2", nil)
 	req.SetPathValue("name", "SharedMemory")
 	w = httptest.NewRecorder()
 
@@ -1678,7 +1678,7 @@ func TestGetIONCSensorValues_InvalidServer(t *testing.T) {
 		"server1": server1,
 	})
 
-	req := httptest.NewRequest("GET", "/api/objects/SharedMemory/ionc/get?sensors=100&server=nonexistent", nil)
+	req := httptest.NewRequest("GET", "/api/objects/SharedMemory/ionc/get?filter=100&server=nonexistent", nil)
 	req.SetPathValue("name", "SharedMemory")
 	w := httptest.NewRecorder()
 
@@ -2226,5 +2226,164 @@ func TestSetPollInterval_WithServerManager(t *testing.T) {
 
 	if response["interval"].(float64) != 30000 {
 		t.Errorf("expected interval=30000, got %v", response["interval"])
+	}
+}
+
+// ============================================================================
+// SSE Subscribe Tests
+// ============================================================================
+
+func TestSubscribeIONCSensors_EmptySensorIDs(t *testing.T) {
+	unisetServer := mockUnisetServer()
+	defer unisetServer.Close()
+
+	handlers := setupTestHandlers(unisetServer)
+
+	// Тест с пустым массивом sensor_ids
+	body := `{"sensor_ids": []}`
+	req := httptest.NewRequest("POST", "/api/objects/TestProc/ionc/subscribe", strings.NewReader(body))
+	req.SetPathValue("name", "TestProc")
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.SubscribeIONCSensors(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400 for empty sensor_ids, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var response map[string]string
+	json.Unmarshal(w.Body.Bytes(), &response)
+	if response["error"] != "sensor_ids required" {
+		t.Errorf("expected error='sensor_ids required', got %s", response["error"])
+	}
+}
+
+func TestSubscribeIONCSensors_MissingSensorIDs(t *testing.T) {
+	unisetServer := mockUnisetServer()
+	defer unisetServer.Close()
+
+	handlers := setupTestHandlers(unisetServer)
+
+	// Тест без поля sensor_ids
+	body := `{}`
+	req := httptest.NewRequest("POST", "/api/objects/TestProc/ionc/subscribe", strings.NewReader(body))
+	req.SetPathValue("name", "TestProc")
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.SubscribeIONCSensors(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400 for missing sensor_ids, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestSubscribeIONCSensors_WrongFieldName(t *testing.T) {
+	unisetServer := mockUnisetServer()
+	defer unisetServer.Close()
+
+	handlers := setupTestHandlers(unisetServer)
+
+	// Тест с неправильным именем поля (sensorIds вместо sensor_ids)
+	body := `{"sensorIds": [1, 2, 3]}`
+	req := httptest.NewRequest("POST", "/api/objects/TestProc/ionc/subscribe", strings.NewReader(body))
+	req.SetPathValue("name", "TestProc")
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.SubscribeIONCSensors(w, req)
+
+	// Должен вернуть ошибку, т.к. поле sensor_ids пустое (sensorIds игнорируется)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400 for wrong field name, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestSubscribeOPCUASensors_EmptySensorIDs(t *testing.T) {
+	unisetServer := mockUnisetServer()
+	defer unisetServer.Close()
+
+	handlers := setupTestHandlers(unisetServer)
+
+	body := `{"sensor_ids": []}`
+	req := httptest.NewRequest("POST", "/api/objects/TestProc/opcua/subscribe", strings.NewReader(body))
+	req.SetPathValue("name", "TestProc")
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.SubscribeOPCUASensors(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400 for empty sensor_ids, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var response map[string]string
+	json.Unmarshal(w.Body.Bytes(), &response)
+	if response["error"] != "sensor_ids required" {
+		t.Errorf("expected error='sensor_ids required', got %s", response["error"])
+	}
+}
+
+func TestSubscribeOPCUASensors_MissingSensorIDs(t *testing.T) {
+	unisetServer := mockUnisetServer()
+	defer unisetServer.Close()
+
+	handlers := setupTestHandlers(unisetServer)
+
+	body := `{}`
+	req := httptest.NewRequest("POST", "/api/objects/TestProc/opcua/subscribe", strings.NewReader(body))
+	req.SetPathValue("name", "TestProc")
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.SubscribeOPCUASensors(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400 for missing sensor_ids, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestSubscribeModbusRegisters_EmptyRegisterIDs(t *testing.T) {
+	unisetServer := mockUnisetServer()
+	defer unisetServer.Close()
+
+	handlers := setupTestHandlers(unisetServer)
+
+	body := `{"register_ids": []}`
+	req := httptest.NewRequest("POST", "/api/objects/TestProc/modbus/subscribe", strings.NewReader(body))
+	req.SetPathValue("name", "TestProc")
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.SubscribeModbusRegisters(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400 for empty register_ids, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var response map[string]string
+	json.Unmarshal(w.Body.Bytes(), &response)
+	if response["error"] != "register_ids required" {
+		t.Errorf("expected error='register_ids required', got %s", response["error"])
+	}
+}
+
+func TestSubscribeModbusRegisters_MissingRegisterIDs(t *testing.T) {
+	unisetServer := mockUnisetServer()
+	defer unisetServer.Close()
+
+	handlers := setupTestHandlers(unisetServer)
+
+	body := `{}`
+	req := httptest.NewRequest("POST", "/api/objects/TestProc/modbus/subscribe", strings.NewReader(body))
+	req.SetPathValue("name", "TestProc")
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.SubscribeModbusRegisters(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400 for missing register_ids, got %d: %s", w.Code, w.Body.String())
 	}
 }

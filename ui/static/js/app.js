@@ -1150,7 +1150,7 @@ class BaseObjectRenderer {
             // Извлекаем serverId из tabKey (формат: serverId:objectName)
             const tabState = state.tabs.get(this.tabKey);
             const serverId = tabState ? tabState.serverId : null;
-            this.logViewer = new LogViewer(this.objectName, container, serverId);
+            this.logViewer = new LogViewer(this.objectName, container, serverId, this.tabKey);
             this.logViewer.restoreCollapsedState();
         }
     }
@@ -5217,11 +5217,11 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
     // SSE subscription methods (использует SSESubscriptionMixin)
     async subscribeToSSE() {
         const sensorIds = this.allSensors.map(s => s.id).filter(id => id != null);
-        await this.subscribeToSSEFor('/opcua', sensorIds, 'sensorIds', 'OPCUAServer SSE');
+        await this.subscribeToSSEFor('/opcua', sensorIds, 'sensor_ids', 'OPCUAServer SSE');
     }
 
     async unsubscribeFromSSE() {
-        await this.unsubscribeFromSSEFor('/opcua', 'sensorIds', 'OPCUAServer SSE');
+        await this.unsubscribeFromSSEFor('/opcua', 'sensor_ids', 'OPCUAServer SSE');
     }
 
     handleSSEUpdate(updates) {
@@ -5312,10 +5312,11 @@ const LOG_LEVELS = {
 
 // Класс для управления просмотром логов объекта
 class LogViewer {
-    constructor(objectName, container, serverId = null) {
+    constructor(objectName, container, serverId = null, tabKey = null) {
         this.objectName = objectName;
         this.container = container;
         this.serverId = serverId;
+        this.tabKey = tabKey;
         this.eventSource = null;
         this.connected = false;
         this.isActive = false; // true если идёт попытка подключения или переподключения
