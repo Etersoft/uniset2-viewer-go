@@ -3,7 +3,7 @@ const http = require('http');
 const PORT = 9393;
 
 // Mock data
-const objects = ['UniSetActivator', 'TestProc', 'SharedMemory', 'OPCUAClient1', 'MBTCPMaster1', 'OPCUAServer1'];
+const objects = ['UniSetActivator', 'TestProc', 'SharedMemory', 'OPCUAClient1', 'MBTCPMaster1', 'MBTCPSlave1', 'OPCUAServer1'];
 
 const testProcData = {
   TestProc: {
@@ -275,6 +275,59 @@ for (let i = 1; i <= 100; i++) {
 }
 
 let mbHttpControlActive = false;
+
+// ModbusSlave mock data
+const mbsParams = {
+  polltime: 100,
+  default_timeout: 3000,
+  maxHeartBeat: 10
+};
+
+const mbsStatus = {
+  result: 'OK',
+  status: {
+    name: 'MBTCPSlave1',
+    monitor: 'vmon: OK',
+    activated: 1,
+    logserver: { host: '127.0.0.1', port: 5520 },
+    parameters: {
+      config: 'TCP(slave): 0.0.0.0:502'
+    },
+    statistics: {
+      text: 'Requests: 500 processed',
+      interval: 30000
+    },
+    maxHeartBeat: 10,
+    activateTimeout: 2000,
+    config_params: {
+      polltime: 100,
+      default_timeout: 3000
+    },
+    httpEnabledSetParams: 1
+  }
+};
+
+// Generate 80 mock ModbusSlave registers for testing
+const mbsRegisters = [];
+const mbsTypes = ['AI', 'AO', 'DI', 'DO'];
+const mbsVtypes = { AI: 'signed', AO: 'signed', DI: 'unsigned', DO: 'unsigned' };
+
+for (let i = 1; i <= 80; i++) {
+  const iotype = mbsTypes[(i - 1) % 4];
+  const isAnalog = iotype.startsWith('A');
+  mbsRegisters.push({
+    id: 2000 + i,
+    name: `MBS_${iotype}${String(i).padStart(3, '0')}_S`,
+    iotype: iotype,
+    value: isAnalog ? (50 + i * 3) : (i % 2),
+    vtype: mbsVtypes[iotype],
+    register: {
+      mbreg: 200 + i,
+      mbfunc: iotype === 'AI' ? 4 : (iotype === 'AO' ? 6 : (iotype === 'DI' ? 2 : 5))
+    },
+    precision: isAnalog ? 1 : 0
+  });
+}
 
 // OPCUAServer mock data
 const opcuaServerParams = {
@@ -645,6 +698,70 @@ const server = http.createServer((req, res) => {
     } else {
       res.end(JSON.stringify({ result: 'OK', mode: mbStatus.status.mode }));
     }
+  // ModbusSlave endpoints
+  } else if (url === '/api/v2/MBTCPSlave1') {
+    res.end(JSON.stringify({
+      MBTCPSlave1: {},
+      object: {
+        id: 3501,
+        isActive: true,
+        name: 'MBTCPSlave1',
+        objectType: 'UniSetObject',
+        extensionType: 'ModbusSlave',
+        transportType: 'tcp'
+      }
+    }));
+  } else if (url === '/api/v2/MBTCPSlave1/status') {
+    res.end(JSON.stringify(mbsStatus));
+  } else if (url === '/api/v2/MBTCPSlave1/registers' || url.startsWith('/api/v2/MBTCPSlave1/registers?')) {
+    const urlObj = new URL(url, `http://localhost:${PORT}`);
+    const offset = parseInt(urlObj.searchParams.get('offset') || '0', 10);
+    const limit = parseInt(urlObj.searchParams.get('limit') || '50', 10);
+    const search = (urlObj.searchParams.get('search') || '').toLowerCase();
+    const iotype = (urlObj.searchParams.get('iotype') || '').toUpperCase();
+
+    let filtered = mbsRegisters;
+    if (search) {
+      filtered = filtered.filter(r => r.name.toLowerCase().includes(search));
+    }
+    if (iotype && iotype !== 'ALL') {
+      filtered = filtered.filter(r => r.iotype === iotype);
+    }
+
+    const paginatedRegs = filtered.slice(offset, offset + limit);
+
+    res.end(JSON.stringify({
+      result: 'OK',
+      registers: paginatedRegs,
+      total: filtered.length,
+      count: paginatedRegs.length,
+      offset: offset,
+      limit: limit
+    }));
+  } else if (url.startsWith('/api/v2/MBTCPSlave1/getparam')) {
+    const urlObj = new URL(url, `http://localhost:${PORT}`);
+    const names = urlObj.searchParams.getAll('name');
+    const params = {};
+    if (names.length === 0) {
+      Object.assign(params, mbsParams);
+    } else {
+      names.forEach(name => {
+        if (Object.prototype.hasOwnProperty.call(mbsParams, name)) {
+          params[name] = mbsParams[name];
+        }
+      });
+    }
+    res.end(JSON.stringify({ result: 'OK', params }));
+  } else if (url.startsWith('/api/v2/MBTCPSlave1/setparam')) {
+    const urlObj = new URL(url, `http://localhost:${PORT}`);
+    const updated = {};
+    urlObj.searchParams.forEach((value, key) => {
+      if (Object.prototype.hasOwnProperty.call(mbsParams, key)) {
+        mbsParams[key] = Number.isNaN(Number(value)) ? value : Number(value);
+        updated[key] = mbsParams[key];
+      }
+    });
+    res.end(JSON.stringify({ result: 'OK', updated }));
   // OPCUAServer endpoints
   } else if (url === '/api/v2/OPCUAServer1') {
     res.end(JSON.stringify({

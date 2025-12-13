@@ -1400,9 +1400,15 @@ header h1 {
 }
 
 /* Chart column */
-.io-chart-col {
+.io-chart-col,
+.chart-col {
     width: 30px;
     text-align: center;
+    padding: 0.25rem !important;
+}
+
+.chart-col-header {
+    width: 30px;
     padding: 0.25rem !important;
 }
 

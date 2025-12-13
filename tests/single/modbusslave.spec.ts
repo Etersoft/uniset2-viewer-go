@@ -1,41 +1,21 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('ModbusSlave renderer', () => {
-  // Variable to store the found slave name
-  let mbSlaveObject: string | null = null;
+const MBS_OBJECT = 'MBTCPSlave1';
 
-  test.beforeEach(async ({ page }) => {
+test.describe('ModbusSlave renderer', () => {
+  test('should display ModbusSlave object in list and open tab', async ({ page }) => {
     await page.goto('/');
     await page.waitForSelector('#objects-list li', { timeout: 15000 });
 
-    // Find any ModbusSlave object in the list
-    const slaveItems = page.locator('#objects-list li').filter({
-      has: page.locator('.type-badge', { hasText: 'ModbusSlave' })
-    });
+    // Check that MBTCPSlave1 exists
+    const mbsItem = page.locator('#objects-list li', { hasText: MBS_OBJECT });
+    await expect(mbsItem).toBeVisible({ timeout: 10000 });
 
-    const count = await slaveItems.count();
-    if (count === 0) {
-      test.skip();
-      return;
-    }
-
-    // Get the name of the first slave object
-    mbSlaveObject = await slaveItems.first().locator('span').first().textContent();
-    if (!mbSlaveObject) {
-      test.skip();
-      return;
-    }
-
-    // Click on the slave object
-    await slaveItems.first().click();
-    await expect(page.locator('.tab-btn', { hasText: mbSlaveObject })).toBeVisible();
-  });
-
-  test('should display ModbusSlave object in list and open tab', async ({ page }) => {
-    if (!mbSlaveObject) return;
+    // Click on MBTCPSlave1
+    await mbsItem.click();
 
     // Tab and panel should be visible
-    const tabBtn = page.locator('.tab-btn', { hasText: mbSlaveObject });
+    const tabBtn = page.locator('.tab-btn', { hasText: MBS_OBJECT });
     await expect(tabBtn).toBeVisible({ timeout: 10000 });
 
     const panel = page.locator('.tab-panel.active');
@@ -43,23 +23,31 @@ test.describe('ModbusSlave renderer', () => {
   });
 
   test('should have ModbusSlave-specific sections', async ({ page }) => {
-    if (!mbSlaveObject) return;
+    await page.goto('/');
+    await page.waitForSelector('#objects-list li', { timeout: 15000 });
+
+    const mbsItem = page.locator('#objects-list li', { hasText: MBS_OBJECT });
+    await mbsItem.click();
 
     await page.waitForSelector('.tab-panel.active', { timeout: 10000 });
 
     // Check for ModbusSlave-specific sections
-    const statusSection = page.locator(`#mbs-status-section-${mbSlaveObject}`);
+    const statusSection = page.locator(`#mbs-status-section-${MBS_OBJECT}`);
     await expect(statusSection).toBeVisible({ timeout: 5000 });
 
-    const paramsSection = page.locator(`#mbs-params-section-${mbSlaveObject}`);
+    const paramsSection = page.locator(`#mbs-params-section-${MBS_OBJECT}`);
     await expect(paramsSection).toBeVisible({ timeout: 5000 });
 
-    const registersSection = page.locator(`#mbs-registers-section-${mbSlaveObject}`);
+    const registersSection = page.locator(`#mbs-registers-section-${MBS_OBJECT}`);
     await expect(registersSection).toBeVisible({ timeout: 5000 });
   });
 
   test('should display status information', async ({ page }) => {
-    if (!mbSlaveObject) return;
+    await page.goto('/');
+    await page.waitForSelector('#objects-list li', { timeout: 15000 });
+
+    const mbsItem = page.locator('#objects-list li', { hasText: MBS_OBJECT });
+    await mbsItem.click();
 
     await page.waitForSelector('.tab-panel.active', { timeout: 10000 });
 
@@ -67,12 +55,16 @@ test.describe('ModbusSlave renderer', () => {
     await page.waitForTimeout(1000);
 
     // Check status section has content
-    const statusTable = page.locator(`#mbs-status-section-${mbSlaveObject} .info-table`);
+    const statusTable = page.locator(`#mbs-status-section-${MBS_OBJECT} .info-table`);
     await expect(statusTable).toBeVisible();
   });
 
   test('should display registers table', async ({ page }) => {
-    if (!mbSlaveObject) return;
+    await page.goto('/');
+    await page.waitForSelector('#objects-list li', { timeout: 15000 });
+
+    const mbsItem = page.locator('#objects-list li', { hasText: MBS_OBJECT });
+    await mbsItem.click();
 
     await page.waitForSelector('.tab-panel.active', { timeout: 10000 });
 
@@ -80,30 +72,38 @@ test.describe('ModbusSlave renderer', () => {
     await page.waitForTimeout(1500);
 
     // Check registers tbody
-    const registersTbody = page.locator(`#mbs-registers-tbody-${mbSlaveObject}`);
+    const registersTbody = page.locator(`#mbs-registers-tbody-${MBS_OBJECT}`);
     await expect(registersTbody).toBeVisible({ timeout: 5000 });
 
     // Should have register rows
-    const registerRows = page.locator(`#mbs-registers-tbody-${mbSlaveObject} tr`);
+    const registerRows = page.locator(`#mbs-registers-tbody-${MBS_OBJECT} tr`);
     await expect(registerRows.first()).toBeVisible({ timeout: 5000 });
   });
 
   test('should have filter input for registers', async ({ page }) => {
-    if (!mbSlaveObject) return;
+    await page.goto('/');
+    await page.waitForSelector('#objects-list li', { timeout: 15000 });
+
+    const mbsItem = page.locator('#objects-list li', { hasText: MBS_OBJECT });
+    await mbsItem.click();
 
     await page.waitForSelector('.tab-panel.active', { timeout: 10000 });
 
     // Check filter input exists
-    const filterInput = page.locator(`#mbs-registers-filter-${mbSlaveObject}`);
+    const filterInput = page.locator(`#mbs-registers-filter-${MBS_OBJECT}`);
     await expect(filterInput).toBeVisible({ timeout: 5000 });
 
     // Check type filter exists
-    const typeFilter = page.locator(`#mbs-type-filter-${mbSlaveObject}`);
+    const typeFilter = page.locator(`#mbs-type-filter-${MBS_OBJECT}`);
     await expect(typeFilter).toBeVisible({ timeout: 5000 });
   });
 
   test('should display register values for SSE updates', async ({ page }) => {
-    if (!mbSlaveObject) return;
+    await page.goto('/');
+    await page.waitForSelector('#objects-list li', { timeout: 15000 });
+
+    const mbsItem = page.locator('#objects-list li', { hasText: MBS_OBJECT });
+    await mbsItem.click();
 
     await page.waitForSelector('.tab-panel.active', { timeout: 10000 });
 
@@ -111,7 +111,7 @@ test.describe('ModbusSlave renderer', () => {
     await page.waitForTimeout(1500);
 
     // Check that register rows exist
-    const rows = page.locator(`#mbs-registers-tbody-${mbSlaveObject} tr`);
+    const rows = page.locator(`#mbs-registers-tbody-${MBS_OBJECT} tr`);
     await expect(rows.first()).toBeVisible();
 
     // Check value cell exists (last column for ModbusSlave)
@@ -120,41 +120,49 @@ test.describe('ModbusSlave renderer', () => {
   });
 
   test('should filter registers by text', async ({ page }) => {
-    if (!mbSlaveObject) return;
+    await page.goto('/');
+    await page.waitForSelector('#objects-list li', { timeout: 15000 });
+
+    const mbsItem = page.locator('#objects-list li', { hasText: MBS_OBJECT });
+    await mbsItem.click();
 
     await page.waitForSelector('.tab-panel.active', { timeout: 10000 });
 
     // Wait for registers to load
     await page.waitForTimeout(1500);
 
-    const filterInput = page.locator(`#mbs-registers-filter-${mbSlaveObject}`);
+    const filterInput = page.locator(`#mbs-registers-filter-${MBS_OBJECT}`);
     await filterInput.fill('AI');
 
     // Wait for filter to apply
     await page.waitForTimeout(500);
 
     // All visible registers should contain "AI" in name
-    const visibleRows = page.locator(`#mbs-registers-tbody-${mbSlaveObject} tr`);
+    const visibleRows = page.locator(`#mbs-registers-tbody-${MBS_OBJECT} tr`);
     const count = await visibleRows.count();
     expect(count).toBeGreaterThanOrEqual(0);
   });
 
   test('should filter registers by type', async ({ page }) => {
-    if (!mbSlaveObject) return;
+    await page.goto('/');
+    await page.waitForSelector('#objects-list li', { timeout: 15000 });
+
+    const mbsItem = page.locator('#objects-list li', { hasText: MBS_OBJECT });
+    await mbsItem.click();
 
     await page.waitForSelector('.tab-panel.active', { timeout: 10000 });
 
     // Wait for registers to load
     await page.waitForTimeout(1500);
 
-    const typeFilter = page.locator(`#mbs-type-filter-${mbSlaveObject}`);
+    const typeFilter = page.locator(`#mbs-type-filter-${MBS_OBJECT}`);
     await typeFilter.selectOption('DI');
 
     // Wait for filter to apply
     await page.waitForTimeout(500);
 
     // All visible registers should have DI type
-    const visibleTypes = page.locator(`#mbs-registers-tbody-${mbSlaveObject} tr .type-badge`);
+    const visibleTypes = page.locator(`#mbs-registers-tbody-${MBS_OBJECT} tr .type-badge`);
     const count = await visibleTypes.count();
 
     if (count > 0) {
@@ -165,22 +173,104 @@ test.describe('ModbusSlave renderer', () => {
   });
 
   test('should have virtual scroll for registers', async ({ page }) => {
-    if (!mbSlaveObject) return;
+    await page.goto('/');
+    await page.waitForSelector('#objects-list li', { timeout: 15000 });
+
+    const mbsItem = page.locator('#objects-list li', { hasText: MBS_OBJECT });
+    await mbsItem.click();
 
     await page.waitForSelector('.tab-panel.active', { timeout: 10000 });
 
     // Check for virtual scroll container
-    const viewport = page.locator(`#mbs-registers-section-${mbSlaveObject} .mbs-registers-viewport`);
+    const viewport = page.locator(`#mbs-registers-viewport-${MBS_OBJECT}`);
     await expect(viewport).toBeVisible({ timeout: 5000 });
   });
 
   test('should have resize handle for registers section', async ({ page }) => {
-    if (!mbSlaveObject) return;
+    await page.goto('/');
+    await page.waitForSelector('#objects-list li', { timeout: 15000 });
+
+    const mbsItem = page.locator('#objects-list li', { hasText: MBS_OBJECT });
+    await mbsItem.click();
 
     await page.waitForSelector('.tab-panel.active', { timeout: 10000 });
 
     // Check for resize handle
-    const resizeHandle = page.locator(`#mbs-registers-section-${mbSlaveObject} .resize-handle`);
+    const resizeHandle = page.locator(`#mbs-registers-section-${MBS_OBJECT} .resize-handle`);
     await expect(resizeHandle).toBeVisible({ timeout: 5000 });
+  });
+
+  test.describe('Chart Toggle', () => {
+    test('should have chart toggle for each register row', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('#objects-list li', { timeout: 15000 });
+
+      const mbsItem = page.locator('#objects-list li', { hasText: MBS_OBJECT });
+      await mbsItem.click();
+
+      await page.waitForSelector('.tab-panel.active', { timeout: 10000 });
+      await page.waitForSelector(`#mbs-registers-tbody-${MBS_OBJECT} tr`, { timeout: 10000 });
+
+      const firstRow = page.locator(`#mbs-registers-tbody-${MBS_OBJECT} tr`).first();
+      const chartToggle = firstRow.locator('.chart-toggle');
+      await expect(chartToggle).toBeVisible({ timeout: 5000 });
+
+      // Checkbox is hidden (display:none), label is visible
+      const checkbox = chartToggle.locator('input[type="checkbox"]');
+      const label = chartToggle.locator('.chart-toggle-label');
+      await expect(checkbox).toHaveCount(1);
+      await expect(label).toBeVisible();
+    });
+
+    test('should add register to chart on checkbox click', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('#objects-list li', { timeout: 15000 });
+
+      const mbsItem = page.locator('#objects-list li', { hasText: MBS_OBJECT });
+      await mbsItem.click();
+
+      await page.waitForSelector('.tab-panel.active', { timeout: 10000 });
+      await page.waitForSelector(`#mbs-registers-tbody-${MBS_OBJECT} tr`, { timeout: 10000 });
+
+      const firstRow = page.locator(`#mbs-registers-tbody-${MBS_OBJECT} tr`).first();
+      const chartCheckbox = firstRow.locator('.chart-toggle input[type="checkbox"]');
+
+      // Initially unchecked
+      await expect(chartCheckbox).not.toBeChecked();
+
+      // Click on label to toggle
+      const chartLabel = firstRow.locator('.chart-toggle-label');
+      await chartLabel.click();
+
+      // Should be checked now
+      await expect(chartCheckbox).toBeChecked();
+
+      // Chart container should have a chart
+      const chartsContainer = page.locator(`#charts-${MBS_OBJECT}`);
+      await expect(chartsContainer.locator('.chart-wrapper')).toHaveCount(1);
+    });
+
+    test('should remove register from chart on second click', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('#objects-list li', { timeout: 15000 });
+
+      const mbsItem = page.locator('#objects-list li', { hasText: MBS_OBJECT });
+      await mbsItem.click();
+
+      await page.waitForSelector('.tab-panel.active', { timeout: 10000 });
+      await page.waitForSelector(`#mbs-registers-tbody-${MBS_OBJECT} tr`, { timeout: 10000 });
+
+      const firstRow = page.locator(`#mbs-registers-tbody-${MBS_OBJECT} tr`).first();
+      const chartLabel = firstRow.locator('.chart-toggle-label');
+      const chartCheckbox = firstRow.locator('.chart-toggle input[type="checkbox"]');
+
+      // Add to chart
+      await chartLabel.click();
+      await expect(chartCheckbox).toBeChecked();
+
+      // Remove from chart
+      await chartLabel.click();
+      await expect(chartCheckbox).not.toBeChecked();
+    });
   });
 });

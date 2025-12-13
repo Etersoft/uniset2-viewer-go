@@ -219,4 +219,75 @@ test.describe('OPCUAExchange renderer', () => {
       await expect(resizeHandle).toBeVisible();
     });
   });
+
+  test.describe('Chart Toggle', () => {
+    test('should have chart toggle for each sensor row', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('#objects-list li', { timeout: 10000 });
+      await page.locator('#objects-list li', { hasText: OPCUA_OBJECT }).click();
+
+      const panel = page.locator('.tab-panel.active');
+      await panel.waitFor({ timeout: 10000 });
+      await page.waitForSelector(`#opcua-sensors-${OPCUA_OBJECT} tr`, { timeout: 10000 });
+
+      const firstRow = panel.locator(`#opcua-sensors-${OPCUA_OBJECT} tr`).first();
+      const chartToggle = firstRow.locator('.chart-toggle');
+      await expect(chartToggle).toBeVisible({ timeout: 5000 });
+
+      // Checkbox is hidden (display:none), label is visible
+      const checkbox = chartToggle.locator('input[type="checkbox"]');
+      const label = chartToggle.locator('.chart-toggle-label');
+      await expect(checkbox).toHaveCount(1);
+      await expect(label).toBeVisible();
+    });
+
+    test('should add sensor to chart on checkbox click', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('#objects-list li', { timeout: 10000 });
+      await page.locator('#objects-list li', { hasText: OPCUA_OBJECT }).click();
+
+      const panel = page.locator('.tab-panel.active');
+      await panel.waitFor({ timeout: 10000 });
+      await page.waitForSelector(`#opcua-sensors-${OPCUA_OBJECT} tr`, { timeout: 10000 });
+
+      const firstRow = panel.locator(`#opcua-sensors-${OPCUA_OBJECT} tr`).first();
+      const chartCheckbox = firstRow.locator('.chart-toggle input[type="checkbox"]');
+
+      // Initially unchecked
+      await expect(chartCheckbox).not.toBeChecked();
+
+      // Click on label to toggle
+      const chartLabel = firstRow.locator('.chart-toggle-label');
+      await chartLabel.click();
+
+      // Should be checked now
+      await expect(chartCheckbox).toBeChecked();
+
+      // Chart container should have a chart
+      const chartsContainer = panel.locator(`#charts-${OPCUA_OBJECT}`);
+      await expect(chartsContainer.locator('.chart-wrapper')).toHaveCount(1);
+    });
+
+    test('should remove sensor from chart on second click', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('#objects-list li', { timeout: 10000 });
+      await page.locator('#objects-list li', { hasText: OPCUA_OBJECT }).click();
+
+      const panel = page.locator('.tab-panel.active');
+      await panel.waitFor({ timeout: 10000 });
+      await page.waitForSelector(`#opcua-sensors-${OPCUA_OBJECT} tr`, { timeout: 10000 });
+
+      const firstRow = panel.locator(`#opcua-sensors-${OPCUA_OBJECT} tr`).first();
+      const chartLabel = firstRow.locator('.chart-toggle-label');
+      const chartCheckbox = firstRow.locator('.chart-toggle input[type="checkbox"]');
+
+      // Add to chart
+      await chartLabel.click();
+      await expect(chartCheckbox).toBeChecked();
+
+      // Remove from chart
+      await chartLabel.click();
+      await expect(chartCheckbox).not.toBeChecked();
+    });
+  });
 });

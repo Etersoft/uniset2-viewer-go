@@ -201,4 +201,80 @@ test.describe('ModbusMaster renderer', () => {
       }
     }
   });
+
+  test.describe('Chart Toggle', () => {
+    test('should have chart toggle for each register row', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('#objects-list li', { timeout: 15000 });
+
+      const mbItem = page.locator('#objects-list li', { hasText: MB_OBJECT });
+      await mbItem.click();
+
+      await page.waitForSelector('.tab-panel.active', { timeout: 10000 });
+
+      // Wait for registers to load
+      await page.waitForSelector(`#mb-registers-tbody-${MB_OBJECT} tr`, { timeout: 10000 });
+
+      const firstRow = page.locator(`#mb-registers-tbody-${MB_OBJECT} tr`).first();
+      const chartToggle = firstRow.locator('.chart-toggle');
+      await expect(chartToggle).toBeVisible({ timeout: 5000 });
+
+      // Checkbox is hidden (display:none), label is visible
+      const checkbox = chartToggle.locator('input[type="checkbox"]');
+      const label = chartToggle.locator('.chart-toggle-label');
+      await expect(checkbox).toHaveCount(1);
+      await expect(label).toBeVisible();
+    });
+
+    test('should add register to chart on checkbox click', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('#objects-list li', { timeout: 15000 });
+
+      const mbItem = page.locator('#objects-list li', { hasText: MB_OBJECT });
+      await mbItem.click();
+
+      await page.waitForSelector('.tab-panel.active', { timeout: 10000 });
+      await page.waitForSelector(`#mb-registers-tbody-${MB_OBJECT} tr`, { timeout: 10000 });
+
+      const firstRow = page.locator(`#mb-registers-tbody-${MB_OBJECT} tr`).first();
+      const chartCheckbox = firstRow.locator('.chart-toggle input[type="checkbox"]');
+
+      // Initially unchecked
+      await expect(chartCheckbox).not.toBeChecked();
+
+      // Click on label to toggle
+      const chartLabel = firstRow.locator('.chart-toggle-label');
+      await chartLabel.click();
+
+      // Should be checked now
+      await expect(chartCheckbox).toBeChecked();
+
+      // Chart container should have a chart
+      const chartsContainer = page.locator(`#charts-${MB_OBJECT}`);
+      await expect(chartsContainer.locator('.chart-wrapper')).toHaveCount(1);
+    });
+
+    test('should remove register from chart on second click', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('#objects-list li', { timeout: 15000 });
+
+      const mbItem = page.locator('#objects-list li', { hasText: MB_OBJECT });
+      await mbItem.click();
+
+      await page.waitForSelector('.tab-panel.active', { timeout: 10000 });
+      await page.waitForSelector(`#mb-registers-tbody-${MB_OBJECT} tr`, { timeout: 10000 });
+
+      const firstRow = page.locator(`#mb-registers-tbody-${MB_OBJECT} tr`).first();
+      const chartLabel = firstRow.locator('.chart-toggle-label');
+      const chartCheckbox = firstRow.locator('.chart-toggle input[type="checkbox"]');
+
+      // Add to chart
+      await chartLabel.click();
+      await expect(chartCheckbox).toBeChecked();
+
+      // Remove from chart
+      await chartLabel.click();
+      await expect(chartCheckbox).not.toBeChecked();
+    });
+  });
 });

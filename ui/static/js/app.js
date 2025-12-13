@@ -1055,6 +1055,99 @@ class BaseObjectRenderer {
         this.initLogViewer(logServerData);
     }
 
+    // ========== Общие методы для работы с графиками ==========
+
+    // Проверить, добавлен ли датчик на график
+    isSensorOnChart(sensorName) {
+        const addedSensors = getExternalSensorsFromStorage(this.tabKey);
+        return addedSensors.has(sensorName);
+    }
+
+    // Переключить датчик на графике (добавить/удалить)
+    // sensor должен содержать: id, name, iotype (или type), value
+    toggleSensorChart(sensor) {
+        if (!sensor || !sensor.name) return;
+
+        const addedSensors = getExternalSensorsFromStorage(this.tabKey);
+
+        if (addedSensors.has(sensor.name)) {
+            // Удаляем с графика
+            removeExternalSensor(this.tabKey, sensor.name);
+        } else {
+            // Добавляем на график
+            const sensorForChart = {
+                id: sensor.id,
+                name: sensor.name,
+                textname: sensor.textname || sensor.name,
+                iotype: sensor.iotype || sensor.type,
+                value: sensor.value
+            };
+
+            // Добавляем в список внешних датчиков
+            addedSensors.add(sensor.name);
+            saveExternalSensorsToStorage(this.tabKey, addedSensors);
+
+            // Добавляем в state.sensorsByName если его там нет
+            if (!state.sensorsByName.has(sensor.name)) {
+                state.sensorsByName.set(sensor.name, sensorForChart);
+                state.sensors.set(sensor.id, sensorForChart);
+            }
+
+            // Создаём график
+            createExternalSensorChart(this.tabKey, sensorForChart);
+
+            // Подписываемся на обновления датчика
+            this.subscribeToChartSensor(sensor.id);
+        }
+    }
+
+    // Подписаться на обновления датчика для графика
+    // Переопределяется в наследниках для специфичных API
+    subscribeToChartSensor(sensorId) {
+        // По умолчанию используем IONC подписку
+        subscribeToIONCSensor(this.objectName, sensorId);
+    }
+
+    // Сгенерировать HTML для checkbox добавления на график
+    renderChartToggleCell(sensorId, sensorName, prefix = 'sensor') {
+        const isOnChart = this.isSensorOnChart(sensorName);
+        const varName = `${prefix}-${sensorId}`;
+        const checkboxId = `chart-${this.objectName}-${varName}`;
+        return `
+            <td class="chart-col">
+                <span class="chart-toggle">
+                    <input type="checkbox"
+                           class="chart-checkbox chart-toggle-input"
+                           id="${checkboxId}"
+                           data-sensor-id="${sensorId}"
+                           data-sensor-name="${escapeHtml(sensorName)}"
+                           ${isOnChart ? 'checked' : ''}>
+                    <label class="chart-toggle-label" for="${checkboxId}">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 3v18h18"/>
+                            <path d="M18 9l-5 5-4-4-3 3"/>
+                        </svg>
+                    </label>
+                </span>
+            </td>
+        `;
+    }
+
+    // Привязать обработчики событий для checkbox графиков
+    // sensorMap - Map с данными датчиков по id
+    attachChartToggleListeners(container, sensorMap) {
+        if (!container) return;
+        container.querySelectorAll('.chart-checkbox').forEach(cb => {
+            cb.addEventListener('change', () => {
+                const sensorId = parseInt(cb.dataset.sensorId, 10);
+                const sensor = sensorMap.get(sensorId);
+                if (sensor) {
+                    this.toggleSensorChart(sensor);
+                }
+            });
+        });
+    }
+
     createStatisticsSection() {
         return this.createCollapsibleSection('statistics', 'Статистика', `
             <div id="statistics-${this.objectName}"></div>
@@ -1853,7 +1946,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
             btn.addEventListener('click', () => this.togglePin(parseInt(btn.dataset.id)));
         });
         tbody.querySelectorAll('.ionc-chart-checkbox').forEach(cb => {
-            cb.addEventListener('change', () => this.toggleSensorChart(parseInt(cb.dataset.id)));
+            cb.addEventListener('change', () => this.toggleSensorChartById(parseInt(cb.dataset.id)));
         });
     }
 
@@ -1966,48 +2059,14 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
         this.renderSensorsTable();
     }
 
-    isSensorOnChart(sensorName) {
-        const addedSensors = getExternalSensorsFromStorage(this.tabKey);
-        return addedSensors.has(sensorName);
-    }
-
-    toggleSensorChart(sensorId) {
+    // Используем метод toggleSensorChart из базового класса
+    // isSensorOnChart также наследуется из BaseObjectRenderer
+    toggleSensorChartById(sensorId) {
         const sensor = this.sensorMap.get(sensorId);
         if (!sensor) return;
-
-        const addedSensors = getExternalSensorsFromStorage(this.tabKey);
-
-        if (addedSensors.has(sensor.name)) {
-            // Удаляем с графика
-            removeExternalSensor(this.tabKey, sensor.name);
-        } else {
-            // Добавляем на график - используем существующую систему внешних датчиков
-            // Создаём объект датчика в формате, ожидаемом createExternalSensorChart
-            const sensorForChart = {
-                id: sensor.id,
-                name: sensor.name,
-                textname: sensor.name,
-                iotype: sensor.type,
-                value: sensor.value
-            };
-
-            // Добавляем в список внешних датчиков
-            addedSensors.add(sensor.name);
-            saveExternalSensorsToStorage(this.tabKey, addedSensors);
-
-            // Добавляем в state.sensorsByName если его там нет
-            if (!state.sensorsByName.has(sensor.name)) {
-                state.sensorsByName.set(sensor.name, sensorForChart);
-                state.sensors.set(sensor.id, sensorForChart);
-            }
-
-            // Создаём график
-            createExternalSensorChart(this.tabKey, sensorForChart);
-
-            // Подписываемся на IONC датчик (не SM!)
-            subscribeToIONCSensor(this.objectName, sensor.id);
-        }
-        // Не перерисовываем таблицу - checkbox сам обновляется
+        // Приводим к формату базового метода (iotype вместо type)
+        const sensorData = { ...sensor, iotype: sensor.type };
+        this.toggleSensorChart(sensorData);
     }
 
     updateSensorCount() {
@@ -2524,6 +2583,9 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
         this.filter = '';
         this.typeFilter = 'all';
         this.filterDebounce = null;
+
+        // Sensor map for chart support
+        this.sensorMap = new Map();
     }
 
     createPanelHTML() {
@@ -2685,6 +2747,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
                     <table class="sensors-table variables-table opcua-sensors-table">
                         <thead>
                             <tr>
+                                <th class="chart-col-header"></th>
                                 <th>ID</th>
                                 <th>Имя</th>
                                 <th>Тип</th>
@@ -3060,19 +3123,27 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
 
         // Show empty state if no sensors
         if (this.allSensors.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="opcua-no-sensors">Нет сенсоров</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="opcua-no-sensors">Нет сенсоров</td></tr>';
             return;
         }
 
         // Get visible slice
         const visibleSensors = this.allSensors.slice(this.startIndex, this.endIndex);
 
-        // Render visible rows with type badges
+        // Update sensorMap for chart support
+        visibleSensors.forEach(sensor => {
+            if (sensor.id) {
+                this.sensorMap.set(sensor.id, sensor);
+            }
+        });
+
+        // Render visible rows with type badges and chart toggle
         tbody.innerHTML = visibleSensors.map(sensor => {
             const iotype = sensor.iotype || sensor.type || '';
             const typeBadgeClass = iotype ? `type-badge type-${iotype}` : '';
             return `
             <tr data-sensor-id="${sensor.id || ''}">
+                ${this.renderChartToggleCell(sensor.id, sensor.name, 'opcua')}
                 <td>${sensor.id ?? '—'}</td>
                 <td>${escapeHtml(sensor.name || '')}</td>
                 <td><span class="${typeBadgeClass}">${iotype || '—'}</span></td>
@@ -3084,13 +3155,27 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
             </tr>
         `}).join('');
 
-        // Bind row click events
+        // Bind chart toggle events
+        this.attachChartToggleListeners(tbody, this.sensorMap);
+
+        // Bind row click events (prevent on chart checkbox)
         tbody.querySelectorAll('tr[data-sensor-id]').forEach(row => {
-            row.addEventListener('click', () => {
+            row.addEventListener('click', (e) => {
+                // Don't trigger row click when clicking on chart checkbox
+                if (e.target.closest('.chart-toggle')) return;
                 const id = row.dataset.sensorId;
                 if (id) this.loadSensorDetails(parseInt(id, 10));
             });
         });
+    }
+
+    // Override to use OPC UA SSE subscription
+    subscribeToChartSensor(sensorId) {
+        // OPCUAExchange sensors are already subscribed through main SSE
+        // Just ensure the sensor is in our subscription list
+        if (!this.subscribedSensorIds.has(sensorId)) {
+            this.subscribedSensorIds.add(sensorId);
+        }
     }
 
     checkInfiniteScroll(viewport) {
@@ -3555,6 +3640,9 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
         this.filter = '';
         this.typeFilter = 'all';
         this.filterDebounce = null;
+
+        // Register map for chart support
+        this.registerMap = new Map();
     }
 
     createPanelHTML() {
@@ -3697,6 +3785,7 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
                     <table class="sensors-table variables-table mb-registers-table">
                         <thead>
                             <tr>
+                                <th class="chart-col-header"></th>
                                 <th>ID</th>
                                 <th>Имя</th>
                                 <th>Тип</th>
@@ -3932,13 +4021,21 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
         const tbody = document.getElementById(`mb-registers-tbody-${this.objectName}`);
         if (!tbody) return;
 
+        // Update registerMap for chart support
+        this.allRegisters.forEach(reg => {
+            if (reg.id) {
+                this.registerMap.set(reg.id, reg);
+            }
+        });
+
         const html = this.allRegisters.map(reg => {
             const deviceAddr = reg.device;
             const deviceInfo = this.devicesDict[deviceAddr] || {};
             const regInfo = reg.register || {};
             const respondClass = deviceInfo.respond ? 'ok' : 'fail';
             return `
-                <tr>
+                <tr data-sensor-id="${reg.id}">
+                    ${this.renderChartToggleCell(reg.id, reg.name, 'mbreg')}
                     <td>${reg.id}</td>
                     <td>${escapeHtml(reg.name || '')}</td>
                     <td>${reg.iotype || ''}</td>
@@ -3952,6 +4049,17 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
         }).join('');
 
         tbody.innerHTML = html;
+
+        // Bind chart toggle events
+        this.attachChartToggleListeners(tbody, this.registerMap);
+    }
+
+    // Override to use Modbus SSE subscription
+    subscribeToChartSensor(sensorId) {
+        // ModbusMaster registers are already subscribed through main SSE
+        if (!this.subscribedRegisterIds.has(sensorId)) {
+            this.subscribedRegisterIds.add(sensorId);
+        }
     }
 
     setupVirtualScroll() {
@@ -4225,6 +4333,9 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
         this.filter = '';
         this.typeFilter = 'all';
         this.filterDebounce = null;
+
+        // Register map for chart support
+        this.registerMap = new Map();
     }
 
     createPanelHTML() {
@@ -4355,6 +4466,7 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
                     <table class="sensors-table variables-table mb-registers-table">
                         <thead>
                             <tr>
+                                <th class="chart-col-header"></th>
                                 <th>ID</th>
                                 <th>Имя</th>
                                 <th>Тип</th>
@@ -4559,11 +4671,19 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
         const tbody = document.getElementById(`mbs-registers-tbody-${this.objectName}`);
         if (!tbody) return;
 
+        // Update registerMap for chart support
+        this.allRegisters.forEach(reg => {
+            if (reg.id) {
+                this.registerMap.set(reg.id, reg);
+            }
+        });
+
         // ModbusSlave формат: device - это mbaddr, нет mbfunc, есть amode
         const html = this.allRegisters.map(reg => {
             const mbAddr = reg.device;
             return `
-                <tr>
+                <tr data-sensor-id="${reg.id}">
+                    ${this.renderChartToggleCell(reg.id, reg.name, 'mbsreg')}
                     <td>${reg.id}</td>
                     <td>${escapeHtml(reg.name || '')}</td>
                     <td>${reg.iotype || ''}</td>
@@ -4576,6 +4696,17 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
         }).join('');
 
         tbody.innerHTML = html;
+
+        // Bind chart toggle events
+        this.attachChartToggleListeners(tbody, this.registerMap);
+    }
+
+    // Override to use ModbusSlave SSE subscription
+    subscribeToChartSensor(sensorId) {
+        // ModbusSlave registers are already subscribed through main SSE
+        if (!this.subscribedRegisterIds.has(sensorId)) {
+            this.subscribedRegisterIds.add(sensorId);
+        }
     }
 
     setupVirtualScroll() {
@@ -4835,6 +4966,9 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
         this.filter = '';
         this.typeFilter = 'all';
         this.filterDebounce = null;
+
+        // Sensor map for chart support
+        this.sensorMap = new Map();
     }
 
     createPanelHTML() {
@@ -4967,6 +5101,7 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
                     <table class="sensors-table variables-table opcua-sensors-table">
                         <thead>
                             <tr>
+                                <th class="chart-col-header"></th>
                                 <th>ID</th>
                                 <th>Имя</th>
                                 <th>Тип</th>
@@ -5274,19 +5409,27 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
 
         // Show empty state if no sensors
         if (this.allSensors.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="opcua-no-sensors">Нет переменных</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="opcua-no-sensors">Нет переменных</td></tr>';
             return;
         }
 
         // Get visible slice
         const visibleSensors = this.allSensors.slice(this.startIndex, this.endIndex);
 
-        // Render visible rows with type badges
+        // Update sensorMap for chart support
+        visibleSensors.forEach(sensor => {
+            if (sensor.id) {
+                this.sensorMap.set(sensor.id, sensor);
+            }
+        });
+
+        // Render visible rows with type badges and chart toggle
         tbody.innerHTML = visibleSensors.map(sensor => {
             const iotype = sensor.iotype || sensor.type || '';
             const typeBadgeClass = iotype ? `type-badge type-${iotype}` : '';
             return `
             <tr data-sensor-id="${sensor.id || ''}">
+                ${this.renderChartToggleCell(sensor.id, sensor.name, 'opcuasrv')}
                 <td>${sensor.id || ''}</td>
                 <td class="sensor-name">${sensor.name || ''}</td>
                 <td><span class="${typeBadgeClass}">${iotype}</span></td>
@@ -5296,6 +5439,17 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
             </tr>
             `;
         }).join('');
+
+        // Bind chart toggle events
+        this.attachChartToggleListeners(tbody, this.sensorMap);
+    }
+
+    // Override to use OPCUAServer SSE subscription
+    subscribeToChartSensor(sensorId) {
+        // OPCUAServer sensors are already subscribed through main SSE
+        if (!this.subscribedSensorIds.has(sensorId)) {
+            this.subscribedSensorIds.add(sensorId);
+        }
     }
 
     checkInfiniteScroll(viewport) {

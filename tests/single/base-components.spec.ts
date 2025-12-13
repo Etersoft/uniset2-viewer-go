@@ -392,13 +392,8 @@ test.describe('Cross-Renderer Consistency', () => {
     await page.goto('/');
     await page.waitForSelector('#objects-list li', { timeout: 10000 });
 
-    const mbsItem = page.locator('#objects-list li', { hasText: 'MBSlave1' });
-    const count = await mbsItem.count();
-
-    if (count === 0) {
-      test.skip();
-      return;
-    }
+    const mbsItem = page.locator('#objects-list li', { hasText: 'MBTCPSlave1' });
+    await expect(mbsItem).toBeVisible({ timeout: 5000 });
 
     await mbsItem.click();
     await page.waitForSelector('[id^="mbs-registers-section-"]', { timeout: 10000 });
