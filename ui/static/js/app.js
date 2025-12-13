@@ -841,11 +841,15 @@ const ParamsAccessibilityMixin = {
      * - Кнопка "Применить" блокируется
      * - Все input/select в таблице параметров блокируются
      * - Показывается предупреждающее сообщение
+     * - Обновляется индикатор в шапке (если есть)
      *
      * @param {string} prefix - Префикс элементов (например, 'opcua', 'opcuasrv', 'mb', 'mbs')
      */
     updateParamsAccessibility(prefix) {
-        const enabled = this.status?.httpEnabledSetParams !== false;
+        // httpEnabledSetParams может быть: true/false, 1/0, или отсутствовать
+        // Разрешено только если значение === true или === 1
+        const val = this.status?.httpEnabledSetParams;
+        const enabled = val === true || val === 1;
         const sectionId = `${prefix}-params-section-${this.objectName}`;
         const section = document.getElementById(sectionId);
 
@@ -870,6 +874,13 @@ const ParamsAccessibilityMixin = {
             inputs.forEach(input => {
                 input.disabled = !enabled;
             });
+        }
+
+        // Обновить индикатор в шапке (если есть)
+        const indParams = document.getElementById(`${prefix}-ind-params-${this.objectName}`);
+        if (indParams) {
+            indParams.className = `header-indicator-dot ${enabled ? 'ok' : 'fail'}`;
+            indParams.title = enabled ? 'Параметры: Да' : 'Параметры: Нет';
         }
 
         // Показать предупреждение
@@ -930,7 +941,7 @@ class BaseObjectRenderer {
 
     // Вспомогательные методы для создания секций
     createCollapsibleSection(id, title, content, options = {}) {
-        const { badge = false, hidden = false } = options;
+        const { badge = false, hidden = false, headerExtra = '' } = options;
         const badgeHtml = badge ? `<span class="io-section-badge" id="${id}-count-${this.objectName}">0</span>` : '';
         const style = hidden ? 'style="display:none"' : '';
         const sectionId = options.sectionId || `${id}-section-${this.objectName}`;
@@ -943,6 +954,7 @@ class BaseObjectRenderer {
                     </svg>
                     <span class="collapsible-title">${title}</span>
                     ${badgeHtml}
+                    ${headerExtra}
                     <div class="section-reorder-buttons" onclick="event.stopPropagation()">
                         <button class="section-move-btn section-move-up" onclick="moveSectionUp('${this.tabKey}', '${id}')" title="Переместить вверх">↑</button>
                         <button class="section-move-btn section-move-down" onclick="moveSectionDown('${this.tabKey}', '${id}')" title="Переместить вниз">↓</button>
@@ -1285,7 +1297,7 @@ class BaseObjectRenderer {
         const el = document.getElementById(id);
         if (!el) return;
         el.textContent = text || '';
-        el.classList.toggle('error', !!(text && isError));
+        el.classList.toggle('note-error', !!(text && isError));
     }
 
     // Базовый resize handler для секций
@@ -2562,20 +2574,33 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
         super(objectName, tabKey);
         this.status = null;
         this.params = {};
-        this.paramNames = [
-            'polltime',
-            'updatetime',
-            'reconnectPause',
-            'timeoutIterate',
-            'exchangeMode',
-            'writeToAllChannels',
+        // Параметры только для чтения (статус)
+        this.readonlyParams = [
             'currentChannel',
             'connectCount',
             'activated',
             'iolistSize',
-            'httpControlAllow',
-            'httpControlActive',
             'errorHistoryMax'
+        ];
+        // Параметры для записи (требуют httpEnabledSetParams=1)
+        // exchangeMode первым - он самый важный и требует httpControlActive=1
+        this.writableParams = [
+            'exchangeMode',
+            'polltime',
+            'updatetime',
+            'reconnectPause',
+            'timeoutIterate',
+            'writeToAllChannels'
+        ];
+        // Все параметры для загрузки
+        this.paramNames = [...this.readonlyParams, ...this.writableParams];
+        // Режимы обмена
+        this.exchangeModes = [
+            { value: 0, name: 'emNone', label: 'Нормальный' },
+            { value: 1, name: 'emWriteOnly', label: 'Только запись' },
+            { value: 2, name: 'emReadOnly', label: 'Только чтение' },
+            { value: 3, name: 'emSkipSaveToSM', label: 'Не писать в SM' },
+            { value: 4, name: 'emSkipExchange', label: 'Отключить обмен' }
         ];
         this.diagnostics = null;
         this.loadingNote = '';
@@ -2681,48 +2706,69 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
     }
 
     createOPCUAStatusSection() {
+        const headerChannels = `
+            <div class="header-channels" id="opcua-header-channels-${this.objectName}" onclick="event.stopPropagation()"></div>
+        `;
         return this.createCollapsibleSection('opcua-status', 'Статус OPC UA', `
             <div class="opcua-actions">
                 <span class="opcua-note" id="opcua-status-note-${this.objectName}"></span>
             </div>
-            <table class="info-table">
-                <tbody id="opcua-status-${this.objectName}"></tbody>
-            </table>
-            <div class="opcua-channels" id="opcua-channels-${this.objectName}"></div>
-        `, { sectionId: `opcua-status-section-${this.objectName}` });
+            <div class="opcua-stats-row" id="opcua-stats-${this.objectName}"></div>
+            <div class="opcua-monitor-grid" id="opcua-monitor-${this.objectName}"></div>
+        `, { sectionId: `opcua-status-section-${this.objectName}`, headerExtra: headerChannels });
     }
 
     createOPCUAControlSection() {
+        const headerIndicators = `
+            <div class="header-indicators" id="opcua-control-indicators-${this.objectName}" onclick="event.stopPropagation()">
+                <div class="header-indicator">
+                    <span class="header-indicator-label">Разрешён</span>
+                    <span class="header-indicator-dot" id="opcua-ind-allow-${this.objectName}"></span>
+                </div>
+                <div class="header-indicator">
+                    <span class="header-indicator-label">Активен</span>
+                    <span class="header-indicator-dot" id="opcua-ind-active-${this.objectName}"></span>
+                </div>
+                <div class="header-indicator">
+                    <span class="header-indicator-label">Параметры</span>
+                    <span class="header-indicator-dot" id="opcua-ind-params-${this.objectName}"></span>
+                </div>
+            </div>
+        `;
         return this.createCollapsibleSection('opcua-control', 'HTTP-контроль', `
             <div class="opcua-actions">
                 <button class="btn" id="opcua-control-take-${this.objectName}">Перехватить</button>
                 <button class="btn" id="opcua-control-release-${this.objectName}">Вернуть</button>
                 <span class="opcua-note" id="opcua-control-note-${this.objectName}"></span>
             </div>
-            <div class="opcua-flags" id="opcua-control-flags-${this.objectName}"></div>
-        `, { sectionId: `opcua-control-section-${this.objectName}` });
+        `, { sectionId: `opcua-control-section-${this.objectName}`, headerExtra: headerIndicators });
     }
 
     createOPCUAParamsSection() {
+        const headerIndicator = `
+            <span class="header-indicator-dot fail" id="opcua-ind-params-${this.objectName}" onclick="event.stopPropagation()" title="Параметры: загрузка..."></span>
+        `;
         return this.createCollapsibleSection('opcua-params', 'Параметры обмена', `
             <div class="opcua-actions">
-                <button class="btn" id="opcua-params-refresh-${this.objectName}">Обновить</button>
+                <button class="btn" id="opcua-params-refresh-${this.objectName}">Перезагрузить</button>
                 <button class="btn primary" id="opcua-params-save-${this.objectName}">Применить</button>
                 <span class="opcua-note" id="opcua-params-note-${this.objectName}"></span>
             </div>
-            <div class="opcua-params-table-wrapper">
-                <table class="variables-table opcua-params-table">
-                    <thead>
-                        <tr>
-                            <th>Параметр</th>
-                            <th>Текущее</th>
-                            <th>Новое значение</th>
-                        </tr>
-                    </thead>
-                    <tbody id="opcua-params-${this.objectName}"></tbody>
-                </table>
+            <div class="opcua-params-grid">
+                <div class="opcua-params-column">
+                    <div class="opcua-params-subtitle">Статус</div>
+                    <table class="variables-table opcua-params-table compact">
+                        <tbody id="opcua-params-readonly-${this.objectName}"></tbody>
+                    </table>
+                </div>
+                <div class="opcua-params-column">
+                    <div class="opcua-params-subtitle">Настройки</div>
+                    <table class="variables-table opcua-params-table">
+                        <tbody id="opcua-params-writable-${this.objectName}"></tbody>
+                    </table>
+                </div>
             </div>
-        `, { sectionId: `opcua-params-section-${this.objectName}` });
+        `, { sectionId: `opcua-params-section-${this.objectName}`, headerExtra: headerIndicator });
     }
 
     createOPCUASensorsSection() {
@@ -2793,85 +2839,122 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
     }
 
     renderStatus() {
-        const tbody = document.getElementById(`opcua-status-${this.objectName}`);
-        const channelsContainer = document.getElementById(`opcua-channels-${this.objectName}`);
-        if (!tbody || !channelsContainer) return;
+        const statsContainer = document.getElementById(`opcua-stats-${this.objectName}`);
+        const monitorContainer = document.getElementById(`opcua-monitor-${this.objectName}`);
+        const headerChannels = document.getElementById(`opcua-header-channels-${this.objectName}`);
 
-        tbody.innerHTML = '';
-        channelsContainer.innerHTML = '';
+        if (!statsContainer || !monitorContainer) return;
+
+        statsContainer.innerHTML = '';
+        monitorContainer.innerHTML = '';
+        if (headerChannels) headerChannels.innerHTML = '';
 
         if (!this.status) {
-            tbody.innerHTML = '<tr><td colspan="2" class="text-muted">Нет данных</td></tr>';
+            statsContainer.innerHTML = '<span class="text-muted">Нет данных</span>';
             return;
         }
 
         const status = this.status;
-        const rows = [
-            { label: 'Подписка', value: this.formatSubscription(status) },
-            { label: 'I/O list size', value: status.iolist_size ?? status.iolistSize },
-            { label: 'Monitor', value: status.monitor },
-            { label: 'httpEnabledSetParams', value: status.httpEnabledSetParams },
-            { label: 'httpControlAllow', value: status.httpControlAllow },
-            { label: 'httpControlActive', value: status.httpControlActive },
-            { label: 'Ошибок в истории', value: status.errorHistorySize },
-            { label: 'Лимит истории ошибок', value: status.errorHistoryMax }
-        ];
 
-        rows.forEach(row => {
-            if (row.value === undefined || row.value === null) return;
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td class="info-label">${row.label}</td>
-                <td class="info-value">${formatValue(row.value)}</td>
-            `;
-            tbody.appendChild(tr);
-        });
+        // Компактная строка статистики
+        const ioSize = status.iolist_size ?? status.iolistSize ?? '—';
+        const errCount = status.errorHistorySize ?? 0;
+        const errMax = status.errorHistoryMax ?? 100;
+        const errClass = errCount >= errMax ? 'error' : (errCount > 0 ? 'warn' : '');
 
-        if (Array.isArray(status.channels) && status.channels.length > 0) {
-            status.channels.forEach(ch => {
-                const div = document.createElement('div');
-                div.className = 'opcua-channel-card';
-                const ok = ch.ok || ch.status === 'OK';
-                const disabled = ch.disabled ? 'disabled' : '';
-                div.innerHTML = `
-                    <div class="opcua-channel-header">
-                        <span class="opcua-channel-title">Канал ${ch.index}</span>
-                        <span class="opcua-channel-state ${ok ? 'ok' : 'fail'}">${ok ? 'OK' : 'FAIL'}</span>
+        // Определяем класс индикатора ошибок
+        const errDotClass = errCount >= errMax ? 'fail' : (errCount > 0 ? 'warn' : 'ok');
+
+        statsContainer.innerHTML = `
+            <div class="opcua-stat-item">
+                <span class="opcua-stat-label">Подписка:</span>
+                <span class="opcua-stat-value">${this.formatSubscription(status)}</span>
+            </div>
+            <div class="opcua-stat-item">
+                <span class="opcua-stat-label">I/O list:</span>
+                <span class="opcua-stat-value">${ioSize}</span>
+            </div>
+            <div class="opcua-stat-item">
+                <span class="opcua-stat-label">Ошибок:</span>
+                <span class="opcua-stat-indicator ${errDotClass}"></span>
+                <span class="opcua-stat-value">${errCount}/${errMax}</span>
+            </div>
+        `;
+
+        // Парсим и отображаем Monitor как сетку параметров
+        if (status.monitor) {
+            const params = this.parseMonitorString(status.monitor);
+            if (params.length > 0) {
+                const gridHtml = params.map(p => `
+                    <div class="opcua-monitor-item">
+                        <span class="opcua-monitor-name">${escapeHtml(p.name)}</span>
+                        <span class="opcua-monitor-value">${escapeHtml(p.value)}</span>
                     </div>
-                    <div class="opcua-channel-body">
-                        <div>Адрес: ${ch.addr || ch.address || '—'}</div>
-                        <div>Отключен: ${disabled ? 'Да' : 'Нет'}</div>
+                `).join('');
+                monitorContainer.innerHTML = `
+                    <div class="opcua-monitor-title">Параметры</div>
+                    <div class="opcua-monitor-items">${gridHtml}</div>
+                `;
+            }
+        }
+
+        // Каналы в шапке
+        if (headerChannels && Array.isArray(status.channels) && status.channels.length > 0) {
+            const channelsHtml = status.channels.map(ch => {
+                const ok = ch.ok || ch.status === 'OK';
+                const addr = ch.addr || ch.address || '';
+                const disabled = ch.disabled ? ' (откл.)' : '';
+                const channelNum = (ch.index ?? 0) + 1;
+                return `
+                    <div class="header-channel ${ok ? 'ok' : 'fail'}" title="${addr}${disabled}">
+                        <span class="header-channel-name">Канал ${channelNum}</span>
+                        <span class="header-channel-dot"></span>
                     </div>
                 `;
-                channelsContainer.appendChild(div);
-            });
+            }).join('');
+            headerChannels.innerHTML = channelsHtml;
         }
     }
 
-    renderControl() {
-        const container = document.getElementById(`opcua-control-flags-${this.objectName}`);
-        if (!container) return;
+    parseMonitorString(monitorStr) {
+        // Парсим строку формата "name = value name2 = value2 ..."
+        const params = [];
+        if (!monitorStr) return params;
 
+        // Разбиваем по пробелам, но учитываем что значения могут быть пустыми
+        const regex = /(\w+)\s*=\s*(\S*)/g;
+        let match;
+        while ((match = regex.exec(monitorStr)) !== null) {
+            params.push({ name: match[1], value: match[2] || '—' });
+        }
+        return params;
+    }
+
+    renderControl() {
         const allow = this.status?.httpControlAllow;
         const active = this.status?.httpControlActive;
         const enabledParams = this.status?.httpEnabledSetParams;
         const allowText = allow ? 'Перехватить' : 'Контроль запрещён';
 
-        container.innerHTML = `
-            <div class="opcua-flag-row">
-                <span class="opcua-flag-label">Разрешён контроль:</span>
-                <span class="opcua-flag-value ${allow ? 'ok' : 'fail'}">${allow ? 'Да' : 'Нет'}</span>
-            </div>
-            <div class="opcua-flag-row">
-                <span class="opcua-flag-label">HTTP контроль активен:</span>
-                <span class="opcua-flag-value ${active ? 'ok' : 'fail'}">${active ? 'Да' : 'Нет'}</span>
-            </div>
-            <div class="opcua-flag-row">
-                <span class="opcua-flag-label">Разрешено менять параметры:</span>
-                <span class="opcua-flag-value ${enabledParams ? 'ok' : 'fail'}">${enabledParams ? 'Да' : 'Нет'}</span>
-            </div>
-        `;
+        // Обновляем индикаторы в шапке
+        const indAllow = document.getElementById(`opcua-ind-allow-${this.objectName}`);
+        const indActive = document.getElementById(`opcua-ind-active-${this.objectName}`);
+        const indParams = document.getElementById(`opcua-ind-params-${this.objectName}`);
 
+        if (indAllow) {
+            indAllow.className = `header-indicator-dot ${allow ? 'ok' : 'fail'}`;
+            indAllow.title = allow ? 'Разрешён: Да' : 'Разрешён: Нет';
+        }
+        if (indActive) {
+            indActive.className = `header-indicator-dot ${active ? 'ok' : 'fail'}`;
+            indActive.title = active ? 'Активен: Да' : 'Активен: Нет';
+        }
+        if (indParams) {
+            indParams.className = `header-indicator-dot ${enabledParams ? 'ok' : 'fail'}`;
+            indParams.title = enabledParams ? 'Параметры: Да' : 'Параметры: Нет';
+        }
+
+        // Обновляем кнопки
         const takeBtn = document.getElementById(`opcua-control-take-${this.objectName}`);
         const releaseBtn = document.getElementById(`opcua-control-release-${this.objectName}`);
         if (takeBtn) {
@@ -2905,46 +2988,123 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
             const data = await this.fetchJSON(`/api/objects/${encodeURIComponent(this.objectName)}/opcua/params?${query}`);
             this.params = data.params || {};
             this.renderParams();
-            this.setNote(`opcua-params-note-${this.objectName}`, '');
+            // Обновить состояние доступности (показать предупреждение если нужно)
+            this.updateParamsAccessibility('opcua');
         } catch (err) {
             this.setNote(`opcua-params-note-${this.objectName}`, err.message, true);
         }
     }
 
     renderParams() {
-        const tbody = document.getElementById(`opcua-params-${this.objectName}`);
-        if (!tbody) return;
+        const readonlyTbody = document.getElementById(`opcua-params-readonly-${this.objectName}`);
+        const writableTbody = document.getElementById(`opcua-params-writable-${this.objectName}`);
+        if (!readonlyTbody || !writableTbody) return;
 
-        tbody.innerHTML = '';
+        readonlyTbody.innerHTML = '';
+        writableTbody.innerHTML = '';
+
         if (!this.params || Object.keys(this.params).length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" class="text-muted">Нет данных</td></tr>';
+            readonlyTbody.innerHTML = '<tr><td colspan="2" class="text-muted">Нет данных</td></tr>';
+            writableTbody.innerHTML = '<tr><td colspan="2" class="text-muted">Нет данных</td></tr>';
             return;
         }
 
-        this.paramNames.forEach(name => {
+        // Человекочитаемые названия параметров
+        const paramLabels = {
+            currentChannel: 'Активный канал',
+            connectCount: 'Подключений',
+            activated: 'Активирован',
+            iolistSize: 'Размер I/O',
+            errorHistoryMax: 'Макс. ошибок',
+            polltime: 'Период опроса (мс)',
+            updatetime: 'Период обновления (мс)',
+            reconnectPause: 'Пауза переподключения (мс)',
+            timeoutIterate: 'Таймаут итерации (мс)',
+            writeToAllChannels: 'Писать во все каналы',
+            exchangeMode: 'Режим обмена'
+        };
+
+        // Readonly параметры (только отображение)
+        this.readonlyParams.forEach(name => {
             const current = this.params[name];
             const tr = document.createElement('tr');
+            let displayValue = current !== undefined ? formatValue(current) : '—';
+            // Форматируем activated как Да/Нет
+            if (name === 'activated') {
+                displayValue = current ? 'Да' : 'Нет';
+            }
             tr.innerHTML = `
-                <td class="variable-name">${name}</td>
-                <td class="variable-value">${current !== undefined ? formatValue(current) : '—'}</td>
-                <td><input class="opcua-param-input" data-name="${name}" value="${current !== undefined ? current : ''}"></td>
+                <td class="variable-name">${paramLabels[name] || name}</td>
+                <td class="variable-value">${displayValue}</td>
             `;
-            tbody.appendChild(tr);
+            readonlyTbody.appendChild(tr);
+        });
+
+        // Writable параметры (с полями ввода)
+        const httpControlActive = this.status?.httpControlActive === 1 || this.status?.httpControlActive === true;
+
+        this.writableParams.forEach((name, index) => {
+            const current = this.params[name];
+            const tr = document.createElement('tr');
+            let inputHtml;
+
+            if (name === 'exchangeMode') {
+                // Выпадающий список для режима обмена
+                const options = this.exchangeModes.map(m => {
+                    const selected = current === m.value ? 'selected' : '';
+                    return `<option value="${m.value}" ${selected}>${m.label}</option>`;
+                }).join('');
+                const disabled = httpControlActive ? '' : 'disabled title="Требуется HTTP-контроль"';
+                inputHtml = `<select class="opcua-param-input param-field" data-name="${name}" ${disabled}>${options}</select>`;
+                tr.className = 'param-row-primary';
+            } else if (name === 'writeToAllChannels') {
+                // Чекбокс для булевого параметра
+                const checked = current ? 'checked' : '';
+                inputHtml = `<input type="checkbox" class="opcua-param-checkbox" data-name="${name}" ${checked}>`;
+            } else {
+                // Обычное поле ввода
+                inputHtml = `<input class="opcua-param-input param-field" data-name="${name}" value="${current !== undefined ? current : ''}">`;
+            }
+
+            tr.innerHTML = `
+                <td class="variable-name">${paramLabels[name] || name}</td>
+                <td>${inputHtml}</td>
+            `;
+            writableTbody.appendChild(tr);
+
+            // Разделитель после exchangeMode
+            if (name === 'exchangeMode') {
+                const separator = document.createElement('tr');
+                separator.className = 'param-separator';
+                separator.innerHTML = '<td colspan="2"></td>';
+                writableTbody.appendChild(separator);
+            }
         });
     }
 
     async saveParams() {
-        const tbody = document.getElementById(`opcua-params-${this.objectName}`);
-        if (!tbody) return;
+        const writableTbody = document.getElementById(`opcua-params-writable-${this.objectName}`);
+        if (!writableTbody) return;
 
-        const inputs = tbody.querySelectorAll('.opcua-param-input');
+        const inputs = writableTbody.querySelectorAll('.opcua-param-input');
+        const checkboxes = writableTbody.querySelectorAll('.opcua-param-checkbox');
         const changed = {};
+
         inputs.forEach(input => {
             const name = input.dataset.name;
             const current = this.params[name];
             const newValue = input.value;
             if (newValue === '' || newValue === null) return;
             if (String(current) !== newValue) {
+                changed[name] = newValue;
+            }
+        });
+
+        checkboxes.forEach(checkbox => {
+            const name = checkbox.dataset.name;
+            const current = this.params[name];
+            const newValue = checkbox.checked ? 1 : 0;
+            if (current !== newValue) {
                 changed[name] = newValue;
             }
         });
@@ -3611,7 +3771,7 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
     createMBParamsSection() {
         return this.createCollapsibleSection('mb-params', 'Параметры обмена', `
             <div class="mb-actions">
-                <button class="btn" id="mb-params-refresh-${this.objectName}">Обновить</button>
+                <button class="btn" id="mb-params-refresh-${this.objectName}">Перезагрузить</button>
                 <button class="btn primary" id="mb-params-save-${this.objectName}">Применить</button>
                 <span class="mb-note" id="mb-params-note-${this.objectName}"></span>
             </div>
@@ -4213,7 +4373,7 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
     createMBSParamsSection() {
         return this.createCollapsibleSection('mbs-params', 'Параметры', `
             <div class="mb-actions">
-                <button class="btn" id="mbs-params-refresh-${this.objectName}">Обновить</button>
+                <button class="btn" id="mbs-params-refresh-${this.objectName}">Перезагрузить</button>
                 <button class="btn primary" id="mbs-params-save-${this.objectName}">Применить</button>
                 <span class="mb-note" id="mbs-params-note-${this.objectName}"></span>
             </div>
@@ -4757,9 +4917,12 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
     }
 
     createOPCUAServerParamsSection() {
+        const headerIndicator = `
+            <span class="header-indicator-dot fail" id="opcuasrv-ind-params-${this.objectName}" onclick="event.stopPropagation()" title="Параметры: загрузка..."></span>
+        `;
         return this.createCollapsibleSection('opcuasrv-params', 'Параметры сервера', `
             <div class="opcua-actions">
-                <button class="btn" id="opcuasrv-params-refresh-${this.objectName}">Обновить</button>
+                <button class="btn" id="opcuasrv-params-refresh-${this.objectName}">Перезагрузить</button>
                 <button class="btn primary" id="opcuasrv-params-save-${this.objectName}">Применить</button>
                 <span class="opcua-note" id="opcuasrv-params-note-${this.objectName}"></span>
             </div>
@@ -4775,7 +4938,7 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
                     <tbody id="opcuasrv-params-${this.objectName}"></tbody>
                 </table>
             </div>
-        `, { sectionId: `opcuasrv-params-section-${this.objectName}` });
+        `, { sectionId: `opcuasrv-params-section-${this.objectName}`, headerExtra: headerIndicator });
     }
 
     createOPCUAServerSensorsSection() {

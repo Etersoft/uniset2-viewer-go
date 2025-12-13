@@ -1173,6 +1173,52 @@ header h1 {
     display: none;
 }
 
+/* Header indicators (for HTTP-control etc.) */
+.header-indicators {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-left: auto;
+    margin-right: 0.5rem;
+}
+
+.header-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.header-indicator-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: 400;
+}
+
+.header-indicator-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    min-width: 8px;
+    min-height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    transition: background-color 0.2s ease;
+    vertical-align: middle;
+    flex-shrink: 0;
+}
+
+.header-indicator-dot.ok {
+    background: var(--accent-green);
+    box-shadow: 0 0 4px var(--accent-green);
+}
+
+.header-indicator-dot.fail {
+    background: var(--accent-red);
+}
+
 /* Variables section */
 .variables-section {
     margin-bottom: 1.5rem;
@@ -1752,8 +1798,134 @@ header h1 {
     color: var(--text-muted);
 }
 
-.opcua-note.error {
-    color: var(--accent-red);
+.opcua-note.note-error {
+    color: #ff6b7a;
+}
+
+/* OPC UA Status Panel - compact stats row */
+.opcua-stats-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-tertiary);
+    border-radius: var(--comp-border-radius);
+}
+
+.opcua-stat-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 14px;
+}
+
+.opcua-stat-label {
+    color: var(--text-muted);
+}
+
+.opcua-stat-value {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.opcua-stat-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.opcua-stat-indicator.ok {
+    background: var(--accent-green);
+    box-shadow: 0 0 4px var(--accent-green);
+}
+
+.opcua-stat-indicator.warn {
+    background: var(--accent-orange);
+}
+
+.opcua-stat-indicator.fail {
+    background: var(--accent-red);
+}
+
+/* OPC UA Status Panel - Monitor grid */
+.opcua-monitor-grid {
+    margin-top: 0.75rem;
+}
+
+.opcua-monitor-title {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.5rem;
+}
+
+.opcua-monitor-items {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.5rem 1.5rem;
+}
+
+.opcua-monitor-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    font-size: 13px;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.opcua-monitor-name {
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.opcua-monitor-value {
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+    white-space: nowrap;
+}
+
+/* Header channels indicators (for OPC UA Status) */
+.header-channels {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-left: auto;
+    margin-right: 0.5rem;
+}
+
+.header-channel {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    background: var(--bg-tertiary);
+}
+
+.header-channel-name {
+    color: var(--text-secondary);
+}
+
+.header-channel-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+}
+
+.header-channel.ok .header-channel-dot {
+    background: var(--accent-green);
+    box-shadow: 0 0 4px var(--accent-green);
+}
+
+.header-channel.fail .header-channel-dot {
+    background: var(--accent-red);
 }
 
 /* ModbusMaster/Slave actions */
@@ -1922,6 +2094,71 @@ header h1 {
 .opcua-params-table-wrapper,
 .opcua-sensors-table-wrapper {
     overflow: auto;
+}
+
+/* OPC UA Params Grid Layout */
+.opcua-params-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+}
+
+.opcua-params-column {
+    min-width: 0;
+}
+
+.opcua-params-subtitle {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.opcua-params-table.compact td {
+    padding: 0.3rem 0.5rem;
+}
+
+.opcua-params-table .variable-name {
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.opcua-params-table .variable-value {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-primary);
+}
+
+.opcua-param-checkbox {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.opcua-params-table select.param-field {
+    width: 100%;
+    max-width: 200px;
+}
+
+.opcua-params-table select.param-field:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.opcua-params-table .param-row-primary {
+    background: var(--bg-tertiary);
+}
+
+.opcua-params-table .param-row-primary td {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+}
+
+.opcua-params-table .param-separator td {
+    height: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .opcua-sensors-meta {
