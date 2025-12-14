@@ -2140,8 +2140,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
         if (countEl) {
             const loaded = this.allSensors.length;
             const total = this.totalCount;
-            countEl.textContent = this.hasMore ? `${loaded}+` : `${loaded}`;
-            countEl.title = `Загружено: ${loaded} из ${total}`;
+            countEl.textContent = loaded === total ? `${total}` : `${loaded} / ${total}`;
         }
     }
 
@@ -3354,8 +3353,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
         if (countEl) {
             const loaded = this.allSensors.length;
             const total = this.sensorsTotal;
-            countEl.textContent = this.hasMore ? `${loaded}+` : `${loaded}`;
-            countEl.title = `Загружено: ${loaded} из ${total}`;
+            countEl.textContent = loaded === total ? `${total}` : `${loaded} / ${total}`;
         }
     }
 
@@ -4041,7 +4039,9 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
 
             const countEl = document.getElementById(`mb-register-count-${this.objectName}`);
             if (countEl) {
-                countEl.textContent = `${this.registersTotal} регистров`;
+                const loaded = this.allRegisters.length;
+                const total = this.registersTotal;
+                countEl.textContent = loaded === total ? `${total}` : `${loaded} / ${total}`;
             }
 
             // Подписываемся на SSE обновления после загрузки
@@ -4602,7 +4602,9 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
 
             const countEl = document.getElementById(`mbs-register-count-${this.objectName}`);
             if (countEl) {
-                countEl.textContent = `${this.registersTotal} регистров`;
+                const loaded = this.allRegisters.length;
+                const total = this.registersTotal;
+                countEl.textContent = loaded === total ? `${total}` : `${loaded} / ${total}`;
             }
 
             // Подписываемся на SSE обновления после загрузки
