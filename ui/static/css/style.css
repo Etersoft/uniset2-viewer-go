@@ -61,7 +61,173 @@
     border-color: var(--accent-blue);
 }
 
-/* --- Sensor Count Badge --- */
+/* --- Base Badge Styles --- */
+.badge {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--comp-border-radius);
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+}
+
+.badge-sm {
+    padding: 0.1rem 0.375rem;
+    font-size: 9px;
+}
+
+.badge-pill {
+    border-radius: 10px;
+}
+
+.badge-blue { background: var(--accent-blue); color: white; }
+.badge-green { background: var(--accent-green); color: white; }
+.badge-orange { background: var(--accent-orange); color: white; }
+.badge-red { background: var(--accent-red); color: white; }
+.badge-purple { background: var(--accent-purple); color: white; }
+
+.badge-muted {
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+}
+
+/* --- Base Button Styles --- */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.65rem;
+    font-size: 13px;
+    font-weight: 400;
+    border: 1px solid var(--border-color);
+    border-radius: var(--comp-border-radius);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all var(--comp-transition);
+    white-space: nowrap;
+}
+
+.btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-blue);
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn:disabled:hover {
+    background: var(--bg-secondary);
+    border-color: var(--border-color);
+}
+
+.btn-sm {
+    padding: 0.25rem 0.4rem;
+    font-size: 12px;
+}
+
+.btn-primary {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #2563eb;
+    border-color: #2563eb;
+}
+
+.btn-primary:disabled:hover {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+}
+
+.btn-success {
+    background: var(--accent-green);
+    border-color: var(--accent-green);
+    color: white;
+}
+
+.btn-danger {
+    background: var(--accent-red);
+    border-color: var(--accent-red);
+    color: white;
+}
+
+/* --- Base Note/Alert Styles --- */
+.note {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.note-error {
+    color: var(--accent-red);
+}
+
+.note-success {
+    color: var(--accent-green);
+}
+
+.note-warning {
+    color: var(--accent-orange);
+}
+
+.alert {
+    padding: 0.75rem 1rem;
+    border-radius: var(--comp-border-radius);
+    font-size: 13px;
+    margin-bottom: 1rem;
+}
+
+.alert-error {
+    background: rgba(242, 73, 92, 0.1);
+    border: 1px solid rgba(242, 73, 92, 0.3);
+    color: var(--accent-red);
+}
+
+.alert-success {
+    background: rgba(115, 191, 105, 0.1);
+    border: 1px solid rgba(115, 191, 105, 0.3);
+    color: var(--accent-green);
+}
+
+.alert-warning {
+    background: rgba(255, 152, 48, 0.1);
+    border: 1px solid rgba(255, 152, 48, 0.3);
+    color: var(--accent-orange);
+}
+
+/* --- Base Status Indicator --- */
+.status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    min-width: 8px;
+    min-height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.status-dot.ok {
+    background: var(--accent-green);
+    box-shadow: 0 0 4px var(--accent-green);
+}
+
+.status-dot.warn {
+    background: var(--accent-orange);
+}
+
+.status-dot.fail {
+    background: var(--accent-red);
+}
+
+/* --- Sensor Count Badge (uses base badge) --- */
 .sensor-count {
     background: var(--accent-blue);
     color: white;
@@ -1373,16 +1539,6 @@ header h1 {
     color: var(--text-muted);
 }
 
-.error {
-    background: rgba(242, 73, 92, 0.1);
-    border: 1px solid rgba(242, 73, 92, 0.3);
-    color: var(--accent-red);
-    padding: 0.75rem 1rem;
-    border-radius: 4px;
-    margin-bottom: 1rem;
-    font-size: 13px;
-}
-
 /* IO Sections */
 .io-grid {
     display: grid;
@@ -1789,7 +1945,7 @@ header h1 {
 }
 
 .opcua-actions .btn:disabled {
-    opacity: 0.6;
+    opacity: 0.5;
     cursor: not-allowed;
 }
 
@@ -1961,7 +2117,7 @@ header h1 {
 }
 
 .mb-actions .btn:disabled {
-    opacity: 0.6;
+    opacity: 0.5;
     cursor: not-allowed;
 }
 
@@ -2356,8 +2512,8 @@ header h1 {
 .state-badge {
     display: inline-block;
     padding: 0.125rem 0.5rem;
-    border-radius: 3px;
-    font-size: 12px;
+    border-radius: var(--comp-border-radius);
+    font-size: 11px;
     font-weight: 500;
     text-transform: uppercase;
 }
@@ -3397,7 +3553,7 @@ header h1 {
 }
 
 .ionc-btn:disabled {
-    opacity: 0.4;
+    opacity: 0.5;
     cursor: not-allowed;
 }
 
@@ -3462,7 +3618,7 @@ header h1 {
 }
 
 .ionc-page-btn:disabled {
-    opacity: 0.4;
+    opacity: 0.5;
     cursor: not-allowed;
 }
 

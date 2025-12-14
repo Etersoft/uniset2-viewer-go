@@ -890,6 +890,64 @@ const ParamsAccessibilityMixin = {
     }
 };
 
+/**
+ * Миксин для отображения счётчика загруженных/всего элементов
+ * Показывает "loaded / total" или просто "total" когда всё загружено
+ */
+const ItemCounterMixin = {
+    /**
+     * Обновляет счётчик элементов
+     * @param {string} elementId - ID элемента счётчика
+     * @param {number} loaded - Количество загруженных элементов
+     * @param {number} total - Общее количество элементов
+     */
+    updateItemCount(elementId, loaded, total) {
+        const countEl = document.getElementById(elementId);
+        if (countEl) {
+            countEl.textContent = loaded === total ? `${total}` : `${loaded} / ${total}`;
+        }
+    }
+};
+
+/**
+ * Миксин для сохранения/загрузки высоты секций в localStorage
+ */
+const SectionHeightMixin = {
+    /**
+     * Загружает сохранённую высоту секции
+     * @param {string} storageKey - Ключ в localStorage
+     * @param {number} defaultHeight - Значение по умолчанию
+     * @returns {number}
+     */
+    loadSectionHeight(storageKey, defaultHeight = 300) {
+        try {
+            const saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
+            const value = saved[this.objectName];
+            if (typeof value === 'number' && value > 0) {
+                return value;
+            }
+        } catch (err) {
+            console.warn('Failed to load section height:', err);
+        }
+        return defaultHeight;
+    },
+
+    /**
+     * Сохраняет высоту секции
+     * @param {string} storageKey - Ключ в localStorage
+     * @param {number} value - Значение высоты
+     */
+    saveSectionHeight(storageKey, value) {
+        try {
+            const saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
+            saved[this.objectName] = value;
+            localStorage.setItem(storageKey, JSON.stringify(saved));
+        } catch (err) {
+            console.warn('Failed to save section height:', err);
+        }
+    }
+};
+
 // Функция для применения миксина к классу
 function applyMixin(targetClass, mixin) {
     Object.getOwnPropertyNames(mixin).forEach(name => {
@@ -2136,12 +2194,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
     }
 
     updateSensorCount() {
-        const countEl = document.getElementById(`ionc-sensor-count-${this.objectName}`);
-        if (countEl) {
-            const loaded = this.allSensors.length;
-            const total = this.totalCount;
-            countEl.textContent = loaded === total ? `${total}` : `${loaded} / ${total}`;
-        }
+        this.updateItemCount(`ionc-sensor-count-${this.objectName}`, this.allSensors.length, this.totalCount);
     }
 
     showSetDialog(sensorId) {
@@ -2559,6 +2612,8 @@ applyMixin(IONotifyControllerRenderer, VirtualScrollMixin);
 applyMixin(IONotifyControllerRenderer, SSESubscriptionMixin);
 applyMixin(IONotifyControllerRenderer, ResizableSectionMixin);
 applyMixin(IONotifyControllerRenderer, FilterMixin);
+applyMixin(IONotifyControllerRenderer, ItemCounterMixin);
+applyMixin(IONotifyControllerRenderer, SectionHeightMixin);
 
 // ============================================================================
 // OPCUAExchangeRenderer - рендерер для OPCUAExchange extensionType
@@ -3349,12 +3404,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
     }
 
     updateSensorCount() {
-        const countEl = document.getElementById(`opcua-sensor-count-${this.objectName}`);
-        if (countEl) {
-            const loaded = this.allSensors.length;
-            const total = this.sensorsTotal;
-            countEl.textContent = loaded === total ? `${total}` : `${loaded} / ${total}`;
-        }
+        this.updateItemCount(`opcua-sensor-count-${this.objectName}`, this.allSensors.length, this.sensorsTotal);
     }
 
     showLoadingIndicator(show) {
@@ -3454,27 +3504,12 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
     }
 
     loadDiagnosticsHeight() {
-        try {
-            const saved = JSON.parse(localStorage.getItem('uniset2-viewer-opcua-diagnostics') || '{}');
-            const value = saved[this.objectName];
-            if (typeof value === 'number' && value > 0) {
-                return value;
-            }
-        } catch (err) {
-            console.warn('Failed to load diagnostics height:', err);
-        }
-        return 260;
+        return this.loadSectionHeight('uniset2-viewer-opcua-diagnostics', 260);
     }
 
     saveDiagnosticsHeight(value) {
         this.diagnosticsHeight = value;
-        try {
-            const saved = JSON.parse(localStorage.getItem('uniset2-viewer-opcua-diagnostics') || '{}');
-            saved[this.objectName] = value;
-            localStorage.setItem('uniset2-viewer-opcua-diagnostics', JSON.stringify(saved));
-        } catch (err) {
-            console.warn('Failed to save diagnostics height:', err);
-        }
+        this.saveSectionHeight('uniset2-viewer-opcua-diagnostics', value);
     }
 
     setupDiagnosticsResize() {
@@ -3488,27 +3523,12 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
     }
 
     loadSensorsHeight() {
-        try {
-            const saved = JSON.parse(localStorage.getItem('uniset2-viewer-opcua-sensors') || '{}');
-            const value = saved[this.objectName];
-            if (typeof value === 'number' && value > 0) {
-                return value;
-            }
-        } catch (err) {
-            console.warn('Failed to load sensors height:', err);
-        }
-        return 320;
+        return this.loadSectionHeight('uniset2-viewer-opcua-sensors', 320);
     }
 
     saveSensorsHeight(value) {
         this.sensorsHeight = value;
-        try {
-            const saved = JSON.parse(localStorage.getItem('uniset2-viewer-opcua-sensors') || '{}');
-            saved[this.objectName] = value;
-            localStorage.setItem('uniset2-viewer-opcua-sensors', JSON.stringify(saved));
-        } catch (err) {
-            console.warn('Failed to save sensors height:', err);
-        }
+        this.saveSectionHeight('uniset2-viewer-opcua-sensors', value);
     }
 
     setupSensorsResize() {
@@ -3647,6 +3667,8 @@ applyMixin(OPCUAExchangeRenderer, SSESubscriptionMixin);
 applyMixin(OPCUAExchangeRenderer, ResizableSectionMixin);
 applyMixin(OPCUAExchangeRenderer, FilterMixin);
 applyMixin(OPCUAExchangeRenderer, ParamsAccessibilityMixin);
+applyMixin(OPCUAExchangeRenderer, ItemCounterMixin);
+applyMixin(OPCUAExchangeRenderer, SectionHeightMixin);
 
 // ============================================================================
 // ModbusMasterRenderer - рендерер для ModbusMaster объектов
@@ -4037,12 +4059,7 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
             this.renderRegisters();
             this.setNote(`mb-registers-note-${this.objectName}`, '');
 
-            const countEl = document.getElementById(`mb-register-count-${this.objectName}`);
-            if (countEl) {
-                const loaded = this.allRegisters.length;
-                const total = this.registersTotal;
-                countEl.textContent = loaded === total ? `${total}` : `${loaded} / ${total}`;
-            }
+            this.updateItemCount(`mb-register-count-${this.objectName}`, this.allRegisters.length, this.registersTotal);
 
             // Подписываемся на SSE обновления после загрузки
             this.subscribeToSSE();
@@ -4116,27 +4133,12 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
     }
 
     loadRegistersHeight() {
-        try {
-            const saved = JSON.parse(localStorage.getItem('uniset2-viewer-mb-registers') || '{}');
-            const value = saved[this.objectName];
-            if (typeof value === 'number' && value > 0) {
-                return value;
-            }
-        } catch (err) {
-            console.warn('Failed to load registers height:', err);
-        }
-        return 320;
+        return this.loadSectionHeight('uniset2-viewer-mb-registers', 320);
     }
 
     saveRegistersHeight(value) {
         this.registersHeight = value;
-        try {
-            const saved = JSON.parse(localStorage.getItem('uniset2-viewer-mb-registers') || '{}');
-            saved[this.objectName] = value;
-            localStorage.setItem('uniset2-viewer-mb-registers', JSON.stringify(saved));
-        } catch (err) {
-            console.warn('Failed to save registers height:', err);
-        }
+        this.saveSectionHeight('uniset2-viewer-mb-registers', value);
     }
 
     setupRegistersResize() {
@@ -4240,6 +4242,8 @@ applyMixin(ModbusMasterRenderer, SSESubscriptionMixin);
 applyMixin(ModbusMasterRenderer, ResizableSectionMixin);
 applyMixin(ModbusMasterRenderer, FilterMixin);
 applyMixin(ModbusMasterRenderer, ParamsAccessibilityMixin);
+applyMixin(ModbusMasterRenderer, ItemCounterMixin);
+applyMixin(ModbusMasterRenderer, SectionHeightMixin);
 
 // Регистрируем стандартные рендереры
 registerRenderer('UniSetManager', UniSetManagerRenderer);
@@ -4600,12 +4604,7 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
             this.renderRegisters();
             this.setNote(`mbs-registers-note-${this.objectName}`, '');
 
-            const countEl = document.getElementById(`mbs-register-count-${this.objectName}`);
-            if (countEl) {
-                const loaded = this.allRegisters.length;
-                const total = this.registersTotal;
-                countEl.textContent = loaded === total ? `${total}` : `${loaded} / ${total}`;
-            }
+            this.updateItemCount(`mbs-register-count-${this.objectName}`, this.allRegisters.length, this.registersTotal);
 
             // Подписываемся на SSE обновления после загрузки
             this.subscribeToSSE();
@@ -4676,27 +4675,12 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
     }
 
     loadRegistersHeight() {
-        try {
-            const saved = JSON.parse(localStorage.getItem('uniset2-viewer-mbs-registers') || '{}');
-            const value = saved[this.objectName];
-            if (typeof value === 'number' && value > 0) {
-                return value;
-            }
-        } catch (err) {
-            console.warn('Failed to load registers height:', err);
-        }
-        return 320;
+        return this.loadSectionHeight('uniset2-viewer-mbs-registers', 320);
     }
 
     saveRegistersHeight(value) {
         this.registersHeight = value;
-        try {
-            const saved = JSON.parse(localStorage.getItem('uniset2-viewer-mbs-registers') || '{}');
-            saved[this.objectName] = value;
-            localStorage.setItem('uniset2-viewer-mbs-registers', JSON.stringify(saved));
-        } catch (err) {
-            console.warn('Failed to save registers height:', err);
-        }
+        this.saveSectionHeight('uniset2-viewer-mbs-registers', value);
     }
 
     setupRegistersResize() {
@@ -4799,6 +4783,8 @@ applyMixin(ModbusSlaveRenderer, SSESubscriptionMixin);
 applyMixin(ModbusSlaveRenderer, ResizableSectionMixin);
 applyMixin(ModbusSlaveRenderer, FilterMixin);
 applyMixin(ModbusSlaveRenderer, ParamsAccessibilityMixin);
+applyMixin(ModbusSlaveRenderer, ItemCounterMixin);
+applyMixin(ModbusSlaveRenderer, SectionHeightMixin);
 
 // ModbusSlave рендерер (по extensionType)
 registerRenderer('ModbusSlave', ModbusSlaveRenderer);
@@ -5335,12 +5321,7 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
     }
 
     updateSensorCount() {
-        const countEl = document.getElementById(`opcuasrv-sensor-count-${this.objectName}`);
-        if (countEl) {
-            const loaded = this.allSensors.length;
-            const total = this.sensorsTotal;
-            countEl.textContent = loaded === total ? `${total}` : `${loaded} / ${total}`;
-        }
+        this.updateItemCount(`opcuasrv-sensor-count-${this.objectName}`, this.allSensors.length, this.sensorsTotal);
     }
 
     loadSensorsHeight() {
@@ -5427,6 +5408,8 @@ applyMixin(OPCUAServerRenderer, SSESubscriptionMixin);
 applyMixin(OPCUAServerRenderer, ResizableSectionMixin);
 applyMixin(OPCUAServerRenderer, FilterMixin);
 applyMixin(OPCUAServerRenderer, ParamsAccessibilityMixin);
+applyMixin(OPCUAServerRenderer, ItemCounterMixin);
+applyMixin(OPCUAServerRenderer, SectionHeightMixin);
 
 // OPCUAServer рендерер (по extensionType)
 registerRenderer('OPCUAServer', OPCUAServerRenderer);
@@ -8004,7 +7987,7 @@ async function addChart(objectName, varName, sensorId, passedTextname) {
 
     } catch (err) {
         console.error(`Ошибка загрузки истории для ${varName}:`, err);
-        chartDiv.innerHTML += `<div class="error">Не удалось загрузить данные графика</div>`;
+        chartDiv.innerHTML += `<div class="alert alert-error">Не удалось загрузить данные графика</div>`;
     }
 }
 
@@ -9421,7 +9404,7 @@ document.addEventListener('DOMContentLoaded', () => {
         .catch(err => {
             console.error('Ошибка загрузки объектов:', err);
             document.getElementById('objects-list').innerHTML =
-                '<li class="error">Ошибка загрузки объектов</li>';
+                '<li class="alert alert-error">Ошибка загрузки объектов</li>';
         });
 
     // Кнопка обновления
