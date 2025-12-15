@@ -50,7 +50,7 @@ services:
       --addr :8000
       --uniset-url http://mock-uniset-1:9393
       --uniset-url http://mock-uniset-2:9394
-      --confile /app/config/test.xml
+      --uniset-config /app/config/test.xml
     volumes:
       - ./config:/app/config:ro
     ports:

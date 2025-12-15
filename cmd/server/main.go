@@ -119,8 +119,9 @@ func main() {
 	handlers.SetLogServerManager(logServerMgr)
 	handlers.SetServerManager(serverMgr)
 	handlers.SetSSEHub(sseHub)
-	handlers.SetControlsEnabled(cfg.ConFile != "") // Controls visible only if confile specified
+	handlers.SetControlsEnabled(cfg.ConFile != "") // Controls visible only if uniset-config specified
 	handlers.SetUIConfig(cfg.UI)
+	handlers.SetLogStreamConfig(cfg.LogStream)
 
 	// Set pollers if available
 	if ioncPollerInstance != nil {
@@ -171,7 +172,7 @@ func main() {
 		}
 
 		if cfg.ConFile != "" {
-			logArgs = append(logArgs, "confile", cfg.ConFile)
+			logArgs = append(logArgs, "uniset_config", cfg.ConFile)
 		}
 		logger.Info("Starting server", logArgs...)
 

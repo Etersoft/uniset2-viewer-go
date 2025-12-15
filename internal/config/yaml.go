@@ -9,8 +9,9 @@ import (
 
 // ConfigFile представляет структуру YAML файла конфигурации
 type ConfigFile struct {
-	Servers []ServerConfig `yaml:"servers"`
-	UI      *UIConfig      `yaml:"ui,omitempty"`
+	Servers   []ServerConfig   `yaml:"servers"`
+	UI        *UIConfig        `yaml:"ui,omitempty"`
+	LogStream *LogStreamConfig `yaml:"logStream,omitempty"`
 }
 
 // LoadFromYAML загружает полную конфигурацию из YAML файла

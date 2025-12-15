@@ -73,7 +73,7 @@ UniSet2 Processes (/api/v2/...)
 --history-ttl    Время жизни истории (default: 1h)
 --log-format     Формат логов: text | json (default: text)
 --log-level      Уровень логов: debug | info | warn | error (default: info)
---confile        Путь к XML-конфигурации датчиков
+--uniset-config  Путь к XML-конфигурации датчиков
 ```
 
 ## API Endpoints
@@ -288,7 +288,7 @@ registerRenderer('MyType', MyRenderer);
 
 ### Коммит c5d1cdf
 - Тёмная тема UI в стиле Grafana
-- Парсер XML-конфигурации датчиков (`--confile`)
+- Парсер XML-конфигурации датчиков (`--uniset-config`)
 - Ступенчатые графики для дискретных сигналов (DI/DO)
 - Линейные графики для аналоговых сигналов (AI/AO)
 - Синхронизация временных диапазонов между графиками

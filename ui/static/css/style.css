@@ -227,6 +227,12 @@
     background: var(--accent-red);
 }
 
+/* Status text colors for table cells */
+.status-bad {
+    color: var(--accent-red);
+    font-weight: 500;
+}
+
 /* --- Sensor Count Badge (uses base badge) --- */
 .sensor-count {
     background: var(--accent-blue);

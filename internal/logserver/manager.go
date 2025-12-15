@@ -109,7 +109,8 @@ type LogStream struct {
 }
 
 // NewLogStream создает новый стрим логов для объекта
-func (m *Manager) NewLogStream(ctx context.Context, objectName string, host string, port int, filter string) (*LogStream, error) {
+// bufferSize - размер буфера канала (0 = использовать default 5000)
+func (m *Manager) NewLogStream(ctx context.Context, objectName string, host string, port int, filter string, bufferSize int) (*LogStream, error) {
 	client := m.GetOrCreateClient(objectName, host, port)
 
 	// Подключаемся если не подключены
@@ -130,8 +131,11 @@ func (m *Manager) NewLogStream(ctx context.Context, objectName string, host stri
 		}
 	}
 
-	// Создаем канал для строк
-	lines := make(chan string, 100)
+	// Создаем канал для строк с настраиваемым размером буфера
+	if bufferSize <= 0 {
+		bufferSize = 5000 // default
+	}
+	lines := make(chan string, bufferSize)
 
 	// Создаем контекст для отмены
 	streamCtx, cancel := context.WithCancel(ctx)

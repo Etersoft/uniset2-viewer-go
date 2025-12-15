@@ -44,7 +44,7 @@ services:
       dockerfile: Dockerfile
     environment:
       - UNISET_URL=http://mock-uniset:9393
-    command: ./uniset2-viewer --addr :8000 --uniset-url http://mock-uniset:9393 --confile /app/config/test.xml
+    command: ./uniset2-viewer --addr :8000 --uniset-url http://mock-uniset:9393 --uniset-config /app/config/test.xml
     volumes:
       - ./config:/app/config:ro
     ports:

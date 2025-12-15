@@ -3344,7 +3344,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
                 <td>${sensor.tick ?? '—'}</td>
                 <td>${sensor.vtype || '—'}</td>
                 <td>${sensor.precision ?? '—'}</td>
-                <td>${sensor.status || '—'}</td>
+                <td class="${sensor.status && sensor.status.toLowerCase() !== 'ok' ? 'status-bad' : ''}">${sensor.status || '—'}</td>
             </tr>
         `}).join('');
 
@@ -3465,10 +3465,12 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
         html += '</div>';
 
         if (errors.length > 0) {
-            html += '<table class="variables-table opcua-errors-table"><thead><tr><th>Время</th><th>Канал</th><th>Операция</th><th>StatusCode</th><th>NodeId</th></tr></thead><tbody>';
+            html += '<table class="variables-table opcua-errors-table"><thead><tr><th>Время</th><th>Последний</th><th>Кол-во</th><th>Канал</th><th>Операция</th><th>StatusCode</th><th>NodeId</th></tr></thead><tbody>';
             errors.forEach(err => {
                 html += `<tr>
                     <td>${err.time || ''}</td>
+                    <td>${err.lastSeen || ''}</td>
+                    <td>${err.count ?? ''}</td>
                     <td>${err.channel ?? ''}</td>
                     <td>${err.operation || ''}</td>
                     <td>${err.statusCode || ''}</td>
@@ -6034,6 +6036,16 @@ class LogViewer {
             this.addLine(e.data);
         });
 
+        // Batch event handler (new format)
+        this.eventSource.addEventListener('logs', (e) => {
+            try {
+                const lines = JSON.parse(e.data);
+                this.addLines(lines);
+            } catch (err) {
+                console.error('LogViewer: Failed to parse logs batch:', err);
+            }
+        });
+
         this.eventSource.addEventListener('disconnected', () => {
             this.connected = false;
             // isActive остаётся true - EventSource будет пытаться переподключиться
@@ -6117,6 +6129,84 @@ class LogViewer {
             this.matchCount++;
             this.updateMatchCount();
         }
+        this.updateStats();
+        this.scrollToBottom();
+    }
+
+    // Batch add lines (for batched SSE events)
+    addLines(texts) {
+        if (!texts || texts.length === 0) return;
+
+        // При первом логе скрываем "ожидание" и показываем логи
+        if (!this.hasReceivedLogs) {
+            this.hasReceivedLogs = true;
+            this.showLogLines();
+        }
+
+        const timestamp = new Date();
+        const newLines = texts.map(text => ({ text, type: '', timestamp }));
+
+        // Если на паузе - накапливаем в буфер
+        if (this.paused) {
+            this.pausedBuffer.push(...newLines);
+            this.updatePauseCount();
+            return;
+        }
+
+        this.lines.push(...newLines);
+
+        // Limit lines - also need to remove from DOM
+        if (this.lines.length > this.maxLines) {
+            const excess = this.lines.length - this.maxLines;
+            this.lines = this.lines.slice(-this.maxLines);
+            // Remove old lines from DOM
+            const linesContainer = document.getElementById(`log-lines-${this.objectName}`);
+            if (linesContainer) {
+                const toRemove = Math.min(excess, linesContainer.children.length);
+                for (let i = 0; i < toRemove; i++) {
+                    linesContainer.removeChild(linesContainer.firstChild);
+                }
+            }
+        }
+
+        // Render all new lines using DocumentFragment for better performance
+        const linesContainer = document.getElementById(`log-lines-${this.objectName}`);
+        if (!linesContainer) return;
+
+        const fragment = document.createDocumentFragment();
+        let matchCount = 0;
+
+        newLines.forEach((line, i) => {
+            const index = this.lines.length - newLines.length + i;
+            const div = document.createElement('div');
+            div.className = 'log-line';
+            div.dataset.index = index;
+
+            // Detect log level from text
+            const levelClass = this.detectLogLevel(line.text);
+            if (levelClass) {
+                div.classList.add(levelClass);
+            }
+
+            // Apply filter highlighting
+            const { html, matches } = this.highlightText(line.text);
+            if (matches) {
+                div.innerHTML = html;
+                div.classList.add('has-match');
+                matchCount++;
+            } else {
+                div.textContent = line.text;
+                if (this.filterOnlyMatches && this.filter) {
+                    div.classList.add('hidden');
+                }
+            }
+
+            fragment.appendChild(div);
+        });
+
+        linesContainer.appendChild(fragment);
+        this.matchCount += matchCount;
+        this.updateMatchCount();
         this.updateStats();
         this.scrollToBottom();
     }

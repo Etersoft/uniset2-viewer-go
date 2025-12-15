@@ -46,6 +46,37 @@ func (u *UIConfig) GetOPCUAUISensorsFilter() bool {
 	return *u.OPCUAUISensorsFilter
 }
 
+// LogStreamConfig описывает настройки стриминга логов
+type LogStreamConfig struct {
+	BufferSize    int           `yaml:"bufferSize,omitempty"`    // размер буфера канала (default: 5000)
+	BatchSize     int           `yaml:"batchSize,omitempty"`     // макс. строк в батче (default: 500)
+	BatchInterval time.Duration `yaml:"batchInterval,omitempty"` // интервал отправки батча (default: 100ms)
+}
+
+// GetBufferSize возвращает размер буфера с default
+func (l *LogStreamConfig) GetBufferSize() int {
+	if l == nil || l.BufferSize <= 0 {
+		return 5000
+	}
+	return l.BufferSize
+}
+
+// GetBatchSize возвращает размер батча с default
+func (l *LogStreamConfig) GetBatchSize() int {
+	if l == nil || l.BatchSize <= 0 {
+		return 500
+	}
+	return l.BatchSize
+}
+
+// GetBatchInterval возвращает интервал батча с default
+func (l *LogStreamConfig) GetBatchInterval() time.Duration {
+	if l == nil || l.BatchInterval <= 0 {
+		return 100 * time.Millisecond
+	}
+	return l.BatchInterval
+}
+
 // stringSlice реализует flag.Value для множественных строковых флагов
 type stringSlice []string
 
@@ -64,6 +95,9 @@ type Config struct {
 
 	// Настройки UI
 	UI *UIConfig
+
+	// Настройки стриминга логов
+	LogStream *LogStreamConfig
 
 	Addr           string // адрес для прослушивания (формат: :port или host:port)
 	PollInterval   time.Duration
@@ -95,7 +129,7 @@ func Parse() *Config {
 	flag.DurationVar(&cfg.HistoryTTL, "history-ttl", time.Hour, "History retention time")
 	flag.StringVar(&cfg.LogFormat, "log-format", "text", "Log format: text or json")
 	flag.StringVar(&cfg.LogLevel, "log-level", "info", "Log level: debug, info, warn, error")
-	flag.StringVar(&cfg.ConFile, "confile", "", "UniSet2 XML configuration file (sensors metadata)")
+	flag.StringVar(&cfg.ConFile, "uniset-config", "", "UniSet2 XML configuration file (sensors metadata)")
 	flag.StringVar(&cfg.ConfigFile, "config", "", "YAML configuration file for servers")
 	flag.StringVar(&cfg.SMURL, "sm-url", "", "SharedMemory HTTP API URL (empty = disabled)")
 	flag.DurationVar(&cfg.SMPollInterval, "sm-poll-interval", 0, "SharedMemory polling interval (0 = use poll-interval)")
@@ -116,6 +150,7 @@ func Parse() *Config {
 		} else {
 			cfg.Servers = yamlConfig.Servers
 			cfg.UI = yamlConfig.UI
+			cfg.LogStream = yamlConfig.LogStream
 		}
 	}
 

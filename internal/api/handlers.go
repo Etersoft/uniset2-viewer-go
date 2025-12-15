@@ -34,8 +34,9 @@ type Handlers struct {
 	modbusPoller    *modbus.Poller
 	opcuaPoller     *opcua.Poller
 	serverManager   *server.Manager // менеджер нескольких серверов
-	controlsEnabled bool            // true if confile was specified (IONC controls visible)
+	controlsEnabled bool            // true if uniset-config was specified (IONC controls visible)
 	uiConfig        *config.UIConfig
+	logStreamConfig *config.LogStreamConfig
 }
 
 func NewHandlers(client *uniset.Client, store storage.Storage, p *poller.Poller, sensorCfg *sensorconfig.SensorConfig, pollInterval time.Duration) *Handlers {
@@ -87,6 +88,11 @@ func (h *Handlers) SetControlsEnabled(enabled bool) {
 // SetUIConfig устанавливает конфигурацию UI
 func (h *Handlers) SetUIConfig(cfg *config.UIConfig) {
 	h.uiConfig = cfg
+}
+
+// SetLogStreamConfig устанавливает конфигурацию стриминга логов
+func (h *Handlers) SetLogStreamConfig(cfg *config.LogStreamConfig) {
+	h.logStreamConfig = cfg
 }
 
 // SetSSEHub устанавливает SSE hub
@@ -503,9 +509,14 @@ func (h *Handlers) HandleLogServerStream(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Получаем настройки батчинга из конфига
+	bufferSize := h.logStreamConfig.GetBufferSize()
+	batchSize := h.logStreamConfig.GetBatchSize()
+	batchInterval := h.logStreamConfig.GetBatchInterval()
+
 	// Создаем стрим логов
 	ctx := r.Context()
-	stream, err := h.logServerMgr.NewLogStream(ctx, name, host, port, filter)
+	stream, err := h.logServerMgr.NewLogStream(ctx, name, host, port, filter, bufferSize)
 	if err != nil {
 		// Отправляем ошибку как SSE событие
 		fmt.Fprintf(w, "event: error\ndata: %s\n\n", err.Error())
@@ -518,23 +529,58 @@ func (h *Handlers) HandleLogServerStream(w http.ResponseWriter, r *http.Request)
 	fmt.Fprintf(w, "event: connected\ndata: {\"host\":\"%s\",\"port\":%d}\n\n", host, port)
 	flusher.Flush()
 
-	// Стримим логи
+	// Батчевый стриминг логов
+	ticker := time.NewTicker(batchInterval)
+	defer ticker.Stop()
+
+	batch := make([]string, 0, batchSize)
+
 	for {
 		select {
 		case <-ctx.Done():
+			// Отправляем оставшиеся строки перед закрытием
+			if len(batch) > 0 {
+				h.sendLogBatch(w, flusher, batch)
+			}
 			return
+
 		case line, ok := <-stream.Lines:
 			if !ok {
-				// Канал закрыт - LogServer отключился
+				// Канал закрыт - отправляем оставшиеся строки
+				if len(batch) > 0 {
+					h.sendLogBatch(w, flusher, batch)
+				}
+				// LogServer отключился
 				fmt.Fprintf(w, "event: disconnected\ndata: {}\n\n")
 				flusher.Flush()
 				return
 			}
-			// Отправляем строку лога
-			fmt.Fprintf(w, "event: log\ndata: %s\n\n", line)
-			flusher.Flush()
+			batch = append(batch, line)
+
+			// Отправляем если достигли размера батча
+			if len(batch) >= batchSize {
+				h.sendLogBatch(w, flusher, batch)
+				batch = batch[:0]
+			}
+
+		case <-ticker.C:
+			// Отправляем по таймеру если есть что отправить
+			if len(batch) > 0 {
+				h.sendLogBatch(w, flusher, batch)
+				batch = batch[:0]
+			}
 		}
 	}
+}
+
+// sendLogBatch отправляет батч логов как SSE событие
+func (h *Handlers) sendLogBatch(w http.ResponseWriter, flusher http.Flusher, lines []string) {
+	data, err := json.Marshal(lines)
+	if err != nil {
+		return
+	}
+	fmt.Fprintf(w, "event: logs\ndata: %s\n\n", data)
+	flusher.Flush()
 }
 
 // LogServerCommand структура команды для LogServer

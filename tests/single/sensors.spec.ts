@@ -156,12 +156,12 @@ test.describe('Config API Tests', () => {
     expect(typeof data.controlsEnabled).toBe('boolean');
   });
 
-  test('controlsEnabled should be true when confile is specified', async ({ request }) => {
-    // Server is started with --confile, so controlsEnabled should be true
+  test('controlsEnabled should be true when uniset-config is specified', async ({ request }) => {
+    // Server is started with --uniset-config, so controlsEnabled should be true
     const response = await request.get('/api/config');
     const data = await response.json();
 
-    // When server is started with confile, controls should be enabled
+    // When server is started with uniset-config, controls should be enabled
     expect(data.controlsEnabled).toBe(true);
   });
 

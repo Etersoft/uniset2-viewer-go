@@ -39,7 +39,7 @@ go build -o uniset2-viewer ./cmd/server
 | `--history-ttl` | `1h` | Время хранения истории |
 | `--log-format` | `text` | Формат логов: `text` или `json` |
 | `--log-level` | `info` | Уровень логирования: `debug`, `info`, `warn`, `error` |
-| `--confile` | - | Путь к XML конфигурации UniSet2 (для имён датчиков) |
+| `--uniset-config` | - | Путь к XML конфигурации UniSet2 (для имён датчиков) |
 
 ### Примеры
 
