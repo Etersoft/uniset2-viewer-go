@@ -873,6 +873,21 @@ header h1 {
     display: none;
 }
 
+/* Объекты отключенного сервера (кешированные) */
+.server-group-objects li.disconnected {
+    color: var(--accent-red);
+    opacity: 0.7;
+}
+
+.server-group-objects li.disconnected:hover {
+    color: var(--accent-red);
+    opacity: 0.9;
+}
+
+.server-group-objects li.disconnected .object-name {
+    color: inherit;
+}
+
 /* === Servers Section in Sidebar === */
 .servers-section {
     margin-top: 1rem;
@@ -2141,7 +2156,49 @@ header h1 {
     color: var(--text-muted);
 }
 
-/* ModbusMaster/Slave autorefresh */
+/* Status auto-refresh controls (universal) */
+.status-autorefresh {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+}
+
+.status-autorefresh .status-last {
+    color: var(--text-muted);
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.status-autorefresh .status-interval-buttons {
+    display: inline-flex;
+    gap: 0.25rem;
+}
+
+/* Universal interval button styles (matches *-interval-btn pattern) */
+.status-interval-buttons button[class*="-interval-btn"] {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 0.2rem 0.5rem;
+    border-radius: 3px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.status-interval-buttons button[class*="-interval-btn"]:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.status-interval-buttons button[class*="-interval-btn"].active {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+    color: #fff;
+}
+
+/* Legacy autorefresh styles (backward compatibility) */
 .mb-autorefresh {
     display: inline-flex;
     align-items: center;

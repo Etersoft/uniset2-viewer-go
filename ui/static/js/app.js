@@ -968,6 +968,14 @@ class BaseObjectRenderer {
     constructor(objectName, tabKey = null) {
         this.objectName = objectName;
         this.tabKey = tabKey || objectName; // tabKey для доступа к state.tabs
+
+        // Автоматическая настройка параметров автообновления статуса
+        // на основе типа рендерера
+        const typeName = this.constructor.getTypeName().toLowerCase();
+        this.statusIntervalStorageKey = `${typeName}-status-interval`;
+        this.statusIntervalBtnClass = `${typeName}-interval-btn`;
+        this.statusAutorefreshIdPrefix = `${typeName}-status-autorefresh`;
+        this.statusInterval = this.loadStatusInterval();
     }
 
     // Получить тип объекта (для отображения)
@@ -994,7 +1002,34 @@ class BaseObjectRenderer {
 
     // Очистка при закрытии
     destroy() {
-        // Переопределяется в наследниках
+        this.stopStatusAutoRefresh();
+    }
+
+    // --- Методы для автообновления статуса ---
+
+    // Создать HTML для контролов автообновления статуса
+    // Используется в секциях статуса рендереров
+    createStatusAutoRefreshControls() {
+        const prefix = this.statusAutorefreshIdPrefix;
+        const btnClass = this.statusIntervalBtnClass;
+        return `
+            <div class="status-autorefresh" id="${prefix}-${this.objectName}">
+                <span class="status-last" id="${prefix.replace('-autorefresh', '-last')}-${this.objectName}"></span>
+                <div class="status-interval-buttons">
+                    ${this.renderStatusIntervalButtons()}
+                </div>
+            </div>
+        `;
+    }
+
+    // Инициализация автообновления статуса
+    // Вызывать в initialize() рендерера после создания DOM
+    initStatusAutoRefresh() {
+        // Проверяем есть ли метод loadStatus у рендерера
+        if (typeof this.loadStatus !== 'function') return;
+
+        this.bindStatusIntervalButtons();
+        this.startStatusAutoRefresh();
     }
 
     // Вспомогательные методы для создания секций
@@ -1429,11 +1464,11 @@ class BaseObjectRenderer {
     renderStatusIntervalButtons() {
         const btnClass = this.statusIntervalBtnClass || 'interval-btn';
         const options = [
-            { label: '5с', ms: 5000 },
-            { label: '10с', ms: 10000 },
-            { label: '15с', ms: 15000 },
-            { label: '1м', ms: 60000 },
-            { label: '5м', ms: 300000 }
+            { label: '5s', ms: 5000 },
+            { label: '10s', ms: 10000 },
+            { label: '15s', ms: 15000 },
+            { label: '1m', ms: 60000 },
+            { label: '5m', ms: 300000 }
         ];
         return options.map(opt => {
             const active = this.statusInterval === opt.ms ? 'active' : '';
@@ -2711,9 +2746,11 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
         this.setupDiagnosticsResize();
         this.setupSensorsResize();
         this.setupVirtualScroll();
+        this.initStatusAutoRefresh();
     }
 
     destroy() {
+        this.stopStatusAutoRefresh();
         this.destroyLogViewer();
         this.unsubscribeFromSSE();
     }
@@ -2768,6 +2805,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
         return this.createCollapsibleSection('opcua-status', 'Статус OPC UA', `
             <div class="opcua-actions">
                 <span class="opcua-note" id="opcua-status-note-${this.objectName}"></span>
+                ${this.createStatusAutoRefreshControls()}
             </div>
             <div class="opcua-stats-row" id="opcua-stats-${this.objectName}"></div>
             <div class="opcua-monitor-grid" id="opcua-monitor-${this.objectName}"></div>
@@ -3744,9 +3782,11 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
         setupChartsResize(this.objectName);
         this.setupRegistersResize();
         this.setupVirtualScroll();
+        this.initStatusAutoRefresh();
     }
 
     destroy() {
+        this.stopStatusAutoRefresh();
         this.destroyLogViewer();
         this.unsubscribeFromSSE();
     }
@@ -3783,6 +3823,7 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
         return this.createCollapsibleSection('mb-status', 'Статус Modbus', `
             <div class="mb-actions">
                 <span class="mb-note" id="mb-status-note-${this.objectName}"></span>
+                ${this.createStatusAutoRefreshControls()}
             </div>
             <table class="info-table">
                 <tbody id="mb-status-${this.objectName}"></tbody>
@@ -4331,9 +4372,11 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
         setupChartsResize(this.objectName);
         this.setupRegistersResize();
         this.setupVirtualScroll();
+        this.initStatusAutoRefresh();
     }
 
     destroy() {
+        this.stopStatusAutoRefresh();
         this.destroyLogViewer();
         this.unsubscribeFromSSE();
     }
@@ -4369,6 +4412,7 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
         return this.createCollapsibleSection('mbs-status', 'Статус ModbusSlave', `
             <div class="mb-actions">
                 <span class="mb-note" id="mbs-status-note-${this.objectName}"></span>
+                ${this.createStatusAutoRefreshControls()}
             </div>
             <table class="info-table">
                 <tbody id="mbs-status-${this.objectName}"></tbody>
@@ -4859,9 +4903,11 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
         setupChartsResize(this.objectName);
         this.setupSensorsResize();
         this.setupVirtualScroll();
+        this.initStatusAutoRefresh();
     }
 
     destroy() {
+        this.stopStatusAutoRefresh();
         this.destroyLogViewer();
         this.unsubscribeFromSSE();
     }
@@ -4897,6 +4943,7 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
         return this.createCollapsibleSection('opcuasrv-status', 'Статус OPC UA Server', `
             <div class="opcua-actions">
                 <span class="opcua-note" id="opcuasrv-status-note-${this.objectName}"></span>
+                ${this.createStatusAutoRefreshControls()}
             </div>
             <table class="info-table">
                 <tbody id="opcuasrv-status-${this.objectName}"></tbody>
@@ -6440,13 +6487,22 @@ async function fetchObjects() {
         throw new Error('Не удалось загрузить список серверов');
     }
 
+    // Сохраняем кешированные объекты перед очисткой
+    const cachedObjectsMap = new Map();
+    state.servers.forEach((server, serverId) => {
+        if (server.cachedObjects && server.cachedObjects.length > 0) {
+            cachedObjectsMap.set(serverId, server.cachedObjects);
+        }
+    });
+
     state.servers.clear();
     serversData.servers.forEach(server => {
         state.servers.set(server.id, {
             id: server.id,
             url: server.url,
             name: server.name || server.url,
-            connected: server.connected
+            connected: server.connected,
+            cachedObjects: cachedObjectsMap.get(server.id) || [] // восстанавливаем кеш
         });
     });
 
@@ -7337,7 +7393,21 @@ function renderObjectsList(data) {
     const list = document.getElementById('objects-list');
     list.innerHTML = '';
 
-    if (!data || !data.objects || data.objects.length === 0) {
+    // Проверяем есть ли хоть что-то для отображения (данные или кеш)
+    let hasAnyObjects = false;
+    if (data && data.objects) {
+        for (const serverData of data.objects) {
+            const existingServer = state.servers.get(serverData.serverId);
+            const apiObjects = serverData.objects || [];
+            const cachedObjects = existingServer?.cachedObjects || [];
+            if (apiObjects.length > 0 || cachedObjects.length > 0) {
+                hasAnyObjects = true;
+                break;
+            }
+        }
+    }
+
+    if (!hasAnyObjects) {
         list.innerHTML = '<li class="loading">Объекты не найдены</li>';
         renderServersSection();
         return;
@@ -7348,10 +7418,30 @@ function renderObjectsList(data) {
         const serverId = serverData.serverId;
         const serverName = serverData.serverName || serverId;
         const serverConnected = serverData.connected !== false;
-        const objectCount = serverData.objects?.length || 0;
+        const apiObjects = serverData.objects || [];
+
+        // Получаем существующий сервер из state
+        const existingServer = state.servers.get(serverId);
+
+        // Определяем какие объекты отображать
+        let objectsToRender;
+        if (serverConnected && apiObjects.length > 0) {
+            // Сервер подключен и есть объекты - обновляем кеш и используем их
+            objectsToRender = apiObjects;
+            if (existingServer) {
+                existingServer.cachedObjects = [...apiObjects];
+            }
+        } else if (!serverConnected && existingServer?.cachedObjects?.length > 0) {
+            // Сервер отключен - используем кешированные объекты
+            objectsToRender = existingServer.cachedObjects;
+        } else {
+            // Нет ни данных, ни кеша - пропускаем
+            objectsToRender = apiObjects;
+        }
+
+        const objectCount = objectsToRender.length;
 
         // Обновляем информацию о сервере в state
-        const existingServer = state.servers.get(serverId);
         if (existingServer) {
             existingServer.objectCount = objectCount;
         }
@@ -7384,11 +7474,16 @@ function renderObjectsList(data) {
         const objectsList = document.createElement('ul');
         objectsList.className = 'server-group-objects';
 
-        serverData.objects.forEach(name => {
+        objectsToRender.forEach(name => {
             const li = document.createElement('li');
             li.dataset.name = name;
             li.dataset.serverId = serverId;
             li.dataset.serverName = serverName;
+
+            // Если сервер отключен - добавляем класс disconnected к объектам
+            if (!serverConnected) {
+                li.classList.add('disconnected');
+            }
 
             const nameSpan = document.createElement('span');
             nameSpan.className = 'object-name';

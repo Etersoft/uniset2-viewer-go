@@ -17,6 +17,7 @@ services:
       --uniset-url http://localhost:9393
       --uniset-url http://localhost:9494
       --uniset-url http://localhost:9595
+      --uniset-url http://localhost:9696
     network_mode: host
     profiles:
       - dev
