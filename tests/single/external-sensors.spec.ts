@@ -29,8 +29,8 @@ test.describe('External Sensors (SM Integration)', () => {
     const modal = page.locator('.sensor-dialog-overlay');
     await expect(modal).toHaveClass(/visible/);
 
-    // Проверяем заголовок модального окна
-    await expect(page.locator('.sensor-dialog-title')).toContainText('датчик', { ignoreCase: true });
+    // Check modal title
+    await expect(page.locator('.sensor-dialog-title')).toContainText('Add sensor to chart');
   });
 
   test('should have filter input in sensor modal', async ({ page }) => {

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,7 +16,7 @@
         <header>
             <h1>UniSet2 Viewer</h1>
             <div class="header-controls">
-                <div class="poll-interval-selector" id="poll-interval-selector" title="Интервал опроса серверов">
+                <div class="poll-interval-selector" id="poll-interval-selector" title="Server polling interval">
                     <span class="poll-interval-label">Poll:</span>
                     <div class="poll-interval-buttons">
                         <button class="poll-btn" data-interval="1000">1s</button>
@@ -28,9 +28,9 @@
                     </div>
                 </div>
                 <!-- Статусы серверов перенесены в sidebar -->
-                <div class="sse-status" id="sse-status" title="Состояние SSE подключения">
+                <div class="sse-status" id="sse-status" title="SSE connection status">
                     <span class="sse-status-dot"></span>
-                    <span class="sse-status-text">Подключение...</span>
+                    <span class="sse-status-text">Connecting...</span>
                 </div>
             </div>
         </header>
@@ -40,13 +40,13 @@
                 <div class="sidebar-header">
                     <h2 class="sidebar-title">Objects</h2>
                     <div class="sidebar-actions">
-                        <button id="refresh-objects" class="btn-icon" title="Обновить">
+                        <button id="refresh-objects" class="btn-icon" title="Refresh">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M1 4v6h6M23 20v-6h-6"/>
                                 <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
                             </svg>
                         </button>
-                        <button id="clear-cache" class="btn-icon" title="Очистить кэш (LocalStorage)">
+                        <button id="clear-cache" class="btn-icon" title="Clear cache (LocalStorage)">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
@@ -54,7 +54,7 @@
                                 <line x1="14" y1="11" x2="14" y2="17"/>
                             </svg>
                         </button>
-                        <button id="toggle-sidebar" class="btn-icon" title="Свернуть панель">
+                        <button id="toggle-sidebar" class="btn-icon" title="Collapse panel">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M11 19l-7-7 7-7M18 19l-7-7 7-7"/>
                             </svg>
@@ -69,7 +69,7 @@
                             <svg class="collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M6 9l6 6 6-6"/>
                             </svg>
-                            <span class="servers-section-title">Сервера</span>
+                            <span class="servers-section-title">Servers</span>
                             <span class="servers-count" id="servers-count">0</span>
                         </div>
                         <ul id="servers-list" class="servers-list"></ul>
@@ -81,7 +81,7 @@
                 <div id="tabs-header" class="tabs-header"></div>
                 <div id="tabs-content" class="tabs-content">
                     <div class="placeholder">
-                        Выберите объект из списка слева
+                        Select an object from the list on the left
                     </div>
                 </div>
             </main>
@@ -92,8 +92,8 @@
     <div class="ionc-dialog-overlay" id="ionc-dialog-overlay" onclick="if(event.target === this) closeIoncDialog()">
         <div class="ionc-dialog" id="ionc-dialog">
             <div class="ionc-dialog-header">
-                <span class="ionc-dialog-title" id="ionc-dialog-title">Заголовок</span>
-                <button class="ionc-dialog-close" onclick="closeIoncDialog()" title="Закрыть (ESC)">&times;</button>
+                <span class="ionc-dialog-title" id="ionc-dialog-title">Title</span>
+                <button class="ionc-dialog-close" onclick="closeIoncDialog()" title="Close (ESC)">&times;</button>
             </div>
             <div class="ionc-dialog-body" id="ionc-dialog-body">
                 <!-- Динамическое содержимое -->
@@ -109,19 +109,19 @@
     <div class="sensor-dialog-overlay" id="sensor-dialog-overlay" onclick="if(event.target === this) closeSensorDialog()">
         <div class="sensor-dialog">
             <div class="sensor-dialog-header">
-                <span class="sensor-dialog-title">Добавить датчик на график</span>
-                <button class="sensor-dialog-close" onclick="closeSensorDialog()" title="Закрыть">&times;</button>
+                <span class="sensor-dialog-title">Add sensor to chart</span>
+                <button class="sensor-dialog-close" onclick="closeSensorDialog()" title="Close">&times;</button>
             </div>
             <div class="sensor-dialog-filter">
                 <input type="text" class="sensor-filter-input" id="sensor-filter-input"
-                       placeholder="Фильтр по имени, описанию, типу..." autocomplete="off">
+                       placeholder="Filter by name, description, type..." autocomplete="off">
             </div>
             <div class="sensor-dialog-content" id="sensor-dialog-content">
-                <div class="sensor-dialog-loading">Загрузка списка датчиков...</div>
+                <div class="sensor-dialog-loading">Loading sensor list...</div>
             </div>
             <div class="sensor-dialog-footer">
-                <span id="sensor-dialog-count">0 датчиков</span>
-                <span id="sensor-dialog-hint">ESC — сбросить фильтр / закрыть</span>
+                <span id="sensor-dialog-count">0 sensors</span>
+                <span id="sensor-dialog-hint">ESC — reset filter / close</span>
             </div>
         </div>
     </div>

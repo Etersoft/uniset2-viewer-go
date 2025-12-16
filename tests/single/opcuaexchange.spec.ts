@@ -12,11 +12,11 @@ test.describe('OPCUAExchange renderer', () => {
     const panel = page.locator('.tab-panel.active');
     await panel.waitFor({ timeout: 10000 });
 
-    await expect(panel.locator('.collapsible-title', { hasText: 'Статус OPC UA' })).toBeVisible();
-    await expect(panel.locator('.collapsible-title', { hasText: 'HTTP-контроль' })).toBeVisible();
-    await expect(panel.locator('.collapsible-title', { hasText: 'Параметры обмена' })).toBeVisible();
-    await expect(panel.locator('.collapsible-title', { hasText: /Датчики|Сенсоры OPC UA/ })).toBeVisible();
-    await expect(panel.locator('.collapsible-title', { hasText: 'Диагностика' })).toBeVisible();
+    await expect(panel.locator('.collapsible-title', { hasText: 'OPC UA Status' })).toBeVisible();
+    await expect(panel.locator('.collapsible-title', { hasText: 'HTTP Control' })).toBeVisible();
+    await expect(panel.locator('.collapsible-title', { hasText: 'Exchange Parameters' })).toBeVisible();
+    await expect(panel.locator('.collapsible-title', { hasText: /Sensors|OPC UA Sensors/ })).toBeVisible();
+    await expect(panel.locator('.collapsible-title', { hasText: 'Diagnostics' })).toBeVisible();
 
     const takeBtn = panel.locator(`#opcua-control-take-${OPCUA_OBJECT}`);
     const releaseBtn = panel.locator(`#opcua-control-release-${OPCUA_OBJECT}`);
@@ -155,7 +155,7 @@ test.describe('OPCUAExchange renderer', () => {
       await page.waitForTimeout(400);
 
       // Should show "no sensors" message
-      await expect(panel.locator(`#opcua-sensors-${OPCUA_OBJECT}`)).toContainText(/Нет сенсоров/);
+      await expect(panel.locator(`#opcua-sensors-${OPCUA_OBJECT}`)).toContainText(/No sensors/);
     });
 
     test('should have status filter dropdown with correct options', async ({ page }) => {

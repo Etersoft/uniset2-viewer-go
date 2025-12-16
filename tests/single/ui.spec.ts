@@ -27,7 +27,7 @@ test.describe('UniSet2 Viewer UI', () => {
 
     await expect(page.locator('.placeholder')).toBeVisible();
     // Плейсхолдер на русском
-    await expect(page.locator('.placeholder')).toContainText('Выберите объект');
+    await expect(page.locator('.placeholder')).toContainText('Select an object');
   });
 
   test('should open object tab on click', async ({ page }) => {
@@ -57,7 +57,7 @@ test.describe('UniSet2 Viewer UI', () => {
     await page.waitForSelector('[data-section^="variables-"] tbody tr', { timeout: 10000 });
 
     // Проверяем наличие таблицы настроек (раздел переименован в Настройки)
-    await expect(page.locator('[data-section^="variables-"] .collapsible-title')).toContainText('Настройки');
+    await expect(page.locator('[data-section^="variables-"] .collapsible-title')).toContainText('Settings');
     await expect(page.locator('[data-section^="variables-"] tbody tr')).not.toHaveCount(0);
   });
 
@@ -71,8 +71,8 @@ test.describe('UniSet2 Viewer UI', () => {
     await page.waitForSelector('.io-grid .io-section', { timeout: 10000 });
 
     // Проверяем секции Входы и Выходы (в заголовке таблицы)
-    await expect(page.locator('.io-grid .io-section-title', { hasText: 'Входы' })).toBeVisible();
-    await expect(page.locator('.io-grid .io-section-title', { hasText: 'Выходы' })).toBeVisible();
+    await expect(page.locator('.io-grid .io-section-title', { hasText: 'Inputs' })).toBeVisible();
+    await expect(page.locator('.io-grid .io-section-title', { hasText: 'Outputs' })).toBeVisible();
   });
 
   test('should close tab on close button click', async ({ page }) => {
@@ -234,7 +234,7 @@ test.describe('UniSet2 Viewer UI', () => {
 
       // Проверяем что отображается fallback warning
       await expect(page.locator('.fallback-warning')).toBeVisible({ timeout: 10000 });
-      await expect(page.locator('.fallback-message')).toContainText('не поддерживается');
+      await expect(page.locator('.fallback-message')).toContainText('is not supported');
 
       // Проверяем что есть сырой JSON
       await expect(page.locator('.fallback-json')).toBeVisible();
@@ -275,7 +275,7 @@ test.describe('UniSet2 Viewer UI', () => {
 
     // Проверяем секцию Логи
     await expect(page.locator('.logviewer-section')).toBeVisible();
-    await expect(page.locator('.logviewer-title')).toContainText('Логи');
+    await expect(page.locator('.logviewer-title')).toContainText('Logs');
   });
 
   test('should have log level dropdown with pills', async ({ page }) => {
@@ -289,7 +289,7 @@ test.describe('UniSet2 Viewer UI', () => {
     // Проверяем кнопку выбора уровня логов
     const levelBtn = page.locator('.log-level-btn');
     await expect(levelBtn).toBeVisible();
-    await expect(levelBtn).toContainText('Уровни');
+    await expect(levelBtn).toContainText('Levels');
 
     // Открываем dropdown
     await levelBtn.click();
@@ -325,7 +325,7 @@ test.describe('UniSet2 Viewer UI', () => {
     // Проверяем кнопку подключения
     const connectBtn = page.locator('.log-connect-btn');
     await expect(connectBtn).toBeVisible();
-    await expect(connectBtn).toContainText('Подключить');
+    await expect(connectBtn).toContainText('Connect');
   });
 
   test('should show placeholder before connecting', async ({ page }) => {
@@ -339,7 +339,7 @@ test.describe('UniSet2 Viewer UI', () => {
     // Проверяем placeholder
     const placeholder = page.locator('.log-placeholder');
     await expect(placeholder).toBeVisible();
-    await expect(placeholder).toContainText('Подключить');
+    await expect(placeholder).toContainText('Connect');
   });
 
   test('should toggle LogViewer section collapse', async ({ page }) => {
@@ -387,25 +387,25 @@ test.describe('UniSet2 Viewer UI', () => {
 
     // Нажимаем кнопку подключения
     const connectBtn = page.locator('.log-connect-btn');
-    await expect(connectBtn).toContainText('Подключить');
+    await expect(connectBtn).toContainText('Connect');
     await connectBtn.click();
 
     // После нажатия кнопка должна показать "Остановить" (сначала при connecting, потом при reconnecting)
     // Ждём пока кнопка изменится на "Остановить"
-    await expect(connectBtn).toContainText('Остановить', { timeout: 5000 });
+    await expect(connectBtn).toContainText('Stop', { timeout: 5000 });
 
     // Проверяем что статус показывает переподключение или подключение
     // Статус текст находится в span внутри .logviewer-status (второй span после точки)
     const statusText = page.locator('.logviewer-status span:nth-child(2)');
     // Статус может быть "Подключение..." или "Переподключение..."
-    await expect(statusText).toHaveText(/Подключение|Переподключение/, { timeout: 5000 });
+    await expect(statusText).toHaveText(/Connecting|Reconnecting/, { timeout: 5000 });
 
     // Кликаем остановить чтобы отключиться
     await connectBtn.click();
 
     // После остановки кнопка должна вернуться к "Подключить"
-    await expect(connectBtn).toContainText('Подключить', { timeout: 5000 });
-    await expect(statusText).toHaveText('Отключено', { timeout: 5000 });
+    await expect(connectBtn).toContainText('Connect', { timeout: 5000 });
+    await expect(statusText).toHaveText('Disconnected', { timeout: 5000 });
   });
 
   // === Новые тесты на функциональность LogViewer ===
@@ -461,12 +461,12 @@ test.describe('UniSet2 Viewer UI', () => {
     // Применяем пресет "Всё"
     await page.locator('.log-preset-btn[data-preset="all"]').click();
     await expect(page.locator('.log-level-pill[data-level="ANY"]')).toHaveClass(/active/);
-    await expect(page.locator('.log-level-btn')).toContainText('Все');
+    await expect(page.locator('.log-level-btn')).toContainText('All');
 
     // Сброс
     await page.locator('.log-preset-btn[data-preset="reset"]').click();
     await expect(page.locator('.log-level-pill[data-level="ANY"]')).not.toHaveClass(/active/);
-    await expect(page.locator('.log-level-btn')).toContainText('Уровни ▼');
+    await expect(page.locator('.log-level-btn')).toContainText('Levels ▼');
   });
 
   test('should have filter options (Regex, Case, Only)', async ({ page }) => {
@@ -484,7 +484,7 @@ test.describe('UniSet2 Viewer UI', () => {
     // Проверяем наличие чекбоксов
     await expect(page.locator('.log-filter-option').filter({ hasText: 'Regex' })).toBeVisible();
     await expect(page.locator('.log-filter-option').filter({ hasText: 'Case' })).toBeVisible();
-    await expect(page.locator('.log-filter-option').filter({ hasText: 'Только' })).toBeVisible();
+    await expect(page.locator('.log-filter-option').filter({ hasText: 'Only' })).toBeVisible();
 
     // По умолчанию Regex включен
     const regexCheckbox = page.locator('input[id*="log-filter-regex"]');
@@ -568,7 +568,7 @@ test.describe('UniSet2 Viewer UI', () => {
 
     // Проверяем что счётчик совпадений появился (может быть 0 совп. т.к. логов нет)
     const matchCount = page.locator('.log-match-count');
-    await expect(matchCount).toHaveText('0 совп.', { timeout: 2000 });
+    await expect(matchCount).toHaveText('0 matches', { timeout: 2000 });
 
     // Очищаем фильтр
     await filterInput.fill('');
@@ -745,7 +745,7 @@ test.describe('UniSet2 Viewer UI', () => {
     // Проверяем наличие кнопки очистки кэша
     const clearCacheBtn = page.locator('#clear-cache');
     await expect(clearCacheBtn).toBeVisible();
-    await expect(clearCacheBtn).toHaveAttribute('title', 'Очистить кэш (LocalStorage)');
+    await expect(clearCacheBtn).toHaveAttribute('title', 'Clear cache (LocalStorage)');
   });
 
   test('should clear localStorage on clear cache button click', async ({ page }) => {
@@ -763,7 +763,7 @@ test.describe('UniSet2 Viewer UI', () => {
     // Устанавливаем обработчик диалога подтверждения
     page.on('dialog', async dialog => {
       expect(dialog.type()).toBe('confirm');
-      expect(dialog.message()).toContain('Очистить все сохранённые настройки');
+      expect(dialog.message()).toContain('Clear all saved settings');
       await dialog.accept();
     });
 

@@ -1,4 +1,4 @@
-// Состояние приложения
+// Status приложения
 // Экспортируем на window для тестов
 const state = window.state = {
     objects: [],
@@ -11,7 +11,7 @@ const state = window.state = {
     sidebarCollapsed: false, // свёрнутая боковая панель
     collapsedSections: {}, // состояние спойлеров
     collapsedServerGroups: new Set(), // свёрнутые группы серверов в списке объектов
-    serversSectionCollapsed: false, // свёрнута ли секция "Сервера"
+    serversSectionCollapsed: false, // свёрнута ли секция "Servers"
     capabilities: {
         smEnabled: false // по умолчанию SM отключен
     },
@@ -51,31 +51,31 @@ function updateSSEStatus(status, lastUpdate = null) {
         case 'connected':
             container.classList.add('connected');
             text = 'SSE';
-            title = 'Подключено через Server-Sent Events';
+            title = 'Connected via Server-Sent Events';
             break;
         case 'reconnecting':
             container.classList.add('reconnecting');
-            text = `Переподключение (${state.sse.reconnectAttempts}/${state.sse.maxReconnectAttempts})`;
-            title = 'Попытка восстановить SSE соединение';
+            text = `Reconnecting (${state.sse.reconnectAttempts}/${state.sse.maxReconnectAttempts})`;
+            title = 'Attempting to restore SSE connection';
             break;
         case 'polling':
             container.classList.add('polling');
             text = 'Polling';
-            title = 'Fallback режим: периодический опрос сервера';
+            title = 'Fallback mode: periodic server polling';
             break;
         case 'disconnected':
             container.classList.add('disconnected');
-            text = 'Отключено';
-            title = 'Нет соединения с сервером';
+            text = 'Disconnected';
+            title = 'No connection to server';
             break;
         default:
-            text = 'Подключение...';
-            title = 'Установка соединения';
+            text = 'Connecting...';
+            title = 'Establishing connection';
     }
 
     // Добавляем время последнего обновления если есть
     if (lastUpdate) {
-        const timeStr = lastUpdate.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const timeStr = lastUpdate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         text += ` · ${timeStr}`;
     }
 
@@ -83,7 +83,7 @@ function updateSSEStatus(status, lastUpdate = null) {
     container.title = title;
 }
 
-// Обновить доступность кнопок "Добавить датчик" для всех открытых вкладок
+// Обновить доступность кнопок "Add sensor" для всех открытых вкладок
 function updateAddSensorButtons() {
     const buttons = document.querySelectorAll('.add-sensor-btn');
     buttons.forEach(btn => {
@@ -92,7 +92,7 @@ function updateAddSensorButtons() {
             btn.title = '';
         } else {
             btn.disabled = true;
-            btn.title = 'SM не подключена (-sm-url не задан)';
+            btn.title = 'SM not connected (-sm-url not set)';
         }
     });
 }
@@ -113,7 +113,7 @@ function updateServerStatus(serverId, connected) {
         }
     }
 
-    // Обновляем элемент сервера в секции "Сервера"
+    // Обновляем элемент сервера в секции "Servers"
     const serverItem = document.querySelector(`.server-item[data-server-id="${serverId}"]`);
     if (serverItem) {
         const statusDot = serverItem.querySelector('.server-status-dot');
@@ -196,7 +196,7 @@ function initSSE() {
             // Обновляем индикатор статуса
             updateSSEStatus('connected', new Date());
 
-            // Обновляем доступность кнопок "Добавить датчик"
+            // Обновляем доступность кнопок "Add sensor"
             updateAddSensorButtons();
 
             // Отключаем polling для всех открытых вкладок
@@ -208,7 +208,7 @@ function initSSE() {
                 }
             });
         } catch (err) {
-            console.warn('SSE: Ошибка парсинга connected:', err);
+            console.warn('SSE: Error парсинга connected:', err);
         }
     });
 
@@ -241,7 +241,7 @@ function initSSE() {
                 });
             }
         } catch (err) {
-            console.warn('SSE: Ошибка обработки object_data:', err);
+            console.warn('SSE: Error обработки object_data:', err);
         }
     });
 
@@ -284,7 +284,7 @@ function initSSE() {
                 }
             }
         } catch (err) {
-            console.warn('SSE: Ошибка обработки sensor_data:', err);
+            console.warn('SSE: Error обработки sensor_data:', err);
         }
     });
 
@@ -346,7 +346,7 @@ function initSSE() {
             });
 
         } catch (err) {
-            console.warn('SSE: Ошибка обработки ionc_sensor_batch:', err);
+            console.warn('SSE: Error обработки ionc_sensor_batch:', err);
         }
     });
 
@@ -377,7 +377,7 @@ function initSSE() {
                 renderer.handleModbusRegisterUpdates(registers);
             }
         } catch (err) {
-            console.warn('SSE: Ошибка обработки modbus_register_batch:', err);
+            console.warn('SSE: Error обработки modbus_register_batch:', err);
         }
     });
 
@@ -407,7 +407,7 @@ function initSSE() {
                 renderer.handleOPCUASensorUpdates(sensors);
             }
         } catch (err) {
-            console.warn('SSE: Ошибка обработки opcua_sensor_batch:', err);
+            console.warn('SSE: Error обработки opcua_sensor_batch:', err);
         }
     });
 
@@ -420,7 +420,7 @@ function initSSE() {
             console.log(`SSE: Сервер ${serverId} ${connected ? 'подключен' : 'отключен'}`);
             updateServerStatus(serverId, connected);
         } catch (err) {
-            console.warn('SSE: Ошибка обработки server_status:', err);
+            console.warn('SSE: Error обработки server_status:', err);
         }
     });
 
@@ -439,12 +439,12 @@ function initSSE() {
             // Обновляем список объектов в sidebar
             refreshObjectsList();
         } catch (err) {
-            console.warn('SSE: Ошибка обработки objects_list:', err);
+            console.warn('SSE: Error обработки objects_list:', err);
         }
     });
 
     eventSource.onerror = (e) => {
-        console.warn('SSE: Ошибка соединения');
+        console.warn('SSE: Error соединения');
         state.sse.connected = false;
 
         if (state.sse.reconnectAttempts < state.sse.maxReconnectAttempts) {
@@ -493,7 +493,7 @@ function enablePollingFallback() {
     });
 }
 
-// Закрыть SSE соединение
+// Close SSE соединение
 function closeSSE() {
     if (state.sse.eventSource) {
         state.sse.eventSource.close();
@@ -670,7 +670,7 @@ const SSESubscriptionMixin = {
  * Миксин для изменяемых по высоте секций с сохранением в localStorage
  */
 const ResizableSectionMixin = {
-    // Загрузка сохранённой высоты
+    // Loading сохранённой высоты
     loadSectionHeight(storageKey, defaultHeight = 320) {
         try {
             const saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
@@ -870,7 +870,7 @@ const ParamsAccessibilityMixin = {
      * Обновляет доступность секции параметров на основе флага httpEnabledSetParams в статусе.
      * Если httpEnabledSetParams === false:
      * - Секция сворачивается
-     * - Кнопка "Применить" блокируется
+     * - Кнопка "Apply" блокируется
      * - Все input/select в таблице параметров блокируются
      * - Показывается предупреждающее сообщение
      * - Обновляется индикатор в шапке (если есть)
@@ -888,11 +888,11 @@ const ParamsAccessibilityMixin = {
         const enabled = val === true || val === 1 || val === undefined;
         const explicitlyDisabled = val === false || val === 0;
 
-        // Заблокировать кнопку "Применить"
+        // Заблокировать кнопку "Apply"
         const saveBtn = document.getElementById(`${prefix}-params-save-${this.objectName}`);
         if (saveBtn) {
             saveBtn.disabled = explicitlyDisabled;
-            saveBtn.title = explicitlyDisabled ? 'Изменение параметров запрещено' : '';
+            saveBtn.title = explicitlyDisabled ? 'Parameter modification disabled' : '';
         }
 
         // Заблокировать все input в таблице параметров
@@ -908,12 +908,12 @@ const ParamsAccessibilityMixin = {
         const indParams = document.getElementById(`${prefix}-ind-params-${this.objectName}`);
         if (indParams) {
             indParams.className = `header-indicator-dot ${enabled ? 'ok' : 'fail'}`;
-            indParams.title = enabled ? 'Параметры: Да' : 'Параметры: Нет';
+            indParams.title = enabled ? 'Parameters: Yes' : 'Parameters: No';
         }
 
         // Показать предупреждение только если явно запрещено
         this.setNote(`${prefix}-params-note-${this.objectName}`,
-            explicitlyDisabled ? 'Изменение параметров запрещено (httpEnabledSetParams=false)' : '',
+            explicitlyDisabled ? 'Parameter modification disabled (httpEnabledSetParams=false)' : '',
             explicitlyDisabled);
     }
 };
@@ -944,7 +944,7 @@ const SectionHeightMixin = {
     /**
      * Загружает сохранённую высоту секции
      * @param {string} storageKey - Ключ в localStorage
-     * @param {number} defaultHeight - Значение по умолчанию
+     * @param {number} defaultHeight - Value по умолчанию
      * @returns {number}
      */
     loadSectionHeight(storageKey, defaultHeight = 300) {
@@ -963,7 +963,7 @@ const SectionHeightMixin = {
     /**
      * Сохраняет высоту секции
      * @param {string} storageKey - Ключ в localStorage
-     * @param {number} value - Значение высоты
+     * @param {number} value - Value высоты
      */
     saveSectionHeight(storageKey, value) {
         try {
@@ -1014,7 +1014,7 @@ class BaseObjectRenderer {
     // Создать HTML-структуру панели
     createPanelHTML() {
         return `
-            <div class="tab-panel-loading">Загрузка...</div>
+            <div class="tab-panel-loading">Loading...</div>
         `;
     }
 
@@ -1101,8 +1101,8 @@ class BaseObjectRenderer {
                     ${badgeHtml}
                     ${headerExtra}
                     <div class="section-reorder-buttons" onclick="event.stopPropagation()">
-                        <button class="section-move-btn section-move-up" onclick="moveSectionUp('${this.tabKey}', '${id}')" title="Переместить вверх">↑</button>
-                        <button class="section-move-btn section-move-down" onclick="moveSectionDown('${this.tabKey}', '${id}')" title="Переместить вниз">↓</button>
+                        <button class="section-move-btn section-move-up" onclick="moveSectionUp('${this.tabKey}', '${id}')" title="Move up">↑</button>
+                        <button class="section-move-btn section-move-down" onclick="moveSectionDown('${this.tabKey}', '${id}')" title="Move down">↓</button>
                     </div>
                 </div>
                 <div class="collapsible-content" id="section-${id}-${this.objectName}">
@@ -1119,10 +1119,10 @@ class BaseObjectRenderer {
                     <svg class="collapsible-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M6 9l6 6 6-6"/>
                     </svg>
-                    <span class="collapsible-title">Графики</span>
+                    <span class="collapsible-title">Charts</span>
                     <button class="add-sensor-btn" id="add-sensor-btn-${this.objectName}"
                             onclick="event.stopPropagation(); openSensorDialog('${this.tabKey}')"
-                            ${!state.capabilities.smEnabled ? 'disabled title="SM не подключена (-sm-url не задан)"' : ''}>+ Датчик</button>
+                            ${!state.capabilities.smEnabled ? 'disabled title="SM not connected (-sm-url not set)"' : ''}>+ Sensor</button>
                     <div class="charts-time-range" onclick="event.stopPropagation()">
                         <div class="time-range-selector">
                             <button class="time-range-btn${state.timeRange === 60 ? ' active' : ''}" onclick="setTimeRange(60)">1m</button>
@@ -1134,8 +1134,8 @@ class BaseObjectRenderer {
                         </div>
                     </div>
                     <div class="section-reorder-buttons" onclick="event.stopPropagation()">
-                        <button class="section-move-btn section-move-up" onclick="moveSectionUp('${this.tabKey}', 'charts')" title="Переместить вверх">↑</button>
-                        <button class="section-move-btn section-move-down" onclick="moveSectionDown('${this.tabKey}', 'charts')" title="Переместить вниз">↓</button>
+                        <button class="section-move-btn section-move-up" onclick="moveSectionUp('${this.tabKey}', 'charts')" title="Move up">↑</button>
+                        <button class="section-move-btn section-move-down" onclick="moveSectionDown('${this.tabKey}', 'charts')" title="Move down">↓</button>
                     </div>
                 </div>
                 <div class="collapsible-content" id="section-charts-${this.objectName}">
@@ -1158,21 +1158,21 @@ class BaseObjectRenderer {
                     <span class="collapsible-title">I/O</span>
                     <div class="io-filter-wrapper" onclick="event.stopPropagation()">
                         <input type="text" class="io-filter-input io-filter-global" id="io-filter-global-${this.objectName}"
-                               placeholder="Фильтр..." data-object="${this.objectName}">
+                               placeholder="Filter..." data-object="${this.objectName}">
                     </div>
                     <label class="io-sequential-toggle" onclick="event.stopPropagation()">
                         <input type="checkbox" id="io-sequential-${this.objectName}" onchange="toggleIOLayout('${this.objectName}')">
-                        <span>Друг за другом</span>
+                        <span>Sequential</span>
                     </label>
                     <div class="section-reorder-buttons" onclick="event.stopPropagation()">
-                        <button class="section-move-btn section-move-up" onclick="moveSectionUp('${this.tabKey}', 'io-timers')" title="Переместить вверх">↑</button>
-                        <button class="section-move-btn section-move-down" onclick="moveSectionDown('${this.tabKey}', 'io-timers')" title="Переместить вниз">↓</button>
+                        <button class="section-move-btn section-move-up" onclick="moveSectionUp('${this.tabKey}', 'io-timers')" title="Move up">↑</button>
+                        <button class="section-move-btn section-move-down" onclick="moveSectionDown('${this.tabKey}', 'io-timers')" title="Move down">↓</button>
                     </div>
                 </div>
                 <div class="collapsible-content" id="section-io-timers-${this.objectName}">
                     <div class="io-grid io-grid-3" id="io-grid-${this.objectName}">
-                        ${this.createIOSection('inputs', 'Входы')}
-                        ${this.createIOSection('outputs', 'Выходы')}
+                        ${this.createIOSection('inputs', 'Inputs')}
+                        ${this.createIOSection('outputs', 'Outputs')}
                         ${this.createTimersSection()}
                     </div>
                 </div>
@@ -1189,7 +1189,7 @@ class BaseObjectRenderer {
                         <thead>
                             <tr>
                                 <th class="io-pin-col">
-                                    <span class="io-unpin-all" id="io-unpin-${typeLower}-${this.objectName}" title="Снять все закрепления" style="display:none">✕</span>
+                                    <span class="io-unpin-all" id="io-unpin-${typeLower}-${this.objectName}" title="Unpin all" style="display:none">✕</span>
                                 </th>
                                 <th class="io-section-title io-section-toggle" data-section="${typeLower}-${this.objectName}">
                                     <svg class="io-collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1198,10 +1198,10 @@ class BaseObjectRenderer {
                                     ${title} <span class="io-section-badge" id="${typeLower}-count-${this.objectName}">0</span>
                                 </th>
                                 <th class="io-spacer-col"></th>
-                                <th>Тип</th>
+                                <th>Type</th>
                                 <th>ID</th>
-                                <th>Имя</th>
-                                <th>Значение</th>
+                                <th>Name</th>
+                                <th>Value</th>
                             </tr>
                         </thead>
                         <tbody id="${typeLower}-${this.objectName}"></tbody>
@@ -1220,17 +1220,17 @@ class BaseObjectRenderer {
                         <thead>
                             <tr>
                                 <th class="io-pin-col">
-                                    <span class="io-unpin-all" id="io-unpin-timers-${this.objectName}" title="Снять все закрепления" style="display:none">✕</span>
+                                    <span class="io-unpin-all" id="io-unpin-timers-${this.objectName}" title="Unpin all" style="display:none">✕</span>
                                 </th>
                                 <th class="io-section-title io-section-toggle" data-section="timers-${this.objectName}">
                                     <svg class="io-collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <path d="M6 9l6 6 6-6"/>
                                     </svg>
-                                    Таймеры <span class="io-section-badge" id="timers-count-${this.objectName}">0</span>
+                                    Timers <span class="io-section-badge" id="timers-count-${this.objectName}">0</span>
                                 </th>
-                                <th>Имя</th>
-                                <th>Интервал</th>
-                                <th>Осталось</th>
+                                <th>Name</th>
+                                <th>Interval</th>
+                                <th>Remaining</th>
                                 <th>Tick</th>
                             </tr>
                         </thead>
@@ -1243,7 +1243,7 @@ class BaseObjectRenderer {
     }
 
     createVariablesSection() {
-        return this.createCollapsibleSection('variables', 'Настройки', `
+        return this.createCollapsibleSection('variables', 'Settings', `
             <table class="variables-table">
                 <thead>
                     <tr>
@@ -1251,7 +1251,7 @@ class BaseObjectRenderer {
                             <input type="text"
                                    class="filter-input"
                                    id="filter-variables-${this.objectName}"
-                                   placeholder="Фильтр по имени..."
+                                   placeholder="Filter by name..."
                                    data-object="${this.objectName}">
                         </th>
                         <th></th>
@@ -1416,13 +1416,13 @@ class BaseObjectRenderer {
     }
 
     createStatisticsSection() {
-        return this.createCollapsibleSection('statistics', 'Статистика', `
+        return this.createCollapsibleSection('statistics', 'Statistics', `
             <div id="statistics-${this.objectName}"></div>
         `, { hidden: true, sectionId: `statistics-section-${this.objectName}` });
     }
 
     createObjectInfoSection() {
-        return this.createCollapsibleSection('object', 'Информация об объекте', `
+        return this.createCollapsibleSection('object', 'Object Information', `
             <table class="info-table">
                 <tbody id="object-info-${this.objectName}"></tbody>
             </table>
@@ -1450,7 +1450,7 @@ class BaseObjectRenderer {
         return response.json();
     }
 
-    // Установить текст уведомления
+    // Set текст уведомления
     setNote(id, text, isError = false) {
         const el = document.getElementById(id);
         if (!el) return;
@@ -1613,9 +1613,9 @@ class FallbackRenderer extends BaseObjectRenderer {
             <div class="fallback-warning">
                 <div class="fallback-icon">⚠️</div>
                 <div class="fallback-message">
-                    Тип объекта "<span class="fallback-type"></span>" не поддерживается
+                    Object type "<span class="fallback-type"></span>" is not supported
                 </div>
-                <div class="fallback-hint">Отображается сырой JSON ответа</div>
+                <div class="fallback-hint">Raw JSON response displayed</div>
             </div>
             <div class="fallback-json-container">
                 <pre class="fallback-json" id="fallback-json-${this.objectName}"></pre>
@@ -1753,12 +1753,12 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                     <svg class="collapsible-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M6 9l6 6 6-6"/>
                     </svg>
-                    <span class="collapsible-title">Датчики</span>
+                    <span class="collapsible-title">Sensors</span>
                     <span class="sensor-count" id="ionc-sensor-count-${this.objectName}">0</span>
                     <div class="filter-bar" onclick="event.stopPropagation()">
-                        <input type="text" class="filter-input" id="ionc-filter-${this.objectName}" placeholder="Фильтр...">
+                        <input type="text" class="filter-input" id="ionc-filter-${this.objectName}" placeholder="Filter...">
                         <select class="type-filter" id="ionc-type-filter-${this.objectName}">
-                            <option value="all">Все</option>
+                            <option value="all">All</option>
                             <option value="AI">AI</option>
                             <option value="DI">DI</option>
                             <option value="AO">AO</option>
@@ -1766,8 +1766,8 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                         </select>
                     </div>
                     <div class="section-reorder-buttons" onclick="event.stopPropagation()">
-                        <button class="section-move-btn section-move-up" onclick="moveSectionUp('${this.tabKey}', 'ionc-sensors')" title="Переместить вверх">↑</button>
-                        <button class="section-move-btn section-move-down" onclick="moveSectionDown('${this.tabKey}', 'ionc-sensors')" title="Переместить вниз">↓</button>
+                        <button class="section-move-btn section-move-up" onclick="moveSectionUp('${this.tabKey}', 'ionc-sensors')" title="Move up">↑</button>
+                        <button class="section-move-btn section-move-down" onclick="moveSectionDown('${this.tabKey}', 'ionc-sensors')" title="Move down">↓</button>
                     </div>
                 </div>
                 <div class="collapsible-content" id="section-ionc-sensors-${this.objectName}">
@@ -1778,23 +1778,23 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                                 <thead>
                                     <tr>
                                         <th class="ionc-col-pin">
-                                            <span class="ionc-unpin-all" id="ionc-unpin-${this.objectName}" title="Снять все закрепления" style="display:none">✕</span>
+                                            <span class="ionc-unpin-all" id="ionc-unpin-${this.objectName}" title="Unpin all" style="display:none">✕</span>
                                         </th>
                                         <th class="ionc-col-chart"></th>
                                         <th class="ionc-col-id">ID</th>
-                                        <th class="ionc-col-name">Имя</th>
-                                        <th class="ionc-col-type">Тип</th>
-                                        <th class="ionc-col-value">Значение</th>
-                                        <th class="ionc-col-flags">Статус</th>
-                                        <th class="ionc-col-consumers">Подписчики</th>
-                                        <th class="ionc-col-actions">Действия</th>
+                                        <th class="ionc-col-name">Name</th>
+                                        <th class="ionc-col-type">Type</th>
+                                        <th class="ionc-col-value">Value</th>
+                                        <th class="ionc-col-flags">Status</th>
+                                        <th class="ionc-col-consumers">Consumers</th>
+                                        <th class="ionc-col-actions">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody class="ionc-sensors-tbody" id="ionc-sensors-tbody-${this.objectName}">
-                                    <tr><td colspan="9" class="ionc-loading">Загрузка...</td></tr>
+                                    <tr><td colspan="9" class="ionc-loading">Loading...</td></tr>
                                 </tbody>
                             </table>
-                            <div class="ionc-loading-more" id="ionc-loading-more-${this.objectName}" style="display: none;">Загрузка...</div>
+                            <div class="ionc-loading-more" id="ionc-loading-more-${this.objectName}" style="display: none;">Loading...</div>
                         </div>
                     </div>
                     <div class="resize-handle" id="ionc-resize-${this.objectName}"></div>
@@ -1806,9 +1806,9 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
     createLostConsumersSection() {
         return this.createCollapsibleSection(
             'ionc-lost',
-            'Потерянные подписчики',
+            'Lost consumers',
             `<div class="ionc-lost-list" id="ionc-lost-list-${this.objectName}">
-                <span class="ionc-lost-empty">Нет потерянных подписчиков</span>
+                <span class="ionc-lost-empty">No lost consumers</span>
             </div>`,
             { badge: true }
         );
@@ -1843,7 +1843,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
 
         const tbody = document.getElementById(`ionc-sensors-tbody-${this.objectName}`);
         if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="9" class="ionc-loading">Загрузка...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="ionc-loading">Loading...</td></tr>';
         }
 
         // Проверяем режим фильтрации: false = серверная (default), true = UI
@@ -1889,7 +1889,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
         } catch (err) {
             console.error('Error loading IONC sensors:', err);
             if (tbody) {
-                tbody.innerHTML = `<tr><td colspan="9" class="ionc-error">Ошибка загрузки: ${err.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9" class="ionc-error">Error загрузки: ${err.message}</td></tr>`;
             }
         } finally {
             this.loading = false;
@@ -2015,7 +2015,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
         const spacer = document.getElementById(`ionc-sensors-spacer-${this.objectName}`);
         if (!tbody || !spacer) return;
 
-        // Установить высоту spacer для позиционирования
+        // Set высоту spacer для позиционирования
         spacer.style.height = `${this.startIndex * this.rowHeight}px`;
 
         // Получаем закреплённые датчики
@@ -2028,7 +2028,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
             unpinBtn.style.display = hasPinned ? 'inline' : 'none';
         }
 
-        // Фильтруем датчики:
+        // Filterуем датчики:
         // - если есть текстовый фильтр — показываем все (для поиска новых датчиков)
         // - иначе если есть закреплённые — показываем только их
         let sensorsToShow = this.allSensors;
@@ -2037,7 +2037,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
         }
 
         if (sensorsToShow.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9" class="ionc-empty">Нет датчиков</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="ionc-empty">No sensors</td></tr>';
             return;
         }
 
@@ -2116,19 +2116,19 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
         const readonlyClass = sensor.readonly ? 'ionc-sensor-readonly' : '';
 
         const flags = [];
-        if (sensor.frozen) flags.push('<span class="ionc-flag ionc-flag-frozen" title="Заморожен">❄</span>');
-        if (sensor.blocked) flags.push('<span class="ionc-flag ionc-flag-blocked" title="Заблокирован">🔒</span>');
-        if (sensor.readonly) flags.push('<span class="ionc-flag ionc-flag-readonly" title="Только чтение">👁</span>');
-        if (sensor.undefined) flags.push('<span class="ionc-flag ionc-flag-undefined" title="Не определён">?</span>');
+        if (sensor.frozen) flags.push('<span class="ionc-flag ionc-flag-frozen" title="Frozen">❄</span>');
+        if (sensor.blocked) flags.push('<span class="ionc-flag ionc-flag-blocked" title="Blocked">🔒</span>');
+        if (sensor.readonly) flags.push('<span class="ionc-flag ionc-flag-readonly" title="Read only">👁</span>');
+        if (sensor.undefined) flags.push('<span class="ionc-flag ionc-flag-undefined" title="Undefined">?</span>');
 
         const freezeBtn = sensor.frozen
-            ? `<button class="ionc-btn ionc-btn-unfreeze" data-id="${sensor.id}" title="Заморожено на: ${sensor.value}. Нажмите для разморозки">🔥</button>`
-            : `<button class="ionc-btn ionc-btn-freeze" data-id="${sensor.id}" title="Заморозить">❄</button>`;
+            ? `<button class="ionc-btn ionc-btn-unfreeze" data-id="${sensor.id}" title="Frozen at: ${sensor.value}. Click to unfreeze">🔥</button>`
+            : `<button class="ionc-btn ionc-btn-freeze" data-id="${sensor.id}" title="Freeze">❄</button>`;
 
         // Кнопка закрепления (pin)
         const pinToggleClass = isPinned ? 'pin-toggle pinned' : 'pin-toggle';
         const pinIcon = isPinned ? '📌' : '○';
-        const pinTitle = isPinned ? 'Открепить' : 'Закрепить';
+        const pinTitle = isPinned ? 'Unpin' : 'Pin';
 
         // Checkbox для графика
         const isOnChart = this.isSensorOnChart(sensor.name);
@@ -2172,10 +2172,10 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                 </td>
                 <td class="ionc-col-flags">${flags.join(' ') || '—'}</td>
                 <td class="ionc-col-consumers">
-                    <button class="ionc-btn ionc-btn-consumers" data-id="${sensor.id}" title="Показать подписчиков">👥</button>
+                    <button class="ionc-btn ionc-btn-consumers" data-id="${sensor.id}" title="Show consumers">👥</button>
                 </td>
                 <td class="ionc-col-actions">
-                    <button class="ionc-btn ionc-btn-set" data-id="${sensor.id}" title="Установить значение" ${sensor.readonly ? 'disabled' : ''}>✎</button>
+                    <button class="ionc-btn ionc-btn-set" data-id="${sensor.id}" title="Set value" ${sensor.readonly ? 'disabled' : ''}>✎</button>
                     ${freezeBtn}
                 </td>
             </tr>
@@ -2244,24 +2244,24 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
 
         // Предупреждение если датчик заморожен
         const frozenWarning = sensor.frozen
-            ? `<div class="ionc-dialog-warning">⚠️ Датчик заморожен. Значение не будет изменено пока датчик не разморозите.</div>`
+            ? `<div class="ionc-dialog-warning">⚠️ Sensor is frozen. Value will not be changed until you unfreeze the sensor.</div>`
             : '';
 
         const body = `
             <div class="ionc-dialog-info">
-                Датчик: <strong>${escapeHtml(sensor.name)}</strong> (ID: ${sensorId})<br>
-                Текущее значение: <strong>${sensor.value}</strong>
+                Sensor: <strong>${escapeHtml(sensor.name)}</strong> (ID: ${sensorId})<br>
+                Current value: <strong>${sensor.value}</strong>
             </div>
             ${frozenWarning}
             <div class="ionc-dialog-field">
-                <label for="ionc-set-value">Новое значение:</label>
+                <label for="ionc-set-value">New value:</label>
                 <input type="number" id="ionc-set-value" value="${sensor.value}">
             </div>
         `;
 
         const footer = `
-            <button class="ionc-dialog-btn ionc-dialog-btn-cancel" onclick="closeIoncDialog()">Отмена</button>
-            <button class="ionc-dialog-btn ionc-dialog-btn-primary" id="ionc-set-confirm">Применить</button>
+            <button class="ionc-dialog-btn ionc-dialog-btn-cancel" onclick="closeIoncDialog()">Cancel</button>
+            <button class="ionc-dialog-btn ionc-dialog-btn-primary" id="ionc-set-confirm">Apply</button>
         `;
 
         const doSetValue = async () => {
@@ -2269,7 +2269,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
             const value = parseInt(input.value, 10);
 
             if (isNaN(value)) {
-                showIoncDialogError('Введите целое число');
+                showIoncDialogError('Enter an integer');
                 input.classList.add('error');
                 return;
             }
@@ -2299,12 +2299,12 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
 
                 closeIoncDialog();
             } catch (err) {
-                showIoncDialogError(`Ошибка: ${err.message}`);
+                showIoncDialogError(`Error: ${err.message}`);
             }
         };
 
         openIoncDialog({
-            title: 'Установить значение',
+            title: 'Set value',
             body,
             footer,
             focusInput: true,
@@ -2325,19 +2325,19 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
 
         const body = `
             <div class="ionc-dialog-info">
-                Датчик: <strong>${escapeHtml(sensor.name)}</strong> (ID: ${sensorId})<br>
-                Текущее значение: <strong>${sensor.value}</strong>
+                Sensor: <strong>${escapeHtml(sensor.name)}</strong> (ID: ${sensorId})<br>
+                Current value: <strong>${sensor.value}</strong>
             </div>
             <div class="ionc-dialog-field">
-                <label for="ionc-freeze-value">Значение заморозки:</label>
+                <label for="ionc-freeze-value">Freeze value:</label>
                 <input type="number" id="ionc-freeze-value" value="${sensor.value}">
-                <div class="ionc-dialog-hint">Двойной клик на ❄ — быстрая заморозка на текущем значении</div>
+                <div class="ionc-dialog-hint">Double click on ❄ — quick freeze at current value</div>
             </div>
         `;
 
         const footer = `
-            <button class="ionc-dialog-btn ionc-dialog-btn-cancel" onclick="closeIoncDialog()">Отмена</button>
-            <button class="ionc-dialog-btn ionc-dialog-btn-freeze" id="ionc-freeze-confirm">❄ Заморозить</button>
+            <button class="ionc-dialog-btn ionc-dialog-btn-cancel" onclick="closeIoncDialog()">Cancel</button>
+            <button class="ionc-dialog-btn ionc-dialog-btn-freeze" id="ionc-freeze-confirm">❄ Freeze</button>
         `;
 
         const doFreeze = async () => {
@@ -2345,7 +2345,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
             const value = parseInt(input.value, 10);
 
             if (isNaN(value)) {
-                showIoncDialogError('Введите целое число');
+                showIoncDialogError('Enter an integer');
                 input.classList.add('error');
                 return;
             }
@@ -2369,12 +2369,12 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                 self.reRenderSensorRow(sensorId);
                 closeIoncDialog();
             } catch (err) {
-                showIoncDialogError(`Ошибка: ${err.message}`);
+                showIoncDialogError(`Error: ${err.message}`);
             }
         };
 
         openIoncDialog({
-            title: 'Заморозить датчик',
+            title: 'Freeze sensor',
             body,
             footer,
             focusInput: true,
@@ -2406,7 +2406,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
             this.addFreezeCooldown(sensorId); // Игнорируем SSE обновления на 3 сек
             this.reRenderSensorRow(sensorId);
         } catch (err) {
-            showIoncDialogError(`Ошибка: ${err.message}`);
+            showIoncDialogError(`Error: ${err.message}`);
         }
     }
 
@@ -2423,24 +2423,24 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
 
         const body = `
             <div class="ionc-dialog-info">
-                Датчик: <strong>${escapeHtml(sensor.name)}</strong> (ID: ${sensorId})
+                Sensor: <strong>${escapeHtml(sensor.name)}</strong> (ID: ${sensorId})
             </div>
             <div class="ionc-unfreeze-values">
                 <div class="ionc-unfreeze-row">
-                    <span class="ionc-unfreeze-label">Реальное значение (SM):</span>
+                    <span class="ionc-unfreeze-label">Real value (SM):</span>
                     <span class="ionc-unfreeze-value">${realValue}</span>
                 </div>
                 <div class="ionc-unfreeze-row">
-                    <span class="ionc-unfreeze-label">Замороженное значение:</span>
+                    <span class="ionc-unfreeze-label">Frozen value:</span>
                     <span class="ionc-unfreeze-value ionc-unfreeze-frozen">${frozenValue}❄</span>
                 </div>
             </div>
-            <div class="ionc-dialog-hint">После разморозки датчик вернётся к реальному значению</div>
+            <div class="ionc-dialog-hint">After unfreezing, the sensor will return to its real value</div>
         `;
 
         const footer = `
-            <button class="ionc-dialog-btn ionc-dialog-btn-cancel" onclick="closeIoncDialog()">Отмена</button>
-            <button class="ionc-dialog-btn ionc-dialog-btn-unfreeze" id="ionc-unfreeze-confirm">🔥 Разморозить</button>
+            <button class="ionc-dialog-btn ionc-dialog-btn-cancel" onclick="closeIoncDialog()">Cancel</button>
+            <button class="ionc-dialog-btn ionc-dialog-btn-unfreeze" id="ionc-unfreeze-confirm">🔥 Unfreeze</button>
         `;
 
         const doUnfreeze = async () => {
@@ -2466,12 +2466,12 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                 self.reRenderSensorRow(sensorId);
                 closeIoncDialog();
             } catch (err) {
-                showIoncDialogError(`Ошибка: ${err.message}`);
+                showIoncDialogError(`Error: ${err.message}`);
             }
         };
 
         openIoncDialog({
-            title: 'Разморозить датчик',
+            title: 'Unfreeze sensor',
             body,
             footer,
             focusInput: false,
@@ -2507,7 +2507,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
             }
             this.reRenderSensorRow(sensorId);
         } catch (err) {
-            showIoncDialogError(`Ошибка: ${err.message}`);
+            showIoncDialogError(`Error: ${err.message}`);
         }
     }
 
@@ -2579,17 +2579,17 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
         // Показываем диалог с индикатором загрузки
         const loadingBody = `
             <div class="ionc-dialog-info">
-                Датчик: <strong>${escapeHtml(sensor.name)}</strong> (ID: ${sensorId})
+                Sensor: <strong>${escapeHtml(sensor.name)}</strong> (ID: ${sensorId})
             </div>
-            <div class="ionc-dialog-empty">Загрузка подписчиков...</div>
+            <div class="ionc-dialog-empty">Loading подписчиков...</div>
         `;
 
         const footer = `
-            <button class="ionc-dialog-btn ionc-dialog-btn-cancel" onclick="closeIoncDialog()">Закрыть</button>
+            <button class="ionc-dialog-btn ionc-dialog-btn-cancel" onclick="closeIoncDialog()">Close</button>
         `;
 
         openIoncDialog({
-            title: 'Подписчики датчика',
+            title: 'Sensor consumers',
             body: loadingBody,
             footer,
             focusInput: false
@@ -2608,9 +2608,9 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
             if (consumers.length === 0) {
                 contentHtml = `
                     <div class="ionc-dialog-info">
-                        Датчик: <strong>${escapeHtml(sensor.name)}</strong> (ID: ${sensorId})
+                        Sensor: <strong>${escapeHtml(sensor.name)}</strong> (ID: ${sensorId})
                     </div>
-                    <div class="ionc-dialog-empty">Нет подписчиков</div>
+                    <div class="ionc-dialog-empty">No consumers</div>
                 `;
             } else {
                 const rows = consumers.map(c => `
@@ -2623,7 +2623,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
 
                 contentHtml = `
                     <div class="ionc-dialog-info">
-                        Датчик: <strong>${escapeHtml(sensor.name)}</strong> (ID: ${sensorId})<br>
+                        Sensor: <strong>${escapeHtml(sensor.name)}</strong> (ID: ${sensorId})<br>
                         Подписчиков: <strong>${consumers.length}</strong>
                     </div>
                     <div class="ionc-dialog-consumers">
@@ -2631,7 +2631,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                             <thead>
                                 <tr>
                                     <th style="width: 60px">ID</th>
-                                    <th>Имя</th>
+                                    <th>Name</th>
                                     <th style="width: 80px">Узел</th>
                                 </tr>
                             </thead>
@@ -2643,7 +2643,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
 
             document.getElementById('ionc-dialog-body').innerHTML = contentHtml;
         } catch (err) {
-            showIoncDialogError(`Ошибка: ${err.message}`);
+            showIoncDialogError(`Error: ${err.message}`);
         }
     }
 
@@ -2663,7 +2663,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
 
             if (listEl) {
                 if (lost.length === 0) {
-                    listEl.innerHTML = '<span class="ionc-lost-empty">Нет потерянных подписчиков</span>';
+                    listEl.innerHTML = '<span class="ionc-lost-empty">No lost consumers</span>';
                 } else {
                     listEl.innerHTML = lost.map(c =>
                         `<div class="ionc-lost-item">${escapeHtml(c.name)} (ID: ${c.id})</div>`
@@ -2703,7 +2703,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
         }
     }
 
-    // Добавить датчик в cooldown после freeze/unfreeze
+    // Add sensor в cooldown после freeze/unfreeze
     addFreezeCooldown(sensorId, durationMs = 3000) {
         this.freezeCooldowns.add(sensorId);
         setTimeout(() => {
@@ -2807,11 +2807,11 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
         this.paramNames = [...this.readonlyParams, ...this.writableParams];
         // Режимы обмена
         this.exchangeModes = [
-            { value: 0, name: 'emNone', label: 'Нормальный' },
-            { value: 1, name: 'emWriteOnly', label: 'Только запись' },
-            { value: 2, name: 'emReadOnly', label: 'Только чтение' },
-            { value: 3, name: 'emSkipSaveToSM', label: 'Не писать в SM' },
-            { value: 4, name: 'emSkipExchange', label: 'Отключить обмен' }
+            { value: 0, name: 'emNone', label: 'Normal' },
+            { value: 1, name: 'emWriteOnly', label: 'Write only' },
+            { value: 2, name: 'emReadOnly', label: 'Read only' },
+            { value: 3, name: 'emSkipSaveToSM', label: 'Skip save to SM' },
+            { value: 4, name: 'emSkipExchange', label: 'Disable exchange' }
         ];
         this.diagnostics = null;
         this.loadingNote = '';
@@ -2925,7 +2925,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
             ${this.createStatusHeaderExtra()}
             <div class="header-channels" id="opcua-header-channels-${this.objectName}" onclick="event.stopPropagation()"></div>
         `;
-        return this.createCollapsibleSection('opcua-status', 'Статус OPC UA', `
+        return this.createCollapsibleSection('opcua-status', 'OPC UA Status', `
             <div class="opcua-actions">
                 <span class="opcua-note" id="opcua-status-note-${this.objectName}"></span>
             </div>
@@ -2938,23 +2938,23 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
         const headerIndicators = `
             <div class="header-indicators" id="opcua-control-indicators-${this.objectName}" onclick="event.stopPropagation()">
                 <div class="header-indicator">
-                    <span class="header-indicator-label">Разрешён</span>
+                    <span class="header-indicator-label">Allowed</span>
                     <span class="header-indicator-dot" id="opcua-ind-allow-${this.objectName}"></span>
                 </div>
                 <div class="header-indicator">
-                    <span class="header-indicator-label">Активен</span>
+                    <span class="header-indicator-label">Active</span>
                     <span class="header-indicator-dot" id="opcua-ind-active-${this.objectName}"></span>
                 </div>
                 <div class="header-indicator">
-                    <span class="header-indicator-label">Параметры</span>
+                    <span class="header-indicator-label">Parameters</span>
                     <span class="header-indicator-dot" id="opcua-ind-params-${this.objectName}"></span>
                 </div>
             </div>
         `;
-        return this.createCollapsibleSection('opcua-control', 'HTTP-контроль', `
+        return this.createCollapsibleSection('opcua-control', 'HTTP Control', `
             <div class="opcua-actions">
-                <button class="btn" id="opcua-control-take-${this.objectName}">Перехватить</button>
-                <button class="btn" id="opcua-control-release-${this.objectName}">Вернуть</button>
+                <button class="btn" id="opcua-control-take-${this.objectName}">Take control</button>
+                <button class="btn" id="opcua-control-release-${this.objectName}">Release</button>
                 <span class="opcua-note" id="opcua-control-note-${this.objectName}"></span>
             </div>
         `, { sectionId: `opcua-control-section-${this.objectName}`, headerExtra: headerIndicators });
@@ -2962,23 +2962,23 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
 
     createOPCUAParamsSection() {
         const headerIndicator = `
-            <span class="header-indicator-dot fail" id="opcua-ind-params-${this.objectName}" onclick="event.stopPropagation()" title="Параметры: загрузка..."></span>
+            <span class="header-indicator-dot fail" id="opcua-ind-params-${this.objectName}" onclick="event.stopPropagation()" title="Parameters: loading..."></span>
         `;
-        return this.createCollapsibleSection('opcua-params', 'Параметры обмена', `
+        return this.createCollapsibleSection('opcua-params', 'Exchange Parameters', `
             <div class="opcua-actions">
-                <button class="btn" id="opcua-params-refresh-${this.objectName}">Перезагрузить</button>
-                <button class="btn primary" id="opcua-params-save-${this.objectName}">Применить</button>
+                <button class="btn" id="opcua-params-refresh-${this.objectName}">Refresh</button>
+                <button class="btn primary" id="opcua-params-save-${this.objectName}">Apply</button>
                 <span class="opcua-note" id="opcua-params-note-${this.objectName}"></span>
             </div>
             <div class="opcua-params-grid">
                 <div class="opcua-params-column">
-                    <div class="opcua-params-subtitle">Статус</div>
+                    <div class="opcua-params-subtitle">Status</div>
                     <table class="variables-table opcua-params-table compact">
                         <tbody id="opcua-params-readonly-${this.objectName}"></tbody>
                     </table>
                 </div>
                 <div class="opcua-params-column">
-                    <div class="opcua-params-subtitle">Настройки</div>
+                    <div class="opcua-params-subtitle">Settings</div>
                     <table class="variables-table opcua-params-table">
                         <tbody id="opcua-params-writable-${this.objectName}"></tbody>
                     </table>
@@ -2988,18 +2988,18 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
     }
 
     createOPCUASensorsSection() {
-        return this.createCollapsibleSection('opcua-sensors', 'Датчики', `
+        return this.createCollapsibleSection('opcua-sensors', 'Sensors', `
             <div class="filter-bar opcua-actions">
-                <input type="text" class="filter-input" id="opcua-sensors-filter-${this.objectName}" placeholder="Фильтр по имени...">
+                <input type="text" class="filter-input" id="opcua-sensors-filter-${this.objectName}" placeholder="Filter by name...">
                 <select class="type-filter" id="opcua-type-filter-${this.objectName}">
-                    <option value="all">Все типы</option>
+                    <option value="all">All types</option>
                     <option value="AI">AI</option>
                     <option value="AO">AO</option>
                     <option value="DI">DI</option>
                     <option value="DO">DO</option>
                 </select>
                 <select class="type-filter" id="opcua-status-filter-${this.objectName}">
-                    <option value="all">Все статусы</option>
+                    <option value="all">All statuses</option>
                     <option value="ok">Ok</option>
                     <option value="bad">Bad</option>
                 </select>
@@ -3014,9 +3014,9 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
                             <tr>
                                 <th class="col-chart"></th>
                                 <th class="col-id">ID</th>
-                                <th class="col-name">Имя</th>
-                                <th class="col-type">Тип</th>
-                                <th class="col-value">Значение</th>
+                                <th class="col-name">Name</th>
+                                <th class="col-type">Type</th>
+                                <th class="col-value">Value</th>
                                 <th class="col-tick">Tick</th>
                                 <th class="col-vtype">VType</th>
                                 <th class="col-precision">Precision</th>
@@ -3025,7 +3025,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
                         </thead>
                         <tbody id="opcua-sensors-${this.objectName}"></tbody>
                     </table>
-                    <div class="opcua-loading-more" id="opcua-loading-more-${this.objectName}" style="display: none;">Загрузка...</div>
+                    <div class="opcua-loading-more" id="opcua-loading-more-${this.objectName}" style="display: none;">Loading...</div>
                 </div>
                 <div class="opcua-sensor-details" id="opcua-sensor-details-${this.objectName}"></div>
             </div>
@@ -3034,7 +3034,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
     }
 
     createOPCUADiagnosticsSection() {
-        return this.createCollapsibleSection('opcua-diagnostics', 'Диагностика', `
+        return this.createCollapsibleSection('opcua-diagnostics', 'Diagnostics', `
             <div class="opcua-actions">
                 <span class="opcua-note" id="opcua-diagnostics-note-${this.objectName}"></span>
             </div>
@@ -3071,7 +3071,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
         if (headerChannels) headerChannels.innerHTML = '';
 
         if (!this.status) {
-            statsContainer.innerHTML = '<span class="text-muted">Нет данных</span>';
+            statsContainer.innerHTML = '<span class="text-muted">No data</span>';
             return;
         }
 
@@ -3088,7 +3088,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
 
         statsContainer.innerHTML = `
             <div class="opcua-stat-item">
-                <span class="opcua-stat-label">Подписка:</span>
+                <span class="opcua-stat-label">Subscription:</span>
                 <span class="opcua-stat-value">${this.formatSubscription(status)}</span>
             </div>
             <div class="opcua-stat-item">
@@ -3096,7 +3096,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
                 <span class="opcua-stat-value">${ioSize}</span>
             </div>
             <div class="opcua-stat-item">
-                <span class="opcua-stat-label">Ошибок:</span>
+                <span class="opcua-stat-label">Errors:</span>
                 <span class="opcua-stat-indicator ${errDotClass}"></span>
                 <span class="opcua-stat-value">${errCount}/${errMax}</span>
             </div>
@@ -3113,7 +3113,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
                     </div>
                 `).join('');
                 monitorContainer.innerHTML = `
-                    <div class="opcua-monitor-title">Параметры</div>
+                    <div class="opcua-monitor-title">Parameters</div>
                     <div class="opcua-monitor-items">${gridHtml}</div>
                 `;
             }
@@ -3124,11 +3124,11 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
             const channelsHtml = status.channels.map(ch => {
                 const ok = ch.ok || ch.status === 'OK';
                 const addr = ch.addr || ch.address || '';
-                const disabled = ch.disabled ? ' (откл.)' : '';
+                const disabled = ch.disabled ? ' (disabled)' : '';
                 const channelNum = (ch.index ?? 0) + 1;
                 return `
                     <div class="header-channel ${ok ? 'ok' : 'fail'}" title="${addr}${disabled}">
-                        <span class="header-channel-name">Канал ${channelNum}</span>
+                        <span class="header-channel-name">Channel ${channelNum}</span>
                         <span class="header-channel-dot"></span>
                     </div>
                 `;
@@ -3155,7 +3155,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
         const allow = this.status?.httpControlAllow;
         const active = this.status?.httpControlActive;
         const enabledParams = this.status?.httpEnabledSetParams;
-        const allowText = allow ? 'Перехватить' : 'Контроль запрещён';
+        const allowText = allow ? 'Take control' : 'Control not allowed';
 
         // Обновляем индикаторы в шапке
         const indAllow = document.getElementById(`opcua-ind-allow-${this.objectName}`);
@@ -3164,15 +3164,15 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
 
         if (indAllow) {
             indAllow.className = `header-indicator-dot ${allow ? 'ok' : 'fail'}`;
-            indAllow.title = allow ? 'Разрешён: Да' : 'Разрешён: Нет';
+            indAllow.title = allow ? 'Allowed: Yes' : 'Allowed: No';
         }
         if (indActive) {
             indActive.className = `header-indicator-dot ${active ? 'ok' : 'fail'}`;
-            indActive.title = active ? 'Активен: Да' : 'Активен: Нет';
+            indActive.title = active ? 'Active: Yes' : 'Active: No';
         }
         if (indParams) {
             indParams.className = `header-indicator-dot ${enabledParams ? 'ok' : 'fail'}`;
-            indParams.title = enabledParams ? 'Параметры: Да' : 'Параметры: Нет';
+            indParams.title = enabledParams ? 'Parameters: Yes' : 'Parameters: No';
         }
 
         // Обновляем кнопки
@@ -3191,7 +3191,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
     formatSubscription(status) {
         if (status.subscription) {
             const sub = status.subscription;
-            const enabled = sub.enabled ? 'Вкл' : 'Выкл';
+            const enabled = sub.enabled ? 'On' : 'Off';
             const items = sub.items !== undefined ? ` · items: ${sub.items}` : '';
             return `${enabled}${items}`;
         }
@@ -3225,24 +3225,24 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
         writableTbody.innerHTML = '';
 
         if (!this.params || Object.keys(this.params).length === 0) {
-            readonlyTbody.innerHTML = '<tr><td colspan="2" class="text-muted">Нет данных</td></tr>';
-            writableTbody.innerHTML = '<tr><td colspan="2" class="text-muted">Нет данных</td></tr>';
+            readonlyTbody.innerHTML = '<tr><td colspan="2" class="text-muted">No data</td></tr>';
+            writableTbody.innerHTML = '<tr><td colspan="2" class="text-muted">No data</td></tr>';
             return;
         }
 
         // Человекочитаемые названия параметров
         const paramLabels = {
-            currentChannel: 'Активный канал',
-            connectCount: 'Подключений',
-            activated: 'Активирован',
-            iolistSize: 'Размер I/O',
-            errorHistoryMax: 'Макс. ошибок',
-            polltime: 'Период опроса (мс)',
-            updatetime: 'Период обновления (мс)',
-            reconnectPause: 'Пауза переподключения (мс)',
-            timeoutIterate: 'Таймаут итерации (мс)',
-            writeToAllChannels: 'Писать во все каналы',
-            exchangeMode: 'Режим обмена'
+            currentChannel: 'Active channel',
+            connectCount: 'Connections',
+            activated: 'Activated',
+            iolistSize: 'I/O size',
+            errorHistoryMax: 'Max errors',
+            polltime: 'Poll interval (ms)',
+            updatetime: 'Update interval (ms)',
+            reconnectPause: 'Reconnect pause (ms)',
+            timeoutIterate: 'Iteration timeout (ms)',
+            writeToAllChannels: 'Write to all channels',
+            exchangeMode: 'Exchange mode'
         };
 
         // Readonly параметры (только отображение)
@@ -3252,7 +3252,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
             let displayValue = current !== undefined ? formatValue(current) : '—';
             // Форматируем activated как Да/Нет
             if (name === 'activated') {
-                displayValue = current ? 'Да' : 'Нет';
+                displayValue = current ? 'Yes' : 'No';
             }
             tr.innerHTML = `
                 <td class="variable-name">${paramLabels[name] || name}</td>
@@ -3275,7 +3275,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
                     const selected = current === m.value ? 'selected' : '';
                     return `<option value="${m.value}" ${selected}>${m.label}</option>`;
                 }).join('');
-                const disabled = httpControlActive ? '' : 'disabled title="Требуется HTTP-контроль"';
+                const disabled = httpControlActive ? '' : 'disabled title="HTTP control required"';
                 inputHtml = `<select class="opcua-param-input param-field" data-name="${name}" ${disabled}>${options}</select>`;
                 tr.className = 'param-row-primary';
             } else if (name === 'writeToAllChannels') {
@@ -3331,7 +3331,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
         });
 
         if (Object.keys(changed).length === 0) {
-            this.setNote(`opcua-params-note-${this.objectName}`, 'Нет изменений');
+            this.setNote(`opcua-params-note-${this.objectName}`, 'No changes');
             return;
         }
 
@@ -3346,7 +3346,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
             );
             this.params = { ...this.params, ...(data.updated || {}) };
             this.renderParams();
-            this.setNote(`opcua-params-note-${this.objectName}`, 'Параметры применены');
+            this.setNote(`opcua-params-note-${this.objectName}`, 'Parameters applied');
             this.loadStatus();
         } catch (err) {
             this.setNote(`opcua-params-note-${this.objectName}`, err.message, true);
@@ -3518,7 +3518,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
 
         // Show empty state if no sensors
         if (this.allSensors.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9" class="opcua-no-sensors">Нет сенсоров</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="opcua-no-sensors">No sensors</td></tr>';
             return;
         }
 
@@ -3610,7 +3610,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
         if (!container) return;
 
         if (!sensor) {
-            container.innerHTML = '<div class="text-muted">Сенсор не найден</div>';
+            container.innerHTML = '<div class="text-muted">Sensor not found</div>';
             return;
         }
 
@@ -3625,8 +3625,8 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
                 <div class="opcua-sensor-title">${escapeHtml(sensor.name || '')} (${sensor.id})</div>
                 <div class="opcua-sensor-grid">
                     <div><span class="opcua-sensor-label">NodeId:</span> ${escapeHtml(sensor.nodeid || '—')}</div>
-                    <div><span class="opcua-sensor-label">Тип:</span> ${sensor.iotype || sensor.type || '—'}</div>
-                    <div><span class="opcua-sensor-label">Значение:</span> ${sensor.value ?? '—'}</div>
+                    <div><span class="opcua-sensor-label">Type:</span> ${sensor.iotype || sensor.type || '—'}</div>
+                    <div><span class="opcua-sensor-label">Value:</span> ${sensor.value ?? '—'}</div>
                     <div><span class="opcua-sensor-label">Tick:</span> ${sensor.tick ?? '—'}</div>
                     <div><span class="opcua-sensor-label">VType:</span> ${sensor.vtype || '—'}</div>
                     <div><span class="opcua-sensor-label">Precision:</span> ${sensor.precision ?? '—'}</div>
@@ -3653,7 +3653,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
         if (!container) return;
 
         if (!this.diagnostics) {
-            container.innerHTML = '<div class="text-muted">Нет данных</div>';
+            container.innerHTML = '<div class="text-muted">No data</div>';
             return;
         }
 
@@ -3667,7 +3667,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
         html += '</div>';
 
         if (errors.length > 0) {
-            html += '<table class="variables-table opcua-errors-table"><thead><tr><th>Время</th><th>Последний</th><th>Кол-во</th><th>Канал</th><th>Операция</th><th>StatusCode</th><th>NodeId</th></tr></thead><tbody>';
+            html += '<table class="variables-table opcua-errors-table"><thead><tr><th>Time</th><th>Last</th><th>Count</th><th>Channel</th><th>Operation</th><th>StatusCode</th><th>NodeId</th></tr></thead><tbody>';
             errors.forEach(err => {
                 html += `<tr>
                     <td>${err.time || ''}</td>
@@ -3681,7 +3681,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
             });
             html += '</tbody></table>';
         } else {
-            html += '<div class="text-muted">Ошибок нет</div>';
+            html += '<div class="text-muted">No errors</div>';
         }
 
         container.innerHTML = html;
@@ -3727,13 +3727,13 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
 
     async takeControl() {
         if (this.status && this.status.httpControlAllow === false) {
-            this.setNote(`opcua-control-note-${this.objectName}`, 'Контроль запрещён', true);
+            this.setNote(`opcua-control-note-${this.objectName}`, 'Control not allowed', true);
             return;
         }
 
         try {
             await this.fetchJSON(`/api/objects/${encodeURIComponent(this.objectName)}/opcua/control/take`, { method: 'POST' });
-            this.setNote(`opcua-control-note-${this.objectName}`, 'HTTP контроль активирован');
+            this.setNote(`opcua-control-note-${this.objectName}`, 'HTTP control activated');
             this.loadStatus();
         } catch (err) {
             this.setNote(`opcua-control-note-${this.objectName}`, err.message, true);
@@ -3742,13 +3742,13 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
 
     async releaseControl() {
         if (this.status && this.status.httpControlAllow === false) {
-            this.setNote(`opcua-control-note-${this.objectName}`, 'Контроль запрещён', true);
+            this.setNote(`opcua-control-note-${this.objectName}`, 'Control not allowed', true);
             return;
         }
 
         try {
             await this.fetchJSON(`/api/objects/${encodeURIComponent(this.objectName)}/opcua/control/release`, { method: 'POST' });
-            this.setNote(`opcua-control-note-${this.objectName}`, 'Контроль возвращён сенсору');
+            this.setNote(`opcua-control-note-${this.objectName}`, 'Control returned to sensor');
             this.loadStatus();
         } catch (err) {
             this.setNote(`opcua-control-note-${this.objectName}`, err.message, true);
@@ -3969,7 +3969,7 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
     }
 
     createMBStatusSection() {
-        return this.createCollapsibleSection('mb-status', 'Статус Modbus', `
+        return this.createCollapsibleSection('mb-status', 'Modbus Status', `
             <div class="mb-actions">
                 <span class="mb-note" id="mb-status-note-${this.objectName}"></span>
             </div>
@@ -3980,19 +3980,19 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
     }
 
     createMBParamsSection() {
-        return this.createCollapsibleSection('mb-params', 'Параметры обмена', `
+        return this.createCollapsibleSection('mb-params', 'Exchange Parameters', `
             <div class="mb-actions">
                 <button class="btn" id="mb-params-refresh-${this.objectName}">Перезагрузить</button>
-                <button class="btn primary" id="mb-params-save-${this.objectName}">Применить</button>
+                <button class="btn primary" id="mb-params-save-${this.objectName}">Apply</button>
                 <span class="mb-note" id="mb-params-note-${this.objectName}"></span>
             </div>
             <div class="mb-params-table-wrapper">
                 <table class="variables-table mb-params-table">
                     <thead>
                         <tr>
-                            <th>Параметр</th>
-                            <th>Текущее</th>
-                            <th>Новое значение</th>
+                            <th>Parameter</th>
+                            <th>Current</th>
+                            <th>New value</th>
                         </tr>
                     </thead>
                     <tbody id="mb-params-${this.objectName}"></tbody>
@@ -4002,7 +4002,7 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
     }
 
     createMBDevicesSection() {
-        return this.createCollapsibleSection('mb-devices', 'Устройства (Slaves)', `
+        return this.createCollapsibleSection('mb-devices', 'Devices (Slaves)', `
             <div class="mb-actions">
                 <span class="mb-device-count" id="mb-device-count-${this.objectName}">0</span>
                 <span class="mb-note" id="mb-devices-note-${this.objectName}"></span>
@@ -4012,11 +4012,11 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
     }
 
     createMBRegistersSection() {
-        return this.createCollapsibleSection('mb-registers', 'Регистры', `
+        return this.createCollapsibleSection('mb-registers', 'Registers', `
             <div class="filter-bar mb-actions">
-                <input type="text" class="filter-input" id="mb-registers-filter-${this.objectName}" placeholder="Фильтр по имени...">
+                <input type="text" class="filter-input" id="mb-registers-filter-${this.objectName}" placeholder="Filter by name...">
                 <select class="type-filter" id="mb-type-filter-${this.objectName}">
-                    <option value="all">Все типы</option>
+                    <option value="all">All types</option>
                     <option value="AI">AI</option>
                     <option value="AO">AO</option>
                     <option value="DI">DI</option>
@@ -4033,18 +4033,18 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
                             <tr>
                                 <th class="col-chart"></th>
                                 <th class="col-id">ID</th>
-                                <th class="col-name">Имя</th>
-                                <th class="col-type">Тип</th>
+                                <th class="col-name">Name</th>
+                                <th class="col-type">Type</th>
                                 <th class="col-device">Устройство</th>
                                 <th class="col-register">Регистр</th>
                                 <th class="col-func">Функция</th>
-                                <th class="col-value">Значение</th>
+                                <th class="col-value">Value</th>
                                 <th class="col-mbval">MB Val</th>
                             </tr>
                         </thead>
                         <tbody id="mb-registers-tbody-${this.objectName}"></tbody>
                     </table>
-                    <div class="mb-loading-more" id="mb-loading-more-${this.objectName}" style="display: none;">Загрузка...</div>
+                    <div class="mb-loading-more" id="mb-loading-more-${this.objectName}" style="display: none;">Loading...</div>
                 </div>
             </div>
             <div class="resize-handle" id="mb-registers-resize-${this.objectName}"></div>
@@ -4071,16 +4071,16 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
         tbody.innerHTML = '';
 
         if (!this.status) {
-            tbody.innerHTML = '<tr><td colspan="2" class="text-muted">Нет данных</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="2" class="text-muted">No data</td></tr>';
             return;
         }
 
         const status = this.status;
         const rows = [
-            { label: 'Имя', value: status.name },
+            { label: 'Name', value: status.name },
             { label: 'Monitor', value: status.monitor },
             { label: 'Activated', value: status.activated },
-            { label: 'Режим', value: status.mode?.name || status.exchangeMode },
+            { label: 'Mode', value: status.mode?.name || status.exchangeMode },
             { label: 'force', value: status.force },
             { label: 'force_out', value: status.force_out },
             { label: 'maxHeartBeat', value: status.maxHeartBeat },
@@ -4145,7 +4145,7 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
         });
 
         if (Object.keys(params).length === 0) {
-            this.setNote(`mb-params-note-${this.objectName}`, 'Нет изменений');
+            this.setNote(`mb-params-note-${this.objectName}`, 'No changes');
             return;
         }
 
@@ -4155,7 +4155,7 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ params })
             });
-            this.setNote(`mb-params-note-${this.objectName}`, 'Сохранено');
+            this.setNote(`mb-params-note-${this.objectName}`, 'Saved');
             this.loadParams();
         } catch (err) {
             this.setNote(`mb-params-note-${this.objectName}`, err.message, true);
@@ -4179,11 +4179,11 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
         if (!container) return;
 
         if (countEl) {
-            countEl.textContent = `${this.devices.length} устройств`;
+            countEl.textContent = `${this.devices.length} devices`;
         }
 
         if (this.devices.length === 0) {
-            container.innerHTML = '<div class="text-muted">Нет устройств</div>';
+            container.innerHTML = '<div class="text-muted">No devices</div>';
             return;
         }
 
@@ -4191,18 +4191,18 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
             <table class="variables-table mb-devices-table">
                 <thead>
                     <tr>
-                        <th>Адрес</th>
-                        <th>Статус</th>
-                        <th>Тип</th>
-                        <th>Регистров</th>
-                        <th>Режим</th>
+                        <th>Address</th>
+                        <th>Status</th>
+                        <th>Type</th>
+                        <th>Registers</th>
+                        <th>Mode</th>
                         <th>SafeMode</th>
                     </tr>
                 </thead>
                 <tbody>
                     ${this.devices.map(dev => {
                         const respondClass = dev.respond ? '' : 'status-bad';
-                        const respondText = dev.respond ? 'Ok' : 'Нет ответа';
+                        const respondText = dev.respond ? 'Ok' : 'No response';
                         return `
                             <tr>
                                 <td>${dev.addr}</td>
@@ -4415,7 +4415,7 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
 
             const update = updateMap.get(reg.id);
             if (update && update.value !== undefined) {
-                // В ModbusMaster значение в 7-й ячейке (Значение), MB Val в 8-й
+                // В ModbusMaster значение в 7-й ячейке (Value), MB Val в 8-й
                 const valueCell = row.querySelector('td:nth-child(7)');
                 if (valueCell) {
                     const oldValue = valueCell.textContent;
@@ -4575,7 +4575,7 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
     }
 
     createMBSStatusSection() {
-        return this.createCollapsibleSection('mbs-status', 'Статус ModbusSlave', `
+        return this.createCollapsibleSection('mbs-status', 'ModbusSlave Status', `
             <div class="mb-actions">
                 <span class="mb-note" id="mbs-status-note-${this.objectName}"></span>
             </div>
@@ -4601,19 +4601,19 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
     }
 
     createMBSParamsSection() {
-        return this.createCollapsibleSection('mbs-params', 'Параметры', `
+        return this.createCollapsibleSection('mbs-params', 'Parameters', `
             <div class="mb-actions">
-                <button class="btn" id="mbs-params-refresh-${this.objectName}">Перезагрузить</button>
-                <button class="btn primary" id="mbs-params-save-${this.objectName}">Применить</button>
+                <button class="btn" id="mbs-params-refresh-${this.objectName}">Refresh</button>
+                <button class="btn primary" id="mbs-params-save-${this.objectName}">Apply</button>
                 <span class="mb-note" id="mbs-params-note-${this.objectName}"></span>
             </div>
             <div class="mb-params-table-wrapper">
                 <table class="variables-table mb-params-table">
                     <thead>
                         <tr>
-                            <th>Параметр</th>
-                            <th>Текущее</th>
-                            <th>Новое значение</th>
+                            <th>Parameter</th>
+                            <th>Current</th>
+                            <th>New value</th>
                         </tr>
                     </thead>
                     <tbody id="mbs-params-${this.objectName}"></tbody>
@@ -4623,11 +4623,11 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
     }
 
     createMBSRegistersSection() {
-        return this.createCollapsibleSection('mbs-registers', 'Регистры', `
+        return this.createCollapsibleSection('mbs-registers', 'Registers', `
             <div class="filter-bar mb-actions">
-                <input type="text" class="filter-input" id="mbs-registers-filter-${this.objectName}" placeholder="Фильтр по имени...">
+                <input type="text" class="filter-input" id="mbs-registers-filter-${this.objectName}" placeholder="Filter by name...">
                 <select class="type-filter" id="mbs-type-filter-${this.objectName}">
-                    <option value="all">Все типы</option>
+                    <option value="all">All types</option>
                     <option value="AI">AI</option>
                     <option value="AO">AO</option>
                     <option value="DI">DI</option>
@@ -4644,18 +4644,18 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
                             <tr>
                                 <th class="col-chart"></th>
                                 <th class="col-id">ID</th>
-                                <th class="col-name">Имя</th>
-                                <th class="col-type">Тип</th>
+                                <th class="col-name">Name</th>
+                                <th class="col-type">Type</th>
                                 <th class="col-mbaddr">MB Addr</th>
-                                <th class="col-register">Регистр</th>
-                                <th class="col-func">Функция</th>
-                                <th class="col-access">Доступ</th>
-                                <th class="col-value">Значение</th>
+                                <th class="col-register">Register</th>
+                                <th class="col-func">Function</th>
+                                <th class="col-access">Access</th>
+                                <th class="col-value">Value</th>
                             </tr>
                         </thead>
                         <tbody id="mbs-registers-tbody-${this.objectName}"></tbody>
                     </table>
-                    <div class="mb-loading-more" id="mbs-loading-more-${this.objectName}" style="display: none;">Загрузка...</div>
+                    <div class="mb-loading-more" id="mbs-loading-more-${this.objectName}" style="display: none;">Loading...</div>
                 </div>
             </div>
             <div class="resize-handle" id="mbs-registers-resize-${this.objectName}"></div>
@@ -4682,14 +4682,14 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
         tbody.innerHTML = '';
 
         if (!this.status) {
-            tbody.innerHTML = '<tr><td colspan="2" class="text-muted">Нет данных</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="2" class="text-muted">No data</td></tr>';
             this.renderTcpSessions();
             return;
         }
 
         const status = this.status;
         const rows = [
-            { label: 'Имя', value: status.name },
+            { label: 'Name', value: status.name },
             { label: 'TCP', value: status.tcp ? `${status.tcp.ip}:${status.tcp.port}` : null },
             { label: 'force', value: status.force },
             { label: 'sockTimeout', value: status.sockTimeout },
@@ -4706,7 +4706,7 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
 
         // Обслуживаемые адреса
         if (status.myaddr) {
-            rows.push({ label: 'MB адреса', value: status.myaddr });
+            rows.push({ label: 'MB addresses', value: status.myaddr });
         }
 
         rows.forEach(row => {
@@ -4731,7 +4731,7 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
 
         const sessions = this.status?.tcp_sessions;
         if (!sessions || !sessions.items || sessions.items.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="2" class="text-muted">Нет активных сессий</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="2" class="text-muted">No active sessions</td></tr>';
             if (info) info.innerHTML = '';
             return;
         }
@@ -4746,7 +4746,7 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
         });
 
         if (info) {
-            info.innerHTML = `<span class="text-muted">Сессий: ${sessions.count} / ${sessions.max_sessions}</span>`;
+            info.innerHTML = `<span class="text-muted">Sessions: ${sessions.count} / ${sessions.max_sessions}</span>`;
         }
     }
 
@@ -4796,7 +4796,7 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
         });
 
         if (Object.keys(params).length === 0) {
-            this.setNote(`mbs-params-note-${this.objectName}`, 'Нет изменений');
+            this.setNote(`mbs-params-note-${this.objectName}`, 'No changes');
             return;
         }
 
@@ -4806,7 +4806,7 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ params })
             });
-            this.setNote(`mbs-params-note-${this.objectName}`, 'Сохранено');
+            this.setNote(`mbs-params-note-${this.objectName}`, 'Saved');
             this.loadParams();
         } catch (err) {
             this.setNote(`mbs-params-note-${this.objectName}`, err.message, true);
@@ -5150,7 +5150,7 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
     }
 
     createOPCUAServerStatusSection() {
-        return this.createCollapsibleSection('opcuasrv-status', 'Статус OPC UA Server', `
+        return this.createCollapsibleSection('opcuasrv-status', 'OPC UA Server Status', `
             <div class="opcua-actions">
                 <span class="opcua-note" id="opcuasrv-status-note-${this.objectName}"></span>
             </div>
@@ -5164,21 +5164,21 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
 
     createOPCUAServerParamsSection() {
         const headerIndicator = `
-            <span class="header-indicator-dot fail" id="opcuasrv-ind-params-${this.objectName}" onclick="event.stopPropagation()" title="Параметры: загрузка..."></span>
+            <span class="header-indicator-dot fail" id="opcuasrv-ind-params-${this.objectName}" onclick="event.stopPropagation()" title="Parameters: loading..."></span>
         `;
-        return this.createCollapsibleSection('opcuasrv-params', 'Параметры сервера', `
+        return this.createCollapsibleSection('opcuasrv-params', 'Server Parameters', `
             <div class="opcua-actions">
-                <button class="btn" id="opcuasrv-params-refresh-${this.objectName}">Перезагрузить</button>
-                <button class="btn primary" id="opcuasrv-params-save-${this.objectName}">Применить</button>
+                <button class="btn" id="opcuasrv-params-refresh-${this.objectName}">Refresh</button>
+                <button class="btn primary" id="opcuasrv-params-save-${this.objectName}">Apply</button>
                 <span class="opcua-note" id="opcuasrv-params-note-${this.objectName}"></span>
             </div>
             <div class="opcua-params-table-wrapper">
                 <table class="variables-table opcua-params-table">
                     <thead>
                         <tr>
-                            <th>Параметр</th>
-                            <th>Текущее</th>
-                            <th>Новое значение</th>
+                            <th>Parameter</th>
+                            <th>Current</th>
+                            <th>New value</th>
                         </tr>
                     </thead>
                     <tbody id="opcuasrv-params-${this.objectName}"></tbody>
@@ -5188,11 +5188,11 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
     }
 
     createOPCUAServerSensorsSection() {
-        return this.createCollapsibleSection('opcuasrv-sensors', 'OPC UA переменные', `
+        return this.createCollapsibleSection('opcuasrv-sensors', 'OPC UA Variables', `
             <div class="filter-bar opcua-actions">
-                <input type="text" class="filter-input" id="opcuasrv-sensors-filter-${this.objectName}" placeholder="Фильтр по имени...">
+                <input type="text" class="filter-input" id="opcuasrv-sensors-filter-${this.objectName}" placeholder="Filter by name...">
                 <select class="type-filter" id="opcuasrv-type-filter-${this.objectName}">
-                    <option value="all">Все типы</option>
+                    <option value="all">All types</option>
                     <option value="AI">AI</option>
                     <option value="AO">AO</option>
                     <option value="DI">DI</option>
@@ -5209,16 +5209,16 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
                             <tr>
                                 <th class="col-chart"></th>
                                 <th class="col-id">ID</th>
-                                <th class="col-name">Имя</th>
-                                <th class="col-type">Тип</th>
-                                <th class="col-value">Значение</th>
+                                <th class="col-name">Name</th>
+                                <th class="col-type">Type</th>
+                                <th class="col-value">Value</th>
                                 <th class="col-vtype">VType</th>
                                 <th class="col-precision">Precision</th>
                             </tr>
                         </thead>
                         <tbody id="opcuasrv-sensors-${this.objectName}"></tbody>
                     </table>
-                    <div class="opcua-loading-more" id="opcuasrv-loading-more-${this.objectName}" style="display: none;">Загрузка...</div>
+                    <div class="opcua-loading-more" id="opcuasrv-loading-more-${this.objectName}" style="display: none;">Loading...</div>
                 </div>
             </div>
             <div class="resize-handle" id="opcuasrv-sensors-resize-${this.objectName}"></div>
@@ -5249,7 +5249,7 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
         configContainer.innerHTML = '';
 
         if (!this.status) {
-            tbody.innerHTML = '<tr><td colspan="2" class="text-muted">Нет данных</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="2" class="text-muted">No data</td></tr>';
             return;
         }
 
@@ -5257,16 +5257,16 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
 
         // Main status rows
         const rows = [
-            { label: 'Имя', value: status.name },
+            { label: 'Name', value: status.name },
             { label: 'httpEnabledSetParams', value: status.httpEnabledSetParams }
         ];
 
         // Variables info
         if (status.variables) {
-            rows.push({ label: 'Всего переменных', value: status.variables.total });
-            rows.push({ label: 'Чтение', value: status.variables.read });
-            rows.push({ label: 'Запись', value: status.variables.write });
-            rows.push({ label: 'Методы', value: status.variables.methods });
+            rows.push({ label: 'Total variables', value: status.variables.total });
+            rows.push({ label: 'Read', value: status.variables.read });
+            rows.push({ label: 'Write', value: status.variables.write });
+            rows.push({ label: 'Methods', value: status.variables.methods });
         }
 
         // Params
@@ -5300,7 +5300,7 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
 
         // Config
         if (status.config) {
-            configContainer.innerHTML = '<h4 class="opcuasrv-section-title">Конфигурация</h4>';
+            configContainer.innerHTML = '<h4 class="opcuasrv-section-title">Configuration</h4>';
             const configTable = document.createElement('table');
             configTable.className = 'info-table';
             const configTbody = document.createElement('tbody');
@@ -5349,7 +5349,7 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
 
         tbody.innerHTML = '';
         if (!this.params || Object.keys(this.params).length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" class="text-muted">Нет данных</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="3" class="text-muted">No data</td></tr>';
             return;
         }
 
@@ -5382,7 +5382,7 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
         });
 
         if (Object.keys(changed).length === 0) {
-            this.setNote(`opcuasrv-params-note-${this.objectName}`, 'Нет изменений');
+            this.setNote(`opcuasrv-params-note-${this.objectName}`, 'No changes');
             return;
         }
 
@@ -5397,7 +5397,7 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
             );
             this.params = { ...this.params, ...(data.updated || {}) };
             this.renderParams();
-            this.setNote(`opcuasrv-params-note-${this.objectName}`, 'Параметры применены');
+            this.setNote(`opcuasrv-params-note-${this.objectName}`, 'Parameters applied');
             this.loadStatus();
         } catch (err) {
             this.setNote(`opcuasrv-params-note-${this.objectName}`, err.message, true);
@@ -5517,7 +5517,7 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
 
         // Show empty state if no sensors
         if (this.allSensors.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="opcua-no-sensors">Нет переменных</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="opcua-no-sensors">No variables</td></tr>';
             return;
         }
 
@@ -5741,11 +5741,11 @@ class LogViewer {
                     <svg class="collapsible-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M6 9l6 6 6-6"/>
                     </svg>
-                    <span class="logviewer-title">Логи</span>
+                    <span class="logviewer-title">Logs</span>
                     <div class="logviewer-controls" onclick="event.stopPropagation()">
                         <div class="log-level-wrapper" id="log-level-wrapper-${this.objectName}">
-                            <button class="log-level-btn" id="log-level-btn-${this.objectName}" title="Выбор уровней логов">
-                                Уровни ▼
+                            <button class="log-level-btn" id="log-level-btn-${this.objectName}" title="Select log levels">
+                                Levels ▼
                             </button>
                             <div class="log-level-dropdown" id="log-level-dropdown-${this.objectName}">
                                 <div class="log-level-pills">
@@ -5769,26 +5769,26 @@ class LogViewer {
                                     <button class="log-level-pill" data-level="ANY">ALL</button>
                                 </div>
                                 <div class="log-level-presets">
-                                    <button class="log-preset-btn" data-preset="errors">Ошибки</button>
-                                    <button class="log-preset-btn" data-preset="info">Инфо+</button>
-                                    <button class="log-preset-btn" data-preset="all">Всё</button>
-                                    <button class="log-preset-btn" data-preset="reset">Сброс</button>
+                                    <button class="log-preset-btn" data-preset="errors">Errors</button>
+                                    <button class="log-preset-btn" data-preset="info">Info+</button>
+                                    <button class="log-preset-btn" data-preset="all">All</button>
+                                    <button class="log-preset-btn" data-preset="reset">Reset</button>
                                 </div>
-                                <button class="log-level-apply" id="log-level-apply-${this.objectName}">Применить</button>
+                                <button class="log-level-apply" id="log-level-apply-${this.objectName}">Apply</button>
                             </div>
                         </div>
                         <div class="log-filter-wrapper">
                             <input type="text" class="log-filter-input" id="log-filter-${this.objectName}"
-                                   placeholder="Фильтр (/ для фокуса)..." title="Фильтр (/ для фокуса, Esc для очистки)">
+                                   placeholder="Filter (/ to focus)..." title="Filter (/ to focus, Esc to clear)">
                             <div class="log-filter-options">
-                                <label class="log-filter-option" title="Регулярные выражения">
+                                <label class="log-filter-option" title="Regular expressions">
                                     <input type="checkbox" id="log-filter-regex-${this.objectName}" checked> Regex
                                 </label>
-                                <label class="log-filter-option" title="Учитывать регистр">
+                                <label class="log-filter-option" title="Case sensitive">
                                     <input type="checkbox" id="log-filter-case-${this.objectName}"> Case
                                 </label>
-                                <label class="log-filter-option" title="Только совпадения">
-                                    <input type="checkbox" id="log-filter-only-${this.objectName}"> Только
+                                <label class="log-filter-option" title="Show matches only">
+                                    <input type="checkbox" id="log-filter-only-${this.objectName}"> Only
                                 </label>
                             </div>
                             <span class="log-match-count" id="log-match-count-${this.objectName}"></span>
@@ -5797,14 +5797,14 @@ class LogViewer {
                         <span class="log-stats" id="log-stats-${this.objectName}"></span>
                         <div class="logviewer-status">
                             <span class="logviewer-status-dot" id="log-status-dot-${this.objectName}"></span>
-                            <span id="log-status-text-${this.objectName}">Отключено</span>
+                            <span id="log-status-text-${this.objectName}">Disconnected</span>
                         </div>
-                        <button class="log-pause-btn" id="log-pause-${this.objectName}" title="Пауза/Продолжить (Esc)">
+                        <button class="log-pause-btn" id="log-pause-${this.objectName}" title="Pause/Resume (Esc)">
                             <span class="pause-icon">⏸</span>
                             <span class="pause-count" id="log-pause-count-${this.objectName}"></span>
                         </button>
-                        <button class="log-connect-btn" id="log-connect-${this.objectName}">Подключить</button>
-                        <select class="log-buffer-select" id="log-buffer-${this.objectName}" title="Размер буфера">
+                        <button class="log-connect-btn" id="log-connect-${this.objectName}">Connect</button>
+                        <select class="log-buffer-select" id="log-buffer-${this.objectName}" title="Buffer size">
                             <option value="500">500</option>
                             <option value="1000">1000</option>
                             <option value="2000">2000</option>
@@ -5813,23 +5813,23 @@ class LogViewer {
                             <option value="20000">20000</option>
                             <option value="50000">50000</option>
                         </select>
-                        <button class="log-download-btn" id="log-download-${this.objectName}" title="Скачать логи">💾</button>
-                        <button class="log-clear-btn" id="log-clear-${this.objectName}" title="Очистить">Очистить</button>
+                        <button class="log-download-btn" id="log-download-${this.objectName}" title="Download logs">💾</button>
+                        <button class="log-clear-btn" id="log-clear-${this.objectName}" title="Clear">Clear</button>
                     </div>
                     <div class="section-reorder-buttons" onclick="event.stopPropagation()">
-                        <button class="section-move-btn section-move-up" onclick="moveSectionUp('${this.tabKey}', 'logviewer')" title="Переместить вверх">↑</button>
-                        <button class="section-move-btn section-move-down" onclick="moveSectionDown('${this.tabKey}', 'logviewer')" title="Переместить вниз">↓</button>
+                        <button class="section-move-btn section-move-up" onclick="moveSectionUp('${this.tabKey}', 'logviewer')" title="Move up">↑</button>
+                        <button class="section-move-btn section-move-down" onclick="moveSectionDown('${this.tabKey}', 'logviewer')" title="Move down">↓</button>
                     </div>
                 </div>
                 <div class="logviewer-content">
                     <div class="log-container" id="log-container-${this.objectName}" style="height: ${this.height}px">
                         <div class="log-placeholder" id="log-placeholder-${this.objectName}">
                             <span class="log-placeholder-icon">📋</span>
-                            <span>Нажмите "Подключить" для просмотра логов</span>
+                            <span>Click "Connect" to view logs</span>
                         </div>
                         <div class="log-waiting" id="log-waiting-${this.objectName}" style="display: none">
-                            <span class="log-waiting-text">Ожидание сообщений...</span>
-                            <span class="log-waiting-hint">Выберите уровень логов или дождитесь сообщений от процесса</span>
+                            <span class="log-waiting-text">Waiting for messages...</span>
+                            <span class="log-waiting-hint">Select log level or wait for messages from the process</span>
                         </div>
                         <div class="log-lines" id="log-lines-${this.objectName}" style="display: none"></div>
                     </div>
@@ -6112,11 +6112,11 @@ class LogViewer {
         // Update button text to show selected count
         const btn = document.getElementById(`log-level-btn-${this.objectName}`);
         if (this.selectedLevels.size === 0) {
-            btn.textContent = 'Уровни ▼';
+            btn.textContent = 'Levels ▼';
         } else if (this.selectedLevels.has('ANY')) {
-            btn.textContent = 'Все ▼';
+            btn.textContent = 'All ▼';
         } else {
-            btn.textContent = `Уровни (${this.selectedLevels.size}) ▼`;
+            btn.textContent = `Levels (${this.selectedLevels.size}) ▼`;
         }
     }
 
@@ -6529,10 +6529,10 @@ class LogViewer {
         const countEl = document.getElementById(`log-match-count-${this.objectName}`);
         if (countEl) {
             if (this.filter && this.matchCount > 0) {
-                countEl.textContent = `${this.matchCount} совп.`;
+                countEl.textContent = `${this.matchCount} matches`;
                 countEl.classList.add('has-matches');
             } else if (this.filter) {
-                countEl.textContent = '0 совп.';
+                countEl.textContent = '0 matches';
                 countEl.classList.remove('has-matches');
             } else {
                 countEl.textContent = '';
@@ -6688,24 +6688,24 @@ class LogViewer {
         switch (status) {
             case 'connected':
                 dot.classList.add('connected');
-                text.textContent = 'Подключено';
-                btn.textContent = 'Отключить';
+                text.textContent = 'Connected';
+                btn.textContent = 'Disconnect';
                 btn.classList.add('connected');
                 break;
             case 'connecting':
                 dot.classList.add('connecting');
-                text.textContent = 'Подключение...';
-                btn.textContent = 'Остановить';
+                text.textContent = 'Connecting...';
+                btn.textContent = 'Stop';
                 break;
             case 'reconnecting':
                 dot.classList.add('reconnecting');
-                text.textContent = 'Переподключение...';
-                btn.textContent = 'Остановить';
+                text.textContent = 'Reconnecting...';
+                btn.textContent = 'Stop';
                 btn.classList.add('reconnecting');
                 break;
             default: // disconnected
-                text.textContent = 'Отключено';
-                btn.textContent = 'Подключить';
+                text.textContent = 'Disconnected';
+                btn.textContent = 'Connect';
         }
     }
 
@@ -6781,7 +6781,7 @@ async function fetchObjects() {
     // Загружаем список серверов
     const serversData = await fetchServers();
     if (!serversData || !serversData.servers) {
-        throw new Error('Не удалось загрузить список серверов');
+        throw new Error('Failed to load server list');
     }
 
     // Сохраняем кешированные объекты перед очисткой
@@ -6808,7 +6808,7 @@ async function fetchObjects() {
 
     // Загружаем объекты со всех серверов
     const response = await fetch('/api/all-objects');
-    if (!response.ok) throw new Error('Не удалось загрузить список объектов');
+    if (!response.ok) throw new Error('Failed to load objects list');
     return response.json();
 }
 
@@ -6819,7 +6819,7 @@ async function refreshObjectsList() {
         renderObjectsList(data);
         console.log('Список объектов обновлён');
     } catch (err) {
-        console.error('Ошибка обновления списка объектов:', err);
+        console.error('Error обновления списка объектов:', err);
     }
 }
 
@@ -6829,7 +6829,7 @@ async function fetchObjectData(name, serverId = null) {
         url += `?server=${encodeURIComponent(serverId)}`;
     }
     const response = await fetch(url);
-    if (!response.ok) throw new Error('Не удалось загрузить данные объекта');
+    if (!response.ok) throw new Error('Failed to load object data');
     return response.json();
 }
 
@@ -6839,7 +6839,7 @@ async function watchObject(name, serverId = null) {
         url += `?server=${encodeURIComponent(serverId)}`;
     }
     const response = await fetch(url, { method: 'POST' });
-    if (!response.ok) throw new Error('Не удалось начать наблюдение');
+    if (!response.ok) throw new Error('Failed to start watching');
     return response.json();
 }
 
@@ -6849,7 +6849,7 @@ async function unwatchObject(name, serverId = null) {
         url += `?server=${encodeURIComponent(serverId)}`;
     }
     const response = await fetch(url, { method: 'DELETE' });
-    if (!response.ok) throw new Error('Не удалось остановить наблюдение');
+    if (!response.ok) throw new Error('Failed to stop watching');
     return response.json();
 }
 
@@ -6857,7 +6857,7 @@ async function fetchVariableHistory(objectName, variableName, count = 100) {
     const response = await fetch(
         `/api/objects/${encodeURIComponent(objectName)}/variables/${encodeURIComponent(variableName)}/history?count=${count}`
     );
-    if (!response.ok) throw new Error('Не удалось загрузить историю');
+    if (!response.ok) throw new Error('Failed to load history');
     return response.json();
 }
 
@@ -6873,7 +6873,7 @@ async function fetchSMSensors() {
     return response.json();
 }
 
-// Загрузка конфигурации сенсоров
+// Loading конфигурации сенсоров
 async function loadSensorsConfig() {
     try {
         // Сначала пробуем загрузить из конфига
@@ -6895,7 +6895,7 @@ async function loadSensorsConfig() {
         }
         console.log(`Загружено ${state.sensors.size} сенсоров из ${source}`);
     } catch (err) {
-        console.error('Ошибка загрузки конфигурации сенсоров:', err);
+        console.error('Error загрузки конфигурации сенсоров:', err);
     }
 }
 
@@ -6997,7 +6997,7 @@ function clearIoncDialogError() {
 
 // === Sensor Dialog ===
 
-// Состояние диалога датчиков
+// Status диалога датчиков
 const sensorDialogState = {
     objectName: null,
     allSensors: [],
@@ -7028,12 +7028,12 @@ function openSensorDialog(tabKey) {
     if (state.capabilities.smEnabled) {
         // SM включен - загружаем датчики из XML конфига
         if (state.sensors.size === 0) {
-            renderSensorDialogContent('<div class="sensor-dialog-loading">Загрузка списка датчиков...</div>');
+            renderSensorDialogContent('<div class="sensor-dialog-loading">Loading sensor list...</div>');
             loadSensorsConfig().then(() => {
                 prepareSensorList();
                 renderSensorTable();
             }).catch(err => {
-                renderSensorDialogContent('<div class="sensor-dialog-empty">Ошибка загрузки датчиков</div>');
+                renderSensorDialogContent('<div class="sensor-dialog-empty">Error loading sensors</div>');
             });
         } else {
             prepareSensorList();
@@ -7046,7 +7046,7 @@ function openSensorDialog(tabKey) {
             prepareSensorListFromIONC(tabState.renderer.sensors);
             renderSensorTable();
         } else {
-            renderSensorDialogContent('<div class="sensor-dialog-empty">Нет датчиков в таблице IONC</div>');
+            renderSensorDialogContent('<div class="sensor-dialog-empty">No sensors in IONC table</div>');
         }
     }
 
@@ -7060,7 +7060,7 @@ function openSensorDialog(tabKey) {
     document.addEventListener('keydown', handleSensorDialogKeydown);
 }
 
-// Закрыть диалог
+// Close диалог
 function closeSensorDialog() {
     const overlay = document.getElementById('sensor-dialog-overlay');
     overlay.classList.remove('visible');
@@ -7105,7 +7105,7 @@ function prepareSensorListFromIONC(ioncSensors) {
     sensorDialogState.filteredSensors = [...sensorDialogState.allSensors];
 }
 
-// Фильтрация датчиков
+// Filterация датчиков
 function filterSensors(query) {
     if (!query) {
         sensorDialogState.filteredSensors = [...sensorDialogState.allSensors];
@@ -7133,7 +7133,7 @@ function renderSensorTable() {
     countEl.textContent = `${sensors.length} датчиков`;
 
     if (sensors.length === 0) {
-        renderSensorDialogContent('<div class="sensor-dialog-empty">Датчики не найдены</div>');
+        renderSensorDialogContent('<div class="sensor-dialog-empty">Sensors not found</div>');
         return;
     }
 
@@ -7141,7 +7141,7 @@ function renderSensorTable() {
         const isAdded = sensorDialogState.addedSensors.has(sensor.name);
         const btnText = isAdded ? '✓' : '+';
         const btnDisabled = isAdded ? 'disabled' : '';
-        const btnTitle = isAdded ? 'Уже добавлен' : 'Добавить на график';
+        const btnTitle = isAdded ? 'Already added' : 'Add to chart';
 
         return `
             <tr>
@@ -7163,9 +7163,9 @@ function renderSensorTable() {
                 <tr>
                     <th style="width: 40px"></th>
                     <th style="width: 60px">ID</th>
-                    <th>Имя</th>
+                    <th>Name</th>
                     <th>Описание</th>
-                    <th style="width: 50px">Тип</th>
+                    <th style="width: 50px">Type</th>
                 </tr>
             </thead>
             <tbody>${rows}</tbody>
@@ -7191,10 +7191,10 @@ async function subscribeToExternalSensors(objectName, sensorNames) {
         });
         if (!response.ok) {
             const err = await response.json();
-            console.warn('Ошибка подписки на датчики:', err.error || response.statusText);
+            console.warn('Error подписки на датчики:', err.error || response.statusText);
         }
     } catch (err) {
-        console.warn('Ошибка подписки на датчики:', err);
+        console.warn('Error подписки на датчики:', err);
     }
 }
 
@@ -7207,10 +7207,10 @@ async function unsubscribeFromExternalSensor(objectName, sensorName) {
         );
         if (!response.ok) {
             const err = await response.json();
-            console.warn('Ошибка отписки от датчика:', err.error || response.statusText);
+            console.warn('Error отписки от датчика:', err.error || response.statusText);
         }
     } catch (err) {
-        console.warn('Ошибка отписки от датчика:', err);
+        console.warn('Error отписки от датчика:', err);
     }
 }
 
@@ -7224,7 +7224,7 @@ async function subscribeToIONCSensor(objectName, sensorId) {
         });
         if (!response.ok) {
             const err = await response.json();
-            console.warn('Ошибка подписки на IONC датчик:', err.error || response.statusText);
+            console.warn('Error подписки на IONC датчик:', err.error || response.statusText);
         } else {
             // Добавляем в список подписок рендерера
             const tabState = state.tabs.get(objectName);
@@ -7234,7 +7234,7 @@ async function subscribeToIONCSensor(objectName, sensorId) {
             console.log(`IONC: Подписка на датчик ${sensorId} для ${objectName}`);
         }
     } catch (err) {
-        console.warn('Ошибка подписки на IONC датчик:', err);
+        console.warn('Error подписки на IONC датчик:', err);
     }
 }
 
@@ -7248,7 +7248,7 @@ async function unsubscribeFromIONCSensor(objectName, sensorId) {
         });
         if (!response.ok) {
             const err = await response.json();
-            console.warn('Ошибка отписки от IONC датчика:', err.error || response.statusText);
+            console.warn('Error отписки от IONC датчика:', err.error || response.statusText);
         } else {
             // Удаляем из списка подписок рендерера
             const tabState = state.tabs.get(objectName);
@@ -7258,11 +7258,11 @@ async function unsubscribeFromIONCSensor(objectName, sensorId) {
             console.log(`IONC: Отписка от датчика ${sensorId} для ${objectName}`);
         }
     } catch (err) {
-        console.warn('Ошибка отписки от IONC датчика:', err);
+        console.warn('Error отписки от IONC датчика:', err);
     }
 }
 
-// Добавить внешний датчик на график
+// Add external sensor на график
 // tabKey - ключ вкладки (serverId:objectName)
 function addExternalSensor(tabKey, sensorName) {
     let sensor;
@@ -7280,7 +7280,7 @@ function addExternalSensor(tabKey, sensorName) {
     }
 
     if (!sensor) {
-        console.error('Датчик не найден:', sensorName);
+        console.error('Sensor not found:', sensorName);
         return;
     }
 
@@ -7302,7 +7302,7 @@ function addExternalSensor(tabKey, sensorName) {
     // Обновляем таблицу (чтобы кнопка стала disabled)
     renderSensorTable();
 
-    console.log(`Добавлен внешний датчик ${sensorName} для ${displayName}`);
+    console.log(`External sensor added ${sensorName} для ${displayName}`);
 
     if (state.capabilities.smEnabled) {
         // SM включен - подписываемся через SM API
@@ -7353,7 +7353,7 @@ function createExternalSensorChart(tabKey, sensor, options = {}) {
     chartDiv.innerHTML = `
         <div class="chart-panel-header">
             <div class="chart-panel-info">
-                <span class="legend-color-picker" data-object="${objectName}" data-variable="${varName}" style="background:${color}" title="Нажмите для выбора цвета"></span>
+                <span class="legend-color-picker" data-object="${objectName}" data-variable="${varName}" style="background:${color}" title="Click to choose color"></span>
                 <span class="chart-panel-title">${escapeHtml(displayName)}</span>
                 <span class="chart-panel-value" id="legend-value-${objectName}-${safeVarName}">--</span>
                 <span class="chart-panel-textname">${escapeHtml(sensor.name)}</span>
@@ -7361,11 +7361,11 @@ function createExternalSensorChart(tabKey, sensor, options = {}) {
                 ${badgeHtml}
             </div>
             <div class="chart-panel-right">
-                <label class="fill-toggle" title="Заливка фона">
+                <label class="fill-toggle" title="Fill background">
                     <input type="checkbox" id="fill-${objectName}-${safeVarName}" ${!isDiscrete ? 'checked' : ''}>
-                    <span class="fill-toggle-label">фон</span>
+                    <span class="fill-toggle-label">fill</span>
                 </label>
-                <button class="chart-remove-btn" title="Удалить с графика">✕</button>
+                <button class="chart-remove-btn" title="Remove from chart">✕</button>
             </div>
         </div>
         <div class="chart-wrapper">
@@ -7601,12 +7601,12 @@ function getExternalSensorsFromStorage(objectName) {
             }
         }
     } catch (err) {
-        console.warn('Ошибка загрузки внешних датчиков:', err);
+        console.warn('Error загрузки внешних датчиков:', err);
     }
     return new Map();
 }
 
-// Сохранить внешние датчики в localStorage
+// Save внешние датчики в localStorage
 function saveExternalSensorsToStorage(objectName, sensors) {
     try {
         const key = `uniset2-viewer-external-sensors-${objectName}`;
@@ -7614,7 +7614,7 @@ function saveExternalSensorsToStorage(objectName, sensors) {
         const arr = [...sensors.values()];
         localStorage.setItem(key, JSON.stringify(arr));
     } catch (err) {
-        console.warn('Ошибка сохранения внешних датчиков:', err);
+        console.warn('Error сохранения внешних датчиков:', err);
     }
 }
 
@@ -7701,7 +7701,7 @@ function restoreExternalSensors(tabKey, displayName) {
                         });
                     }
                 }).catch(err => {
-                    console.warn('Ошибка восстановления подписок:', err);
+                    console.warn('Error восстановления подписок:', err);
                 });
             }
         }
@@ -7733,7 +7733,7 @@ function renderObjectsList(data) {
     }
 
     if (!hasAnyObjects) {
-        list.innerHTML = '<li class="loading">Объекты не найдены</li>';
+        list.innerHTML = '<li class="loading">No objects found</li>';
         renderServersSection();
         return;
     }
@@ -7842,7 +7842,7 @@ function toggleServerGroup(serverId) {
     saveSettings();
 }
 
-// Рендеринг секции "Сервера" в sidebar
+// Рендеринг секции "Servers" в sidebar
 function renderServersSection() {
     const section = document.getElementById('servers-section');
     const list = document.getElementById('servers-list');
@@ -7919,7 +7919,7 @@ function renderServersSection() {
     });
 }
 
-// Переключить свёрнутость секции "Сервера"
+// Переключить свёрнутость секции "Servers"
 function toggleServersSection() {
     const section = document.getElementById('servers-section');
     if (!section) return;
@@ -7948,7 +7948,7 @@ async function openObjectTab(name, serverId, serverName) {
 
         watchObject(name, serverId).catch(console.error);
     } catch (err) {
-        console.error(`Ошибка открытия вкладки ${name}:`, err);
+        console.error(`Error открытия вкладки ${name}:`, err);
     }
 }
 
@@ -8078,7 +8078,7 @@ function closeTab(name) {
 
     if (state.tabs.size === 0) {
         const tabsContent = document.getElementById('tabs-content');
-        tabsContent.innerHTML = '<div class="placeholder">Выберите объект из списка слева</div>';
+        tabsContent.innerHTML = '<div class="placeholder">Select an object from the list on the left</div>';
         state.activeTab = null;
     } else if (state.activeTab === name) {
         const firstTab = state.tabs.keys().next().value;
@@ -8101,7 +8101,7 @@ async function loadObjectData(name) {
             updateSSEStatus('polling', new Date());
         }
     } catch (err) {
-        console.error(`Ошибка загрузки ${name}:`, err);
+        console.error(`Error загрузки ${name}:`, err);
     }
 }
 
@@ -8119,7 +8119,7 @@ function renderVariables(objectName, variables, filterText = '') {
     const filterLower = filterText.toLowerCase();
 
     Object.entries(variables).forEach(([varName, value]) => {
-        // Фильтрация по имени переменной
+        // Filterация по имени переменной
         if (filterText && !varName.toLowerCase().includes(filterLower)) {
             return;
         }
@@ -8168,7 +8168,7 @@ function renderIO(objectName, type, ioData) {
         const rowKey = io.id || key;
         const isPinned = pinnedRows.has(String(rowKey));
 
-        // Фильтрация: если есть закреплённые - показываем только их, иначе фильтруем по тексту
+        // Filterация: если есть закреплённые - показываем только их, иначе фильтруем по тексту
         const searchText = `${io.name || key} ${io.id} ${iotype} ${textname}`.toLowerCase();
         const matchesFilter = !filterText || searchText.includes(filterText);
         const shouldShow = hasPinned ? isPinned : matchesFilter;
@@ -8181,7 +8181,7 @@ function renderIO(objectName, type, ioData) {
 
         tr.innerHTML = `
             <td class="io-pin-col">
-                <span class="io-pin-toggle ${isPinned ? 'pinned' : ''}" data-row-key="${rowKey}" title="${isPinned ? 'Открепить' : 'Закрепить'}">
+                <span class="io-pin-toggle ${isPinned ? 'pinned' : ''}" data-row-key="${rowKey}" title="${isPinned ? 'Unpin' : 'Pin'}">
                     ${isPinned ? '📌' : '○'}
                 </span>
             </td>
@@ -8284,18 +8284,18 @@ async function addChart(objectName, varName, sensorId, passedTextname) {
     chartDiv.innerHTML = `
         <div class="chart-panel-header">
             <div class="chart-panel-info">
-                <span class="legend-color-picker" data-object="${objectName}" data-variable="${varName}" style="background:${color}" title="Нажмите для выбора цвета"></span>
+                <span class="legend-color-picker" data-object="${objectName}" data-variable="${varName}" style="background:${color}" title="Click to choose color"></span>
                 <span class="chart-panel-title">${displayName}</span>
                 <span class="chart-panel-value" id="legend-value-${objectName}-${varName}">--</span>
                 <span class="chart-panel-textname">${textName}</span>
                 ${sensor?.iotype ? `<span class="type-badge type-${sensor.iotype}">${sensor.iotype}</span>` : ''}
             </div>
             <div class="chart-panel-right">
-                <label class="fill-toggle" title="Заливка фона">
+                <label class="fill-toggle" title="Fill background">
                     <input type="checkbox" id="fill-${objectName}-${varName}" ${!isDiscrete ? 'checked' : ''}>
-                    <span class="fill-toggle-label">фон</span>
+                    <span class="fill-toggle-label">fill</span>
                 </label>
-                <button class="btn-icon" title="Закрыть" onclick="removeChartByButton('${objectName}', '${varName}')">
+                <button class="btn-icon" title="Close" onclick="removeChartByButton('${objectName}', '${varName}')">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M18 6L6 18M6 6l12 12"/>
                     </svg>
@@ -8439,7 +8439,7 @@ async function addChart(objectName, varName, sensorId, passedTextname) {
         tabState.charts.set(varName, chartData);
 
     } catch (err) {
-        console.error(`Ошибка загрузки истории для ${varName}:`, err);
+        console.error(`Error загрузки истории для ${varName}:`, err);
         chartDiv.innerHTML += `<div class="alert alert-error">Не удалось загрузить данные графика</div>`;
     }
 }
@@ -8475,7 +8475,7 @@ async function updateChart(objectName, varName, chart) {
             }
         }
     } catch (err) {
-        console.error(`Ошибка обновления графика для ${varName}:`, err);
+        console.error(`Error обновления графика для ${varName}:`, err);
     }
 }
 
@@ -8671,7 +8671,7 @@ function renderTimersTable(objectName, timers) {
     tbody.innerHTML = '';
 
     if (timers.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">Нет таймеров</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">No timers</td></tr>';
         return;
     }
 
@@ -8679,7 +8679,7 @@ function renderTimersTable(objectName, timers) {
         const rowKey = timer.id || timer._key;
         const isPinned = pinnedRows.has(String(rowKey));
 
-        // Фильтрация
+        // Filterация
         const searchText = `${timer.id} ${timer.name || ''}`.toLowerCase();
         const matchesFilter = !filterText || searchText.includes(filterText);
         const shouldShow = hasPinned ? isPinned : matchesFilter;
@@ -8700,7 +8700,7 @@ function renderTimersTable(objectName, timers) {
 
         tr.innerHTML = `
             <td class="io-pin-col">
-                <span class="io-pin-toggle ${isPinned ? 'pinned' : ''}" data-row-key="${rowKey}" title="${isPinned ? 'Открепить' : 'Закрепить'}">
+                <span class="io-pin-toggle ${isPinned ? 'pinned' : ''}" data-row-key="${rowKey}" title="${isPinned ? 'Unpin' : 'Pin'}">
                     ${isPinned ? '📌' : '○'}
                 </span>
             </td>
@@ -8789,11 +8789,11 @@ function renderObjectInfo(objectName, objectData) {
 
     // Остальные поля
     const fields = [
-        { key: 'name', label: 'Имя' },
+        { key: 'name', label: 'Name' },
         { key: 'id', label: 'ID' },
-        { key: 'objectType', label: 'Тип' },
+        { key: 'objectType', label: 'Type' },
         { key: 'extensionType', label: 'Extension' },
-        { key: 'isActive', label: 'Активен', format: v => v ? 'Да' : 'Нет' }
+        { key: 'isActive', label: 'Active', format: v => v ? 'Yes' : 'No' }
     ];
 
     fields.forEach(({ key, label, format }) => {
@@ -8824,9 +8824,9 @@ function renderLogServer(objectName, logServerData) {
     tbody.innerHTML = '';
 
     const fields = [
-        { key: 'host', label: 'Хост' },
-        { key: 'port', label: 'Порт' },
-        { key: 'state', label: 'Состояние', formatState: true }
+        { key: 'host', label: 'Host' },
+        { key: 'port', label: 'Port' },
+        { key: 'state', label: 'Status', formatState: true }
     ];
 
     fields.forEach(({ key, label, formatState }) => {
@@ -8921,17 +8921,17 @@ function renderStatistics(objectName, statsData) {
                 <tbody></tbody>
             </table>
             <div class="stats-sensors-section" style="display:none">
-                <div class="stats-subtitle">Сенсоры</div>
+                <div class="stats-subtitle">Sensors</div>
                 <input type="text"
                        class="filter-input stats-filter"
                        id="filter-stats-${objectName}"
-                       placeholder="Фильтр по имени датчика..."
+                       placeholder="Filter by sensor name..."
                        data-object="${objectName}">
                 <table class="variables-table stats-sensors-table">
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>Имя</th>
+                            <th>Name</th>
                             <th>Срабатываний</th>
                         </tr>
                     </thead>
@@ -9031,7 +9031,7 @@ function renderStatisticsSensors(objectName, filterText = '') {
     });
 
     if (tbody.children.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-muted)">Нет данных</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-muted)">No data</td></tr>';
     }
 }
 
@@ -9043,10 +9043,10 @@ function restoreCollapsedSections(objectName) {
             state.collapsedSections = JSON.parse(saved);
         }
     } catch (err) {
-        console.warn('Ошибка загрузки состояния спойлеров:', err);
+        console.warn('Error загрузки состояния спойлеров:', err);
     }
 
-    // Применить сохранённые состояния к секциям этого объекта
+    // Apply сохранённые состояния к секциям этого объекта
     Object.entries(state.collapsedSections).forEach(([sectionId, collapsed]) => {
         if (sectionId.endsWith(`-${objectName}`)) {
             const section = document.querySelector(`[data-section="${sectionId}"]`);
@@ -9072,7 +9072,7 @@ function saveCollapsedSections() {
     try {
         localStorage.setItem('uniset2-viewer-collapsed', JSON.stringify(collapsed));
     } catch (err) {
-        console.warn('Ошибка сохранения состояния спойлеров:', err);
+        console.warn('Error сохранения состояния спойлеров:', err);
     }
 }
 
@@ -9080,7 +9080,7 @@ function saveCollapsedSections() {
 let activeColorPicker = null;
 
 function showColorPicker(element, objectName, varName) {
-    // Закрыть предыдущий picker если открыт
+    // Close предыдущий picker если открыт
     hideColorPicker();
 
     const tabState = state.tabs.get(objectName);
@@ -9112,7 +9112,7 @@ function showColorPicker(element, objectName, varName) {
     document.body.appendChild(popup);
     activeColorPicker = popup;
 
-    // Закрыть по клику вне popup
+    // Close по клику вне popup
     setTimeout(() => {
         document.addEventListener('click', handleColorPickerOutsideClick);
     }, 0);
@@ -9788,7 +9788,7 @@ function saveSettings() {
     localStorage.setItem('uniset2-viewer-settings', JSON.stringify(settings));
 }
 
-// Загрузка настроек из localStorage
+// Loading настроек из localStorage
 function loadSettings() {
     try {
         const saved = localStorage.getItem('uniset2-viewer-settings');
@@ -9814,17 +9814,17 @@ function loadSettings() {
                 state.collapsedServerGroups = new Set(settings.collapsedServerGroups);
             }
 
-            // Восстановить состояние секции "Сервера"
+            // Восстановить состояние секции "Servers"
             if (settings.serversSectionCollapsed !== undefined) {
                 state.serversSectionCollapsed = settings.serversSectionCollapsed;
             }
         }
     } catch (err) {
-        console.warn('Ошибка загрузки настроек:', err);
+        console.warn('Error загрузки настроек:', err);
     }
 }
 
-// Загрузка конфигурации приложения
+// Loading конфигурации приложения
 async function loadAppConfig() {
     try {
         const response = await fetch('/api/config');
@@ -9855,9 +9855,9 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchObjects()
         .then(renderObjectsList)
         .catch(err => {
-            console.error('Ошибка загрузки объектов:', err);
+            console.error('Error загрузки объектов:', err);
             document.getElementById('objects-list').innerHTML =
-                '<li class="alert alert-error">Ошибка загрузки объектов</li>';
+                '<li class="alert alert-error">Error loading objects</li>';
         });
 
     // Кнопка обновления
@@ -9869,7 +9869,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Кнопка очистки кэша
     document.getElementById('clear-cache').addEventListener('click', () => {
-        if (confirm('Очистить все сохранённые настройки?\n\nБудут удалены:\n- порядок секций\n- выбранные графики\n- настройки LogViewer\n- состояние sidebar')) {
+        if (confirm('Clear all saved settings?\n\nWill be deleted:\n- section order\n- selected charts\n- LogViewer settings\n- sidebar state')) {
             localStorage.clear();
             location.reload();
         }
@@ -9886,7 +9886,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Инициализация селектора poll interval
     initPollIntervalSelector();
 
-    // Загрузка сохранённых настроек
+    // Loading сохранённых настроек
     loadSettings();
 });
 
@@ -9895,7 +9895,7 @@ function initPollIntervalSelector() {
     const buttons = document.querySelectorAll('.poll-btn');
     const savedInterval = localStorage.getItem('pollInterval');
 
-    // Установить активную кнопку
+    // Set активную кнопку
     const setActive = (interval) => {
         buttons.forEach(btn => {
             btn.classList.toggle('active', btn.dataset.interval === String(interval));
@@ -9934,7 +9934,7 @@ function initPollIntervalSelector() {
                     console.warn('Не удалось изменить poll interval');
                 }
             } catch (err) {
-                console.error('Ошибка изменения poll interval:', err);
+                console.error('Error изменения poll interval:', err);
             }
         });
     });

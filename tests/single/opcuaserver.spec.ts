@@ -13,9 +13,9 @@ test.describe('OPCUAServer renderer', () => {
     await panel.waitFor({ timeout: 10000 });
 
     // OPCUAServer has status, params, and variables sections
-    await expect(panel.locator('.collapsible-title', { hasText: 'Статус OPC UA Server' })).toBeVisible();
-    await expect(panel.locator('.collapsible-title', { hasText: 'Параметры сервера' })).toBeVisible();
-    await expect(panel.locator('.collapsible-title', { hasText: 'OPC UA переменные' })).toBeVisible();
+    await expect(panel.locator('.collapsible-title', { hasText: 'OPC UA Server Status' })).toBeVisible();
+    await expect(panel.locator('.collapsible-title', { hasText: 'Server Parameters' })).toBeVisible();
+    await expect(panel.locator('.collapsible-title', { hasText: 'OPC UA Variables' })).toBeVisible();
 
     // Check status content
     await expect(panel.locator(`#opcuasrv-status-${OPCUA_SERVER_OBJECT} tr`)).not.toHaveCount(0);
@@ -123,7 +123,7 @@ test.describe('OPCUAServer renderer', () => {
         const firstRow = rows.first();
         // Check first row doesn't have "Нет переменных" message
         const text = await firstRow.textContent();
-        if (!text?.includes('Нет переменных')) {
+        if (!text?.includes('No variables')) {
           await expect(firstRow.locator('.type-AI')).toBeVisible();
         }
       }
@@ -165,7 +165,7 @@ test.describe('OPCUAServer renderer', () => {
       await page.waitForTimeout(400);
 
       // Should show "no variables" message
-      await expect(panel.locator(`#opcuasrv-sensors-${OPCUA_SERVER_OBJECT}`)).toContainText(/Нет переменных/);
+      await expect(panel.locator(`#opcuasrv-sensors-${OPCUA_SERVER_OBJECT}`)).toContainText(/No variables/);
     });
   });
 

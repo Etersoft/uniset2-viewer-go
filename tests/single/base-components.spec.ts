@@ -35,7 +35,7 @@ test.describe('Base Components', () => {
     test('should have filter input with placeholder', async ({ page }) => {
       const filterInput = page.locator('.filter-bar .filter-input');
       await expect(filterInput).toBeVisible();
-      await expect(filterInput).toHaveAttribute('placeholder', /Фильтр/);
+      await expect(filterInput).toHaveAttribute('placeholder', /Filter/);
     });
 
     test('should have type filter dropdown with all options', async ({ page }) => {

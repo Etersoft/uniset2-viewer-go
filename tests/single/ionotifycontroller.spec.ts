@@ -35,14 +35,14 @@ test.describe('IONotifyController (SharedMemory)', () => {
 
     // Проверяем наличие секции датчиков
     await expect(page.locator('.ionc-sensors-section')).toBeVisible();
-    await expect(page.locator('.ionc-sensors-section .collapsible-title')).toContainText('Датчики');
+    await expect(page.locator('.ionc-sensors-section .collapsible-title')).toContainText('Sensors');
   });
 
   test('should display charts section', async ({ page }) => {
     // Проверяем наличие секции графиков
     const chartsSection = page.locator('[data-section-id="charts"]');
     await expect(chartsSection).toBeVisible();
-    await expect(chartsSection.locator('.collapsible-title')).toContainText('Графики');
+    await expect(chartsSection.locator('.collapsible-title')).toContainText('Charts');
   });
 
   test('should display sensors table with columns', async ({ page }) => {
@@ -51,11 +51,11 @@ test.describe('IONotifyController (SharedMemory)', () => {
     // Проверяем заголовки таблицы
     const table = page.locator('.ionc-sensors-table');
     await expect(table.locator('th', { hasText: 'ID' })).toBeVisible();
-    await expect(table.locator('th', { hasText: 'Имя' })).toBeVisible();
-    await expect(table.locator('th', { hasText: 'Тип' })).toBeVisible();
-    await expect(table.locator('th', { hasText: 'Значение' })).toBeVisible();
-    await expect(table.locator('th', { hasText: 'Статус' })).toBeVisible();
-    await expect(table.locator('th', { hasText: 'Действия' })).toBeVisible();
+    await expect(table.locator('th', { hasText: 'Name' })).toBeVisible();
+    await expect(table.locator('th', { hasText: 'Type' })).toBeVisible();
+    await expect(table.locator('th', { hasText: 'Value' })).toBeVisible();
+    await expect(table.locator('th', { hasText: 'Status' })).toBeVisible();
+    await expect(table.locator('th', { hasText: 'Actions' })).toBeVisible();
   });
 
   test('should load sensors and show count', async ({ page }) => {
@@ -341,7 +341,7 @@ test.describe('IONotifyController (SharedMemory)', () => {
     // Проверяем наличие поля фильтра
     const filterInput = page.locator('.filter-input');
     await expect(filterInput).toBeVisible();
-    await expect(filterInput).toHaveAttribute('placeholder', 'Фильтр...');
+    await expect(filterInput).toHaveAttribute('placeholder', 'Filter...');
   });
 
   test('should filter sensors by name', async ({ page }) => {
@@ -377,7 +377,7 @@ test.describe('IONotifyController (SharedMemory)', () => {
     await expect(typeFilter).toBeVisible();
 
     // Проверяем наличие опций
-    await expect(typeFilter.locator('option[value="all"]')).toHaveText('Все');
+    await expect(typeFilter.locator('option[value="all"]')).toHaveText('All');
     await expect(typeFilter.locator('option[value="AI"]')).toHaveText('AI');
     await expect(typeFilter.locator('option[value="DI"]')).toHaveText('DI');
     await expect(typeFilter.locator('option[value="AO"]')).toHaveText('AO');
@@ -490,7 +490,7 @@ test.describe('IONotifyController (SharedMemory)', () => {
     await expect(dialog).toBeVisible();
 
     // Проверяем заголовок
-    await expect(page.locator('#ionc-dialog-title')).toContainText('Установить значение');
+    await expect(page.locator('#ionc-dialog-title')).toContainText('Set value');
 
     // Проверяем наличие поля ввода
     await expect(page.locator('#ionc-set-value')).toBeVisible();
@@ -631,13 +631,13 @@ test.describe('IONotifyController (SharedMemory)', () => {
     await expect(dialog).toBeVisible();
 
     // Проверяем заголовок
-    await expect(page.locator('#ionc-dialog-title')).toContainText('Подписчики');
+    await expect(page.locator('#ionc-dialog-title')).toContainText('consumers');
 
     // Проверяем что есть информация о датчике
     await expect(page.locator('.ionc-dialog-info')).toBeVisible();
 
-    // Проверяем кнопку закрытия
-    await expect(page.locator('.ionc-dialog-btn-cancel')).toContainText('Закрыть');
+    // Check close button
+    await expect(page.locator('.ionc-dialog-btn-cancel')).toContainText('Close');
 
     // Закрываем диалог
     await page.locator('.ionc-dialog-btn-cancel').click();
@@ -660,14 +660,14 @@ test.describe('IONotifyController (SharedMemory)', () => {
     const dialog = page.locator('.ionc-dialog-overlay.visible');
     await expect(dialog).toBeVisible();
 
-    // Проверяем заголовок
-    await expect(page.locator('#ionc-dialog-title')).toContainText('Заморозить');
+    // Check title
+    await expect(page.locator('#ionc-dialog-title')).toContainText('Freeze sensor');
 
-    // Проверяем наличие поля ввода значения заморозки
+    // Check freeze value input field
     await expect(page.locator('#ionc-freeze-value')).toBeVisible();
 
-    // Проверяем подсказку про двойной клик
-    await expect(page.locator('.ionc-dialog-hint')).toContainText('Двойной клик');
+    // Check double-click hint
+    await expect(page.locator('.ionc-dialog-hint')).toContainText('Double click');
 
     // Закрываем
     await page.keyboard.press('Escape');
@@ -722,10 +722,10 @@ test.describe('IONotifyController (SharedMemory)', () => {
   test('should display lost consumers section', async ({ page }) => {
     await page.waitForSelector('[data-section-id="ionc-lost"]', { timeout: 10000 });
 
-    // Проверяем наличие секции потерянных подписчиков
+    // Check lost consumers section
     const lostSection = page.locator('[data-section-id="ionc-lost"]');
     await expect(lostSection).toBeVisible();
-    await expect(lostSection.locator('.collapsible-title')).toContainText('Потерянные подписчики');
+    await expect(lostSection.locator('.collapsible-title')).toContainText('Lost consumers');
   });
 
   test('should display LogServer section when LogServer is available', async ({ page }) => {
@@ -1207,9 +1207,9 @@ test.describe('IONotifyController (SharedMemory)', () => {
     const unfreezeBtn = updatedRow.locator('.ionc-btn-unfreeze');
     await expect(unfreezeBtn).toBeVisible();
 
-    // Проверяем tooltip на кнопке разморозки
+    // Check tooltip on unfreeze button
     const unfreezeTitle = await unfreezeBtn.getAttribute('title');
-    expect(unfreezeTitle).toContain('Заморожено на:');
+    expect(unfreezeTitle).toContain('Frozen at:');
     expect(unfreezeTitle).toContain(freezeValue);
   });
 
@@ -1247,16 +1247,16 @@ test.describe('IONotifyController (SharedMemory)', () => {
     const unfreezeDialog = page.locator('.ionc-dialog-overlay.visible');
     await expect(unfreezeDialog).toBeVisible();
 
-    // Проверяем заголовок
-    await expect(page.locator('#ionc-dialog-title')).toContainText('Разморозить');
+    // Check title
+    await expect(page.locator('#ionc-dialog-title')).toContainText('Unfreeze sensor');
 
-    // Проверяем что показываются оба значения
+    // Check that both values are shown
     const dialogContent = page.locator('.ionc-unfreeze-values');
     await expect(dialogContent).toBeVisible();
 
-    // Проверяем метки
-    await expect(dialogContent).toContainText('Реальное значение');
-    await expect(dialogContent).toContainText('Замороженное значение');
+    // Check labels
+    await expect(dialogContent).toContainText('Real value');
+    await expect(dialogContent).toContainText('Frozen value');
 
     // Проверяем что замороженное значение показывается с ❄
     const frozenValueInDialog = dialogContent.locator('.ionc-unfreeze-frozen');
@@ -1367,11 +1367,11 @@ test.describe('IONotifyController (SharedMemory)', () => {
     const setDialog = page.locator('.ionc-dialog-overlay.visible');
     await expect(setDialog).toBeVisible();
 
-    // Проверяем наличие предупреждения о заморозке
+    // Check freeze warning
     const warning = page.locator('.ionc-dialog-warning');
     await expect(warning).toBeVisible();
-    await expect(warning).toContainText('заморожен');
-    await expect(warning).toContainText('не будет изменено');
+    await expect(warning).toContainText('frozen');
+    await expect(warning).toContainText('will not be changed');
 
     // Закрываем диалог
     await page.keyboard.press('Escape');
