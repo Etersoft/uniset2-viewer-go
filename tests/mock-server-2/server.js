@@ -262,7 +262,26 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // SM2 set/freeze/unfreeze (POST handlers)
+  // SM2 set/freeze/unfreeze (GET handlers - actual UniSet2 API format)
+  if (url.startsWith('/api/v2/SM2/set?')) {
+    res.writeHead(200);
+    res.end(JSON.stringify({ result: 'OK' }));
+    return;
+  }
+
+  if (url.startsWith('/api/v2/SM2/freeze?')) {
+    res.writeHead(200);
+    res.end(JSON.stringify({ result: 'OK' }));
+    return;
+  }
+
+  if (url.startsWith('/api/v2/SM2/unfreeze?')) {
+    res.writeHead(200);
+    res.end(JSON.stringify({ result: 'OK' }));
+    return;
+  }
+
+  // SM2 set/freeze/unfreeze (POST handlers - for backward compatibility)
   if (req.method === 'POST') {
     let body = '';
     req.on('data', chunk => body += chunk);

@@ -80,9 +80,9 @@ test.describe('ModbusMaster renderer', () => {
     const devicesContainer = page.locator(`#mb-devices-${MB_OBJECT}`);
     await expect(devicesContainer).toBeVisible({ timeout: 5000 });
 
-    // Should have device cards
-    const deviceCards = page.locator(`#mb-devices-${MB_OBJECT} .mb-device-card`);
-    await expect(deviceCards.first()).toBeVisible({ timeout: 5000 });
+    // Should have device rows in the table
+    const deviceRows = page.locator(`#mb-devices-${MB_OBJECT} .mb-devices-table tbody tr`);
+    await expect(deviceRows.first()).toBeVisible({ timeout: 5000 });
   });
 
   test('should display registers table', async ({ page }) => {

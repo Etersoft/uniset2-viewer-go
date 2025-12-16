@@ -693,6 +693,8 @@ header h1 {
     transition: all 0.15s ease;
     display: flex;
     align-items: center;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .objects-list li:hover {
@@ -984,14 +986,10 @@ header h1 {
     align-items: center;
     gap: 0.5rem;
     padding: 0.5rem 0.75rem 0.5rem 1.5rem;
-    cursor: pointer;
     font-size: 0.8rem;
     color: var(--text-primary);
-    transition: background 0.15s ease;
-}
-
-.server-item:hover {
-    background: var(--bg-hover);
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .server-item .server-status-dot {
@@ -3275,10 +3273,15 @@ header h1 {
     transition: all 0.15s ease;
 }
 
-.add-sensor-btn:hover {
+.add-sensor-btn:hover:not(:disabled) {
     background: var(--bg-hover);
     color: var(--text-primary);
     border-color: var(--text-muted);
+}
+
+.add-sensor-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
 }
 
 /* Sensor dialog modal */
@@ -3460,6 +3463,20 @@ header h1 {
     text-transform: uppercase;
 }
 
+/* Modbus register badge */
+.modbus-badge {
+    display: inline-block;
+    background: var(--accent-orange);
+    color: white;
+    font-size: 9px;
+    font-weight: 600;
+    padding: 2px 5px;
+    border-radius: 3px;
+    margin-left: 8px;
+    vertical-align: middle;
+    text-transform: uppercase;
+}
+
 /* Responsive */
 @media (max-width: 1200px) {
     .io-grid-3 {
@@ -3508,11 +3525,13 @@ header h1 {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.85rem;
+    table-layout: fixed;
 }
 
 .ionc-sensors-table th {
     position: sticky;
     top: 0;
+    z-index: 10;
     background: var(--bg-tertiary);
     padding: 0.5rem 0.75rem;
     text-align: left;
@@ -3535,7 +3554,11 @@ header h1 {
 .ionc-col-pin { width: 55px; text-align: center; }  /* 5 chars */
 .ionc-col-chart { width: 30px; text-align: center; }
 .ionc-col-id { width: 100px; }  /* 10 chars */
-.ionc-col-name { /* auto - takes remaining space, truncated with ellipsis */ }
+.ionc-col-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 .ionc-col-type { width: 45px; }
 .ionc-col-value { width: 140px; font-family: 'JetBrains Mono', monospace; }  /* 15 chars */
 .ionc-col-flags { width: 100px; text-align: center; }  /* 10 chars */
@@ -3564,6 +3587,26 @@ header h1 {
     color: white;
     border-radius: 3px;
     padding: 0 4px;
+}
+
+.ionc-value-frozen {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.ionc-real-value {
+    color: var(--text-muted);
+}
+
+.ionc-frozen-arrow {
+    color: var(--text-muted);
+    font-size: 0.85em;
+}
+
+.ionc-frozen-value {
+    color: var(--accent-blue);
+    font-weight: 600;
 }
 
 .ionc-flag {
@@ -3781,6 +3824,59 @@ header h1 {
 .ionc-dialog-info strong {
     color: var(--text-primary);
     font-family: var(--font-mono);
+}
+
+.ionc-dialog-warning {
+    background: rgba(255, 152, 0, 0.15);
+    border: 1px solid var(--accent-orange);
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    font-size: 12px;
+    color: var(--accent-orange);
+}
+
+/* Unfreeze dialog */
+.ionc-unfreeze-values {
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    padding: 12px;
+    margin-bottom: 12px;
+}
+
+.ionc-unfreeze-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+}
+
+.ionc-unfreeze-row:not(:last-child) {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.ionc-unfreeze-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.ionc-unfreeze-value {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.ionc-unfreeze-frozen {
+    color: var(--accent-blue);
+}
+
+.ionc-dialog-btn-unfreeze {
+    background: var(--accent-orange);
+    color: white;
+}
+
+.ionc-dialog-btn-unfreeze:hover {
+    background: #e65100;
 }
 
 .ionc-dialog-field {

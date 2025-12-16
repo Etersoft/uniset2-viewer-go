@@ -312,15 +312,20 @@ const mbsRegisters = [];
 const mbsTypes = ['AI', 'AO', 'DI', 'DO'];
 const mbsVtypes = { AI: 'signed', AO: 'signed', DI: 'unsigned', DO: 'unsigned' };
 
+const mbsAmodes = ['rw', 'ro', 'wo'];
+
 for (let i = 1; i <= 80; i++) {
   const iotype = mbsTypes[(i - 1) % 4];
   const isAnalog = iotype.startsWith('A');
+  const devAddr = ((i - 1) % 5) + 1;  // MB addresses 1-5
   mbsRegisters.push({
     id: 2000 + i,
     name: `MBS_${iotype}${String(i).padStart(3, '0')}_S`,
     iotype: iotype,
     value: isAnalog ? (50 + i * 3) : (i % 2),
     vtype: mbsVtypes[iotype],
+    device: devAddr,
+    amode: mbsAmodes[(i - 1) % 3],
     register: {
       mbreg: 200 + i,
       mbfunc: iotype === 'AI' ? 4 : (iotype === 'AO' ? 6 : (iotype === 'DI' ? 2 : 5))
@@ -455,7 +460,7 @@ const server = http.createServer((req, res) => {
         { desc: 'show log level', name: 'log' }
       ]
     }));
-  } else if (url === '/api/v2/SharedMemory') {
+  } else if (url === '/api/v2/SharedMemory' || url === '/api/v2/SharedMemory/') {
     res.end(JSON.stringify(sharedMemoryData));
   } else if (url === '/api/v2/SharedMemory/sensors' || url.startsWith('/api/v2/SharedMemory/sensors?')) {
     // Parse query parameters
@@ -511,6 +516,15 @@ const server = http.createServer((req, res) => {
       real_value: 0
     }));
     res.end(JSON.stringify({ sensors }));
+  } else if (url.startsWith('/api/v2/SharedMemory/set?')) {
+    // Mock set endpoint (GET method like real UniSet2)
+    res.end(JSON.stringify({ result: 'OK' }));
+  } else if (url.startsWith('/api/v2/SharedMemory/freeze?')) {
+    // Mock freeze endpoint (GET method like real UniSet2)
+    res.end(JSON.stringify({ result: 'OK' }));
+  } else if (url.startsWith('/api/v2/SharedMemory/unfreeze?')) {
+    // Mock unfreeze endpoint (GET method like real UniSet2)
+    res.end(JSON.stringify({ result: 'OK' }));
   } else if (url === '/api/v2/OPCUAClient1') {
     res.end(JSON.stringify({
       OPCUAClient1: {},

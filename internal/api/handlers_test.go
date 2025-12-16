@@ -1430,8 +1430,8 @@ func TestHandleLogServerStream_WithServerManager_UsesCorrectServer(t *testing.T)
 	}
 }
 
-// TestHandleLogServerStream_WithServerManager_NoServerParam tests fallback behavior
-// when no server parameter is provided (should use first available server)
+// TestHandleLogServerStream_WithServerManager_NoServerParam tests that
+// server parameter is required when using multi-server mode
 func TestHandleLogServerStream_WithServerManager_NoServerParam(t *testing.T) {
 	server1 := createMockServerWithLogServer("localhost", 6001)
 	defer server1.Close()
@@ -1441,22 +1441,20 @@ func TestHandleLogServerStream_WithServerManager_NoServerParam(t *testing.T) {
 	})
 	handlers.SetLogServerManager(logserver.NewManager(slog.Default()))
 
-	// Request without server param should still work (uses first server)
+	// Request without server param should return error
 	req := httptest.NewRequest("GET", "/api/logs/TestProc/stream", nil)
 	req.SetPathValue("name", "TestProc")
 	w := httptest.NewRecorder()
 
 	handlers.HandleLogServerStream(w, req)
 
-	contentType := w.Header().Get("Content-Type")
-	if contentType != "text/event-stream" {
-		t.Errorf("expected Content-Type text/event-stream, got %s", contentType)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
 	}
 
-	// Should get error event (LogServer not running), not "no servers available"
 	body := w.Body.String()
-	if strings.Contains(body, "no servers available") {
-		t.Errorf("should have used first server, but got 'no servers available': %s", body)
+	if !strings.Contains(body, "server parameter is required") {
+		t.Errorf("expected 'server parameter is required' error, got: %s", body)
 	}
 }
 

@@ -14,7 +14,7 @@ test.describe('External Sensors (SM Integration)', () => {
     await page.waitForSelector('[data-section^="charts-"]', { timeout: 10000 });
 
     // Проверяем наличие кнопки "+ Датчик"
-    const addSensorBtn = page.locator('.add-sensor-btn');
+    const addSensorBtn = page.locator('.add-sensor-btn').first();
     await expect(addSensorBtn).toBeVisible();
     await expect(addSensorBtn).toContainText('+');
   });
@@ -23,7 +23,7 @@ test.describe('External Sensors (SM Integration)', () => {
     await page.waitForSelector('[data-section^="charts-"]', { timeout: 10000 });
 
     // Кликаем на кнопку добавления датчика
-    await page.locator('.add-sensor-btn').click();
+    await page.locator('.add-sensor-btn').first().click();
 
     // Проверяем что модальное окно открылось
     const modal = page.locator('.sensor-dialog-overlay');
@@ -35,7 +35,7 @@ test.describe('External Sensors (SM Integration)', () => {
 
   test('should have filter input in sensor modal', async ({ page }) => {
     await page.waitForSelector('[data-section^="charts-"]', { timeout: 10000 });
-    await page.locator('.add-sensor-btn').click();
+    await page.locator('.add-sensor-btn').first().click();
 
     // Проверяем наличие поля фильтра
     const filterInput = page.locator('.sensor-dialog-filter input');
@@ -44,7 +44,7 @@ test.describe('External Sensors (SM Integration)', () => {
 
   test('should close modal on close button click', async ({ page }) => {
     await page.waitForSelector('[data-section^="charts-"]', { timeout: 10000 });
-    await page.locator('.add-sensor-btn').click();
+    await page.locator('.add-sensor-btn').first().click();
 
     // Проверяем что модальное окно открылось
     await expect(page.locator('.sensor-dialog-overlay')).toHaveClass(/visible/);
@@ -58,7 +58,7 @@ test.describe('External Sensors (SM Integration)', () => {
 
   test('should close modal on ESC key (when filter is empty)', async ({ page }) => {
     await page.waitForSelector('[data-section^="charts-"]', { timeout: 10000 });
-    await page.locator('.add-sensor-btn').click();
+    await page.locator('.add-sensor-btn').first().click();
 
     await expect(page.locator('.sensor-dialog-overlay')).toHaveClass(/visible/);
 
@@ -71,7 +71,7 @@ test.describe('External Sensors (SM Integration)', () => {
 
   test('should clear filter on first ESC, close on second ESC', async ({ page }) => {
     await page.waitForSelector('[data-section^="charts-"]', { timeout: 10000 });
-    await page.locator('.add-sensor-btn').click();
+    await page.locator('.add-sensor-btn').first().click();
 
     const filterInput = page.locator('.sensor-dialog-filter input');
     await expect(filterInput).toBeVisible();
@@ -94,7 +94,7 @@ test.describe('External Sensors (SM Integration)', () => {
 
   test('should display sensor table in modal', async ({ page }) => {
     await page.waitForSelector('[data-section^="charts-"]', { timeout: 10000 });
-    await page.locator('.add-sensor-btn').click();
+    await page.locator('.add-sensor-btn').first().click();
 
     // Ждём загрузки таблицы датчиков (может занять время)
     // Либо таблица, либо сообщение о загрузке/ошибке
@@ -107,7 +107,7 @@ test.describe('External Sensors (SM Integration)', () => {
 
   test('should filter sensors by name', async ({ page }) => {
     await page.waitForSelector('[data-section^="charts-"]', { timeout: 10000 });
-    await page.locator('.add-sensor-btn').click();
+    await page.locator('.add-sensor-btn').first().click();
 
     // Ждём загрузки таблицы
     const tableRows = page.locator('.sensor-dialog-content table tbody tr');
@@ -138,7 +138,7 @@ test.describe('External Sensors (SM Integration)', () => {
 
   test('should close modal on overlay click', async ({ page }) => {
     await page.waitForSelector('[data-section^="charts-"]', { timeout: 10000 });
-    await page.locator('.add-sensor-btn').click();
+    await page.locator('.add-sensor-btn').first().click();
 
     await expect(page.locator('.sensor-dialog-overlay')).toHaveClass(/visible/);
 
@@ -158,7 +158,7 @@ test.describe('External Sensors (SM Integration)', () => {
       localStorage.removeItem(`uniset2-viewer-external-sensors-${objName}`);
     }, 'TestProc');
 
-    await page.locator('.add-sensor-btn').click();
+    await page.locator('.add-sensor-btn').first().click();
 
     // Ждём загрузки таблицы
     await page.waitForSelector('.sensor-dialog-content table tbody tr, .sensor-dialog-empty', { timeout: 10000 });
@@ -194,7 +194,7 @@ test.describe('External Sensors (SM Integration)', () => {
 
   test('should show message when no sensors available', async ({ page }) => {
     await page.waitForSelector('[data-section^="charts-"]', { timeout: 10000 });
-    await page.locator('.add-sensor-btn').click();
+    await page.locator('.add-sensor-btn').first().click();
 
     // Ждём загрузки модального окна
     await expect(page.locator('.sensor-dialog-overlay')).toHaveClass(/visible/);
@@ -217,7 +217,7 @@ test.describe('External Sensors (SM Integration)', () => {
     await page.waitForSelector('[data-section^="charts-"]', { timeout: 10000 });
 
     // Сначала добавляем датчик
-    await page.locator('.add-sensor-btn').click();
+    await page.locator('.add-sensor-btn').first().click();
     await page.waitForSelector('.sensor-dialog-content table tbody tr, .sensor-dialog-empty', { timeout: 10000 });
 
     const rows = page.locator('.sensor-dialog-content table tbody tr');
@@ -253,7 +253,7 @@ test.describe('External Sensors (SM Integration)', () => {
     await page.waitForSelector('[data-section^="charts-"]', { timeout: 10000 });
 
     // Добавляем датчик
-    await page.locator('.add-sensor-btn').click();
+    await page.locator('.add-sensor-btn').first().click();
     await page.waitForSelector('.sensor-dialog-content table tbody tr, .sensor-dialog-empty', { timeout: 10000 });
 
     const rows = page.locator('.sensor-dialog-content table tbody tr');
@@ -300,7 +300,7 @@ test.describe('External Sensors (SM Integration)', () => {
     }, 'TestProc');
 
     // Добавляем датчик
-    await page.locator('.add-sensor-btn').click();
+    await page.locator('.add-sensor-btn').first().click();
     await page.waitForSelector('.sensor-dialog-content table tbody tr, .sensor-dialog-empty', { timeout: 10000 });
 
     const rows = page.locator('.sensor-dialog-content table tbody tr');
@@ -362,7 +362,7 @@ test.describe('External Sensors (SM Integration)', () => {
     }, 'TestProc');
 
     // Добавляем несколько датчиков
-    await page.locator('.add-sensor-btn').click();
+    await page.locator('.add-sensor-btn').first().click();
     await page.waitForSelector('.sensor-dialog-content table tbody tr, .sensor-dialog-empty', { timeout: 10000 });
 
     const rows = page.locator('.sensor-dialog-content table tbody tr');
@@ -411,7 +411,7 @@ test.describe('External Sensors (SM Integration)', () => {
     }, 'TestProc');
 
     // Добавляем датчик
-    await page.locator('.add-sensor-btn').click();
+    await page.locator('.add-sensor-btn').first().click();
     await page.waitForSelector('.sensor-dialog-content table tbody tr, .sensor-dialog-empty', { timeout: 10000 });
 
     const rows = page.locator('.sensor-dialog-content table tbody tr');
@@ -443,7 +443,7 @@ test.describe('External Sensors (SM Integration)', () => {
 
   test('should show sensor count in dialog footer', async ({ page }) => {
     await page.waitForSelector('[data-section^="charts-"]', { timeout: 10000 });
-    await page.locator('.add-sensor-btn').click();
+    await page.locator('.add-sensor-btn').first().click();
 
     // Ждём загрузки контента
     await page.waitForSelector('.sensor-dialog-content table, .sensor-dialog-empty', { timeout: 10000 });
@@ -463,7 +463,7 @@ test.describe('External Sensors (SM Integration)', () => {
     }, 'TestProc');
 
     // Открываем диалог
-    await page.locator('.add-sensor-btn').click();
+    await page.locator('.add-sensor-btn').first().click();
     await page.waitForSelector('.sensor-dialog-content table tbody tr, .sensor-dialog-empty', { timeout: 10000 });
 
     const rows = page.locator('.sensor-dialog-content table tbody tr');
@@ -517,7 +517,7 @@ test.describe('External Sensors (SM Integration)', () => {
       localStorage.removeItem(`uniset2-viewer-external-sensors-${objName}`);
     }, 'TestProc');
 
-    await page.locator('.add-sensor-btn').click();
+    await page.locator('.add-sensor-btn').first().click();
     await page.waitForSelector('.sensor-dialog-content table tbody tr, .sensor-dialog-empty', { timeout: 10000 });
 
     const rows = page.locator('.sensor-dialog-content table tbody tr');

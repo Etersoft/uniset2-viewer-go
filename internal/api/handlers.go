@@ -106,19 +106,16 @@ func (h *Handlers) GetSSEHub() *SSEHub {
 }
 
 // getUniSetClient возвращает UniSet2 client с учётом serverID (multi-server)
+// В multi-server режиме параметр serverID обязателен
 func (h *Handlers) getUniSetClient(serverID string) (*uniset.Client, int, string) {
 	if h.serverManager != nil {
-		if serverID != "" {
-			if instance, ok := h.serverManager.GetServer(serverID); ok {
-				return instance.Client, 0, ""
-			}
-			return nil, http.StatusNotFound, "server not found"
+		if serverID == "" {
+			return nil, http.StatusBadRequest, "server parameter is required"
 		}
-
-		if instance, ok := h.serverManager.GetFirstServer(); ok {
+		if instance, ok := h.serverManager.GetServer(serverID); ok {
 			return instance.Client, 0, ""
 		}
-		return nil, http.StatusServiceUnavailable, "no servers available"
+		return nil, http.StatusNotFound, "server not found"
 	}
 
 	if h.client != nil {
@@ -184,17 +181,12 @@ func (h *Handlers) GetObjectData(w http.ResponseWriter, r *http.Request) {
 	var data *uniset.ObjectData
 	var err error
 
-	if h.serverManager != nil && serverID != "" {
-		// Используем конкретный сервер
-		data, err = h.serverManager.GetObjectData(serverID, name)
-	} else if h.serverManager != nil {
-		// Если сервер не указан, пробуем первый доступный
-		instance, exists := h.serverManager.GetFirstServer()
-		if !exists {
-			h.writeError(w, http.StatusServiceUnavailable, "no servers available")
+	if h.serverManager != nil {
+		if serverID == "" {
+			h.writeError(w, http.StatusBadRequest, "server parameter is required")
 			return
 		}
-		data, err = instance.GetObjectData(name)
+		data, err = h.serverManager.GetObjectData(serverID, name)
 	} else if h.client != nil {
 		// Fallback на старый клиент (для совместимости)
 		data, err = h.client.GetObjectData(name)
@@ -460,15 +452,12 @@ func (h *Handlers) HandleLogServerStream(w http.ResponseWriter, r *http.Request)
 	var data *uniset.ObjectData
 	var err error
 
-	if h.serverManager != nil && serverID != "" {
-		data, err = h.serverManager.GetObjectData(serverID, name)
-	} else if h.serverManager != nil {
-		instance, exists := h.serverManager.GetFirstServer()
-		if !exists {
-			h.writeError(w, http.StatusServiceUnavailable, "no servers available")
+	if h.serverManager != nil {
+		if serverID == "" {
+			h.writeError(w, http.StatusBadRequest, "server parameter is required")
 			return
 		}
-		data, err = instance.GetObjectData(name)
+		data, err = h.serverManager.GetObjectData(serverID, name)
 	} else if h.client != nil {
 		data, err = h.client.GetObjectData(name)
 	} else {
@@ -1020,12 +1009,24 @@ func (h *Handlers) SubscribeIONCSensors(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if h.ioncPoller == nil {
+	// Получаем poller из serverManager для multi-server режима
+	var ioncPoller *ionc.Poller
+	serverID := r.URL.Query().Get("server")
+	if h.serverManager != nil && serverID != "" {
+		if p, ok := h.serverManager.GetIONCPoller(serverID); ok {
+			ioncPoller = p
+		}
+	}
+	if ioncPoller == nil {
+		ioncPoller = h.ioncPoller
+	}
+
+	if ioncPoller == nil {
 		h.writeError(w, http.StatusServiceUnavailable, "IONC poller not available")
 		return
 	}
 
-	h.ioncPoller.Subscribe(name, req.SensorIDs)
+	ioncPoller.Subscribe(name, req.SensorIDs)
 
 	h.writeJSON(w, map[string]interface{}{
 		"status":     "subscribed",
@@ -1043,7 +1044,19 @@ func (h *Handlers) UnsubscribeIONCSensors(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if h.ioncPoller == nil {
+	// Получаем poller из serverManager для multi-server режима
+	var ioncPoller *ionc.Poller
+	serverID := r.URL.Query().Get("server")
+	if h.serverManager != nil && serverID != "" {
+		if p, ok := h.serverManager.GetIONCPoller(serverID); ok {
+			ioncPoller = p
+		}
+	}
+	if ioncPoller == nil {
+		ioncPoller = h.ioncPoller
+	}
+
+	if ioncPoller == nil {
 		h.writeError(w, http.StatusServiceUnavailable, "IONC poller not available")
 		return
 	}
@@ -1056,9 +1069,9 @@ func (h *Handlers) UnsubscribeIONCSensors(w http.ResponseWriter, r *http.Request
 
 	if len(req.SensorIDs) == 0 {
 		// Если не указаны конкретные датчики — отписываем все
-		h.ioncPoller.UnsubscribeAll(name)
+		ioncPoller.UnsubscribeAll(name)
 	} else {
-		h.ioncPoller.Unsubscribe(name, req.SensorIDs)
+		ioncPoller.Unsubscribe(name, req.SensorIDs)
 	}
 
 	h.writeJSON(w, map[string]interface{}{
@@ -1076,7 +1089,19 @@ func (h *Handlers) GetIONCSubscriptions(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if h.ioncPoller == nil {
+	// Получаем poller из serverManager для multi-server режима
+	var ioncPoller *ionc.Poller
+	serverID := r.URL.Query().Get("server")
+	if h.serverManager != nil && serverID != "" {
+		if p, ok := h.serverManager.GetIONCPoller(serverID); ok {
+			ioncPoller = p
+		}
+	}
+	if ioncPoller == nil {
+		ioncPoller = h.ioncPoller
+	}
+
+	if ioncPoller == nil {
 		h.writeJSON(w, map[string]interface{}{
 			"sensor_ids": []int64{},
 			"enabled":    false,
@@ -1084,7 +1109,7 @@ func (h *Handlers) GetIONCSubscriptions(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	sensorIDs := h.ioncPoller.GetSubscriptions(name)
+	sensorIDs := ioncPoller.GetSubscriptions(name)
 	if sensorIDs == nil {
 		sensorIDs = []int64{}
 	}
@@ -1104,7 +1129,19 @@ func (h *Handlers) SubscribeIONCSensorsQuery(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if h.ioncPoller == nil {
+	// Получаем poller из serverManager для multi-server режима
+	var ioncPoller *ionc.Poller
+	serverID := r.URL.Query().Get("server")
+	if h.serverManager != nil && serverID != "" {
+		if p, ok := h.serverManager.GetIONCPoller(serverID); ok {
+			ioncPoller = p
+		}
+	}
+	if ioncPoller == nil {
+		ioncPoller = h.ioncPoller
+	}
+
+	if ioncPoller == nil {
 		h.writeError(w, http.StatusServiceUnavailable, "IONC poller not available")
 		return
 	}
@@ -1129,7 +1166,7 @@ func (h *Handlers) SubscribeIONCSensorsQuery(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	h.ioncPoller.Subscribe(name, sensorIDs)
+	ioncPoller.Subscribe(name, sensorIDs)
 
 	h.writeJSON(w, map[string]interface{}{
 		"status":     "subscribed",

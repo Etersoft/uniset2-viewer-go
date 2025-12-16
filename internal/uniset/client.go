@@ -271,9 +271,9 @@ func (c *Client) GetIONCSensors(objectName string, offset, limit int, search, io
 }
 
 // GetIONCSensorValues получает значения конкретных датчиков
-// GET /{objectName}/get?filter=id1,name2,id3
+// GET /{objectName}/get?supplier={supplier}&filter=id1,name2,id3
 func (c *Client) GetIONCSensorValues(objectName string, sensors string) (*IONCSensorsResponse, error) {
-	path := fmt.Sprintf("%s/get?filter=%s", objectName, url.QueryEscape(sensors))
+	path := fmt.Sprintf("%s/get?supplier=%s&filter=%s", objectName, c.Supplier, url.QueryEscape(sensors))
 
 	data, err := c.doGet(path)
 	if err != nil {

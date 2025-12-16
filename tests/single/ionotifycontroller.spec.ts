@@ -1147,4 +1147,234 @@ test.describe('IONotifyController (SharedMemory)', () => {
     await expect(restoredCharts).toHaveCount(0, { timeout: 5000 });
   });
 
+  // ==================== FREEZE/UNFREEZE TESTS ====================
+
+  test('should show frozen value display format (real → frozen❄) after freeze', async ({ page }) => {
+    await page.waitForSelector('.ionc-sensors-tbody tr.ionc-sensor-row', { timeout: 10000 });
+
+    // Находим незамороженный датчик с кнопкой заморозки
+    const freezeBtn = page.locator('.ionc-sensors-tbody tr.ionc-sensor-row .ionc-btn-freeze').first();
+    const btnCount = await freezeBtn.count();
+    if (btnCount === 0) {
+      // Нет доступных для заморозки датчиков
+      return;
+    }
+
+    // Получаем строку датчика
+    const row = freezeBtn.locator('xpath=ancestor::tr');
+    const sensorId = await row.getAttribute('data-sensor-id');
+
+    // Получаем текущее значение
+    const valueEl = row.locator('.ionc-value');
+    const originalValue = await valueEl.textContent();
+
+    // Открываем диалог заморозки (одинарный клик + ждём таймер)
+    await freezeBtn.click();
+    await page.waitForTimeout(300);
+
+    const dialog = page.locator('.ionc-dialog-overlay.visible');
+    await expect(dialog).toBeVisible();
+
+    // Вводим значение заморозки отличное от текущего
+    const freezeInput = page.locator('#ionc-freeze-value');
+    const freezeValue = '12345';
+    await freezeInput.fill(freezeValue);
+
+    // Нажимаем "Заморозить"
+    await page.locator('#ionc-freeze-confirm').click();
+
+    // Ждём закрытия диалога
+    await expect(dialog).not.toBeVisible({ timeout: 5000 });
+
+    // Проверяем что датчик теперь показывает формат "real → frozen❄"
+    const updatedRow = page.locator(`tr[data-sensor-id="${sensorId}"]`);
+    const frozenValueEl = updatedRow.locator('.ionc-frozen-value');
+
+    // Если real_value отличается от frozen value, должен показываться формат
+    const hasFrozenFormat = await frozenValueEl.count() > 0;
+
+    if (hasFrozenFormat) {
+      // Проверяем что замороженное значение отображается
+      await expect(frozenValueEl).toContainText(freezeValue);
+      await expect(frozenValueEl).toContainText('❄');
+
+      // Проверяем наличие стрелки
+      const arrow = updatedRow.locator('.ionc-frozen-arrow');
+      await expect(arrow).toBeVisible();
+    }
+
+    // Проверяем что кнопка теперь "Разморозить"
+    const unfreezeBtn = updatedRow.locator('.ionc-btn-unfreeze');
+    await expect(unfreezeBtn).toBeVisible();
+
+    // Проверяем tooltip на кнопке разморозки
+    const unfreezeTitle = await unfreezeBtn.getAttribute('title');
+    expect(unfreezeTitle).toContain('Заморожено на:');
+    expect(unfreezeTitle).toContain(freezeValue);
+  });
+
+  test('should show unfreeze dialog with both values on single click', async ({ page }) => {
+    await page.waitForSelector('.ionc-sensors-tbody tr.ionc-sensor-row', { timeout: 10000 });
+
+    // Сначала заморозим датчик
+    const freezeBtn = page.locator('.ionc-sensors-tbody tr.ionc-sensor-row .ionc-btn-freeze').first();
+    const btnCount = await freezeBtn.count();
+    if (btnCount === 0) return;
+
+    const row = freezeBtn.locator('xpath=ancestor::tr');
+    const sensorId = await row.getAttribute('data-sensor-id');
+
+    // Замораживаем
+    await freezeBtn.click();
+    await page.waitForTimeout(300);
+
+    const freezeDialog = page.locator('.ionc-dialog-overlay.visible');
+    await expect(freezeDialog).toBeVisible();
+
+    await page.locator('#ionc-freeze-value').fill('99999');
+    await page.locator('#ionc-freeze-confirm').click();
+    await expect(freezeDialog).not.toBeVisible({ timeout: 5000 });
+
+    // Теперь проверяем диалог разморозки
+    const updatedRow = page.locator(`tr[data-sensor-id="${sensorId}"]`);
+    const unfreezeBtn = updatedRow.locator('.ionc-btn-unfreeze');
+    await expect(unfreezeBtn).toBeVisible();
+
+    // Одинарный клик — должен открыться диалог (после таймера)
+    await unfreezeBtn.click();
+    await page.waitForTimeout(300);
+
+    const unfreezeDialog = page.locator('.ionc-dialog-overlay.visible');
+    await expect(unfreezeDialog).toBeVisible();
+
+    // Проверяем заголовок
+    await expect(page.locator('#ionc-dialog-title')).toContainText('Разморозить');
+
+    // Проверяем что показываются оба значения
+    const dialogContent = page.locator('.ionc-unfreeze-values');
+    await expect(dialogContent).toBeVisible();
+
+    // Проверяем метки
+    await expect(dialogContent).toContainText('Реальное значение');
+    await expect(dialogContent).toContainText('Замороженное значение');
+
+    // Проверяем что замороженное значение показывается с ❄
+    const frozenValueInDialog = dialogContent.locator('.ionc-unfreeze-frozen');
+    await expect(frozenValueInDialog).toContainText('99999');
+    await expect(frozenValueInDialog).toContainText('❄');
+
+    // Закрываем диалог
+    await page.keyboard.press('Escape');
+    await expect(unfreezeDialog).not.toBeVisible();
+  });
+
+  test('should restore real value after unfreeze', async ({ page }) => {
+    await page.waitForSelector('.ionc-sensors-tbody tr.ionc-sensor-row', { timeout: 10000 });
+
+    // Находим незамороженный датчик
+    const freezeBtn = page.locator('.ionc-sensors-tbody tr.ionc-sensor-row .ionc-btn-freeze').first();
+    const btnCount = await freezeBtn.count();
+    if (btnCount === 0) return;
+
+    const row = freezeBtn.locator('xpath=ancestor::tr');
+    const sensorId = await row.getAttribute('data-sensor-id');
+
+    // Получаем текущее значение (это будет real_value)
+    const valueEl = row.locator('.ionc-value');
+    const originalValue = await valueEl.textContent();
+
+    // Замораживаем на другое значение
+    await freezeBtn.click();
+    await page.waitForTimeout(300);
+
+    const freezeDialog = page.locator('.ionc-dialog-overlay.visible');
+    await expect(freezeDialog).toBeVisible();
+
+    const freezeValue = '77777';
+    await page.locator('#ionc-freeze-value').fill(freezeValue);
+    await page.locator('#ionc-freeze-confirm').click();
+    await expect(freezeDialog).not.toBeVisible({ timeout: 5000 });
+
+    // Проверяем что датчик заморожен
+    const updatedRow = page.locator(`tr[data-sensor-id="${sensorId}"]`);
+    const unfreezeBtn = updatedRow.locator('.ionc-btn-unfreeze');
+    await expect(unfreezeBtn).toBeVisible();
+
+    // Размораживаем через одинарный клик (открывает диалог)
+    await unfreezeBtn.click();
+    await page.waitForTimeout(300); // Ждём таймер single/double click
+
+    // Ждём появления диалога разморозки
+    const unfreezeDialog = page.locator('.ionc-dialog-overlay.visible');
+    await expect(unfreezeDialog).toBeVisible({ timeout: 3000 });
+
+    // Нажимаем кнопку "Разморозить"
+    await page.locator('#ionc-unfreeze-confirm').click();
+    await expect(unfreezeDialog).not.toBeVisible({ timeout: 5000 });
+
+    // Проверяем что кнопка вернулась к "Заморозить"
+    const restoredRow = page.locator(`tr[data-sensor-id="${sensorId}"]`);
+    const restoredFreezeBtn = restoredRow.locator('.ionc-btn-freeze');
+    await expect(restoredFreezeBtn).toBeVisible({ timeout: 5000 });
+
+    // Проверяем что значение вернулось к реальному (не 77777)
+    const restoredValue = restoredRow.locator('.ionc-value');
+    const newValue = await restoredValue.textContent();
+
+    // Значение должно быть НЕ равно замороженному
+    expect(newValue?.trim()).not.toBe(freezeValue);
+
+    // Формат "real → frozen❄" должен исчезнуть
+    const frozenFormat = restoredRow.locator('.ionc-frozen-value');
+    await expect(frozenFormat).not.toBeVisible();
+  });
+
+  test('should show warning in set value dialog when sensor is frozen', async ({ page }) => {
+    await page.waitForSelector('.ionc-sensors-tbody tr.ionc-sensor-row', { timeout: 10000 });
+
+    // Находим или создаём замороженный датчик
+    let unfreezeBtn = page.locator('.ionc-sensors-tbody tr.ionc-sensor-row .ionc-btn-unfreeze').first();
+    let row;
+
+    if (await unfreezeBtn.count() === 0) {
+      // Нет замороженных, заморозим один
+      const freezeBtn = page.locator('.ionc-sensors-tbody tr.ionc-sensor-row .ionc-btn-freeze').first();
+      if (await freezeBtn.count() === 0) return;
+
+      row = freezeBtn.locator('xpath=ancestor::tr');
+      await freezeBtn.click();
+      await page.waitForTimeout(300);
+
+      const dialog = page.locator('.ionc-dialog-overlay.visible');
+      await expect(dialog).toBeVisible();
+      await page.locator('#ionc-freeze-confirm').click();
+      await expect(dialog).not.toBeVisible({ timeout: 5000 });
+
+      unfreezeBtn = row.locator('.ionc-btn-unfreeze');
+    } else {
+      row = unfreezeBtn.locator('xpath=ancestor::tr');
+    }
+
+    // Теперь открываем диалог установки значения для замороженного датчика
+    const setBtn = row.locator('.ionc-btn-set');
+    if (await setBtn.isDisabled()) {
+      // Датчик readonly, пропускаем
+      return;
+    }
+
+    await setBtn.click();
+
+    const setDialog = page.locator('.ionc-dialog-overlay.visible');
+    await expect(setDialog).toBeVisible();
+
+    // Проверяем наличие предупреждения о заморозке
+    const warning = page.locator('.ionc-dialog-warning');
+    await expect(warning).toBeVisible();
+    await expect(warning).toContainText('заморожен');
+    await expect(warning).toContainText('не будет изменено');
+
+    // Закрываем диалог
+    await page.keyboard.press('Escape');
+  });
+
 });

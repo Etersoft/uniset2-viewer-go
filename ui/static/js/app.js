@@ -83,6 +83,20 @@ function updateSSEStatus(status, lastUpdate = null) {
     container.title = title;
 }
 
+// Обновить доступность кнопок "Добавить датчик" для всех открытых вкладок
+function updateAddSensorButtons() {
+    const buttons = document.querySelectorAll('.add-sensor-btn');
+    buttons.forEach(btn => {
+        if (state.capabilities.smEnabled) {
+            btn.disabled = false;
+            btn.title = '';
+        } else {
+            btn.disabled = true;
+            btn.title = 'SM не подключена (-sm-url не задан)';
+        }
+    });
+}
+
 // Обновить статус конкретного сервера
 function updateServerStatus(serverId, connected) {
     const server = state.servers.get(serverId);
@@ -181,6 +195,9 @@ function initSSE() {
 
             // Обновляем индикатор статуса
             updateSSEStatus('connected', new Date());
+
+            // Обновляем доступность кнопок "Добавить датчик"
+            updateAddSensorButtons();
 
             // Отключаем polling для всех открытых вкладок
             state.tabs.forEach((tabState, objectName) => {
@@ -862,24 +879,20 @@ const ParamsAccessibilityMixin = {
      */
     updateParamsAccessibility(prefix) {
         // httpEnabledSetParams может быть: true/false, 1/0, или отсутствовать
-        // Разрешено только если значение === true или === 1
-        const val = this.status?.httpEnabledSetParams;
-        const enabled = val === true || val === 1;
-        const sectionId = `${prefix}-params-section-${this.objectName}`;
-        const section = document.getElementById(sectionId);
+        // Если статус не загружен - не меняем состояние секции
+        if (!this.status) return;
 
-        if (!section) return;
-
-        // Свернуть секцию если изменение параметров запрещено
-        if (!enabled && !section.classList.contains('collapsed')) {
-            section.classList.add('collapsed');
-        }
+        const val = this.status.httpEnabledSetParams;
+        // Разрешено если значение === true или === 1
+        // Также разрешено если значение не определено (для совместимости со старыми версиями)
+        const enabled = val === true || val === 1 || val === undefined;
+        const explicitlyDisabled = val === false || val === 0;
 
         // Заблокировать кнопку "Применить"
         const saveBtn = document.getElementById(`${prefix}-params-save-${this.objectName}`);
         if (saveBtn) {
-            saveBtn.disabled = !enabled;
-            saveBtn.title = enabled ? '' : 'Изменение параметров запрещено';
+            saveBtn.disabled = explicitlyDisabled;
+            saveBtn.title = explicitlyDisabled ? 'Изменение параметров запрещено' : '';
         }
 
         // Заблокировать все input в таблице параметров
@@ -887,7 +900,7 @@ const ParamsAccessibilityMixin = {
         if (paramsTable) {
             const inputs = paramsTable.querySelectorAll('input, select');
             inputs.forEach(input => {
-                input.disabled = !enabled;
+                input.disabled = explicitlyDisabled;
             });
         }
 
@@ -898,10 +911,10 @@ const ParamsAccessibilityMixin = {
             indParams.title = enabled ? 'Параметры: Да' : 'Параметры: Нет';
         }
 
-        // Показать предупреждение
+        // Показать предупреждение только если явно запрещено
         this.setNote(`${prefix}-params-note-${this.objectName}`,
-            enabled ? '' : 'Изменение параметров запрещено (httpEnabledSetParams=false)',
-            !enabled);
+            explicitlyDisabled ? 'Изменение параметров запрещено (httpEnabledSetParams=false)' : '',
+            explicitlyDisabled);
     }
 };
 
@@ -1107,7 +1120,9 @@ class BaseObjectRenderer {
                         <path d="M6 9l6 6 6-6"/>
                     </svg>
                     <span class="collapsible-title">Графики</span>
-                    <button class="add-sensor-btn" onclick="event.stopPropagation(); openSensorDialog('${this.objectName}')">+ Датчик</button>
+                    <button class="add-sensor-btn" id="add-sensor-btn-${this.objectName}"
+                            onclick="event.stopPropagation(); openSensorDialog('${this.tabKey}')"
+                            ${!state.capabilities.smEnabled ? 'disabled title="SM не подключена (-sm-url не задан)"' : ''}>+ Датчик</button>
                     <div class="charts-time-range" onclick="event.stopPropagation()">
                         <div class="time-range-selector">
                             <button class="time-range-btn${state.timeRange === 60 ? ' active' : ''}" onclick="setTimeRange(60)">1m</button>
@@ -1315,15 +1330,18 @@ class BaseObjectRenderer {
 
         if (addedSensors.has(sensor.name)) {
             // Удаляем с графика
-            removeExternalSensor(this.tabKey, sensor.name);
+            removeExternalSensor(this.tabKey, sensor.name, this.getChartOptions());
         } else {
             // Добавляем на график
+            const chartOptions = this.getChartOptions();
             const sensorForChart = {
                 id: sensor.id,
                 name: sensor.name,
                 textname: sensor.textname || sensor.name,
                 iotype: sensor.iotype || sensor.type,
-                value: sensor.value
+                value: sensor.value,
+                // Сохраняем опции графика для восстановления после перезагрузки
+                chartOptions: chartOptions
             };
 
             // Добавляем в список внешних датчиков (сохраняем полные данные)
@@ -1336,12 +1354,18 @@ class BaseObjectRenderer {
                 state.sensors.set(sensor.id, sensorForChart);
             }
 
-            // Создаём график
-            createExternalSensorChart(this.tabKey, sensorForChart);
+            // Создаём график с опциями, специфичными для типа рендерера
+            createExternalSensorChart(this.tabKey, sensorForChart, this.getChartOptions());
 
             // Подписываемся на обновления датчика
             this.subscribeToChartSensor(sensor.id);
         }
+    }
+
+    // Получить опции для создания графика
+    // Переопределяется в наследниках для специфичных badge и prefix
+    getChartOptions() {
+        return { badge: 'SM', prefix: 'ext' };
     }
 
     // Подписаться на обновления датчика для графика
@@ -1686,6 +1710,8 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
         // Для батчевого рендеринга
         this.pendingUpdates = new Map(); // id -> sensor
         this.renderScheduled = false;
+        // Cooldown после freeze/unfreeze - игнорируем SSE обновления
+        this.freezeCooldowns = new Set(); // sensor IDs в cooldown
 
         // Virtual scroll properties (как в OPCUA)
         this.allSensors = [];           // Все загруженные сенсоры
@@ -2051,9 +2077,22 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                 }
             });
         });
-        // Кнопка разморозки
+        // Кнопка разморозки: одинарный клик = диалог, двойной клик = быстрая разморозка
         tbody.querySelectorAll('.ionc-btn-unfreeze').forEach(btn => {
-            btn.addEventListener('click', () => this.unfreeze(parseInt(btn.dataset.id)));
+            let clickTimer = null;
+            const sensorId = parseInt(btn.dataset.id);
+            btn.addEventListener('click', () => {
+                if (clickTimer) {
+                    clearTimeout(clickTimer);
+                    clickTimer = null;
+                    this.quickUnfreeze(sensorId);
+                } else {
+                    clickTimer = setTimeout(() => {
+                        clickTimer = null;
+                        this.showUnfreezeDialog(sensorId);
+                    }, 250);
+                }
+            });
         });
         tbody.querySelectorAll('.ionc-btn-consumers').forEach(btn => {
             btn.addEventListener('click', () => this.showConsumersDialog(parseInt(btn.dataset.id)));
@@ -2083,7 +2122,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
         if (sensor.undefined) flags.push('<span class="ionc-flag ionc-flag-undefined" title="Не определён">?</span>');
 
         const freezeBtn = sensor.frozen
-            ? `<button class="ionc-btn ionc-btn-unfreeze" data-id="${sensor.id}" title="Разморозить">🔥</button>`
+            ? `<button class="ionc-btn ionc-btn-unfreeze" data-id="${sensor.id}" title="Заморожено на: ${sensor.value}. Нажмите для разморозки">🔥</button>`
             : `<button class="ionc-btn ionc-btn-freeze" data-id="${sensor.id}" title="Заморозить">❄</button>`;
 
         // Кнопка закрепления (pin)
@@ -2119,10 +2158,17 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                     </span>
                 </td>
                 <td class="ionc-col-id">${sensor.id}</td>
-                <td class="ionc-col-name">${escapeHtml(sensor.name)}</td>
+                <td class="ionc-col-name" title="${escapeHtml(sensor.textname || '')}">${escapeHtml(sensor.name)}</td>
                 <td class="ionc-col-type"><span class="type-badge type-${sensor.type}">${sensor.type}</span></td>
                 <td class="ionc-col-value">
-                    <span class="ionc-value" id="ionc-value-${this.objectName}-${sensor.id}">${sensor.value}</span>
+                    ${sensor.frozen && sensor.real_value !== undefined && sensor.real_value !== sensor.value
+                        ? `<span class="ionc-value ionc-value-frozen" id="ionc-value-${this.objectName}-${sensor.id}">
+                               <span class="ionc-real-value">${sensor.real_value}</span>
+                               <span class="ionc-frozen-arrow">→</span>
+                               <span class="ionc-frozen-value">${sensor.value}❄</span>
+                           </span>`
+                        : `<span class="ionc-value" id="ionc-value-${this.objectName}-${sensor.id}">${sensor.value}</span>`
+                    }
                 </td>
                 <td class="ionc-col-flags">${flags.join(' ') || '—'}</td>
                 <td class="ionc-col-consumers">
@@ -2196,11 +2242,17 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
         const objectName = this.objectName;
         const self = this;
 
+        // Предупреждение если датчик заморожен
+        const frozenWarning = sensor.frozen
+            ? `<div class="ionc-dialog-warning">⚠️ Датчик заморожен. Значение не будет изменено пока датчик не разморозите.</div>`
+            : '';
+
         const body = `
             <div class="ionc-dialog-info">
                 Датчик: <strong>${escapeHtml(sensor.name)}</strong> (ID: ${sensorId})<br>
                 Текущее значение: <strong>${sensor.value}</strong>
             </div>
+            ${frozenWarning}
             <div class="ionc-dialog-field">
                 <label for="ionc-set-value">Новое значение:</label>
                 <input type="number" id="ionc-set-value" value="${sensor.value}">
@@ -2236,9 +2288,14 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                 }
 
                 // Обновляем локально
-                sensor.value = value;
-                const valueEl = document.getElementById(`ionc-value-${objectName}-${sensorId}`);
-                if (valueEl) valueEl.textContent = value;
+                if (sensor.frozen) {
+                    // Если заморожен - обновляем real_value (значение SM), value остаётся замороженным
+                    sensor.real_value = value;
+                } else {
+                    sensor.value = value;
+                }
+                // Перерисовываем строку для корректного отображения формата
+                self.reRenderSensorRow(sensorId);
 
                 closeIoncDialog();
             } catch (err) {
@@ -2308,6 +2365,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
 
                 sensor.frozen = true;
                 sensor.value = value;
+                self.addFreezeCooldown(sensorId); // Игнорируем SSE обновления на 3 сек
                 self.reRenderSensorRow(sensorId);
                 closeIoncDialog();
             } catch (err) {
@@ -2345,14 +2403,86 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
             }
 
             sensor.frozen = true;
+            this.addFreezeCooldown(sensorId); // Игнорируем SSE обновления на 3 сек
             this.reRenderSensorRow(sensorId);
         } catch (err) {
             showIoncDialogError(`Ошибка: ${err.message}`);
         }
     }
 
-    // Разморозка (клик на 🔥)
-    async unfreeze(sensorId) {
+    // Показать диалог разморозки (клик на 🔥)
+    showUnfreezeDialog(sensorId) {
+        const sensor = this.sensorMap.get(sensorId);
+        if (!sensor) return;
+
+        const objectName = this.objectName;
+        const self = this;
+
+        const realValue = sensor.real_value !== undefined ? sensor.real_value : '—';
+        const frozenValue = sensor.value;
+
+        const body = `
+            <div class="ionc-dialog-info">
+                Датчик: <strong>${escapeHtml(sensor.name)}</strong> (ID: ${sensorId})
+            </div>
+            <div class="ionc-unfreeze-values">
+                <div class="ionc-unfreeze-row">
+                    <span class="ionc-unfreeze-label">Реальное значение (SM):</span>
+                    <span class="ionc-unfreeze-value">${realValue}</span>
+                </div>
+                <div class="ionc-unfreeze-row">
+                    <span class="ionc-unfreeze-label">Замороженное значение:</span>
+                    <span class="ionc-unfreeze-value ionc-unfreeze-frozen">${frozenValue}❄</span>
+                </div>
+            </div>
+            <div class="ionc-dialog-hint">После разморозки датчик вернётся к реальному значению</div>
+        `;
+
+        const footer = `
+            <button class="ionc-dialog-btn ionc-dialog-btn-cancel" onclick="closeIoncDialog()">Отмена</button>
+            <button class="ionc-dialog-btn ionc-dialog-btn-unfreeze" id="ionc-unfreeze-confirm">🔥 Разморозить</button>
+        `;
+
+        const doUnfreeze = async () => {
+            try {
+                const url = self.buildUrl(`/api/objects/${encodeURIComponent(objectName)}/ionc/unfreeze`);
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sensor_id: sensorId })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Failed to unfreeze');
+                }
+
+                sensor.frozen = false;
+                self.addFreezeCooldown(sensorId);
+                // После разморозки значение возвращается к real_value
+                if (sensor.real_value !== undefined) {
+                    sensor.value = sensor.real_value;
+                }
+                self.reRenderSensorRow(sensorId);
+                closeIoncDialog();
+            } catch (err) {
+                showIoncDialogError(`Ошибка: ${err.message}`);
+            }
+        };
+
+        openIoncDialog({
+            title: 'Разморозить датчик',
+            body,
+            footer,
+            focusInput: false,
+            onConfirm: doUnfreeze
+        });
+
+        document.getElementById('ionc-unfreeze-confirm').addEventListener('click', doUnfreeze);
+    }
+
+    // Быстрая разморозка (двойной клик на 🔥)
+    async quickUnfreeze(sensorId) {
         const sensor = this.sensorMap.get(sensorId);
         if (!sensor) return;
 
@@ -2370,6 +2500,11 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
             }
 
             sensor.frozen = false;
+            this.addFreezeCooldown(sensorId);
+            // После разморозки значение возвращается к real_value
+            if (sensor.real_value !== undefined) {
+                sensor.value = sensor.real_value;
+            }
             this.reRenderSensorRow(sensorId);
         } catch (err) {
             showIoncDialogError(`Ошибка: ${err.message}`);
@@ -2416,8 +2551,25 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
             });
         }
 
-        // Кнопка разморозки
-        row.querySelector('.ionc-btn-unfreeze')?.addEventListener('click', () => this.unfreeze(sensorId));
+        // Кнопка разморозки — одинарный/двойной клик
+        const unfreezeBtn = row.querySelector('.ionc-btn-unfreeze');
+        if (unfreezeBtn) {
+            let clickTimer = null;
+            unfreezeBtn.addEventListener('click', (e) => {
+                if (clickTimer) {
+                    // Двойной клик — быстрая разморозка
+                    clearTimeout(clickTimer);
+                    clickTimer = null;
+                    this.quickUnfreeze(sensorId);
+                } else {
+                    // Одинарный клик — ждём второй клик или открываем диалог
+                    clickTimer = setTimeout(() => {
+                        clickTimer = null;
+                        this.showUnfreezeDialog(sensorId);
+                    }, 250);
+                }
+            });
+        }
     }
 
     async showConsumersDialog(sensorId) {
@@ -2531,6 +2683,11 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
 
     // Обработка SSE обновления датчика (батчевая версия)
     handleIONCSensorUpdate(sensor) {
+        // Пропускаем обновления для датчиков в cooldown (после freeze/unfreeze)
+        if (this.freezeCooldowns.has(sensor.id)) {
+            return;
+        }
+
         // Обновляем в sensorMap
         if (this.sensorMap.has(sensor.id)) {
             const oldSensor = this.sensorMap.get(sensor.id);
@@ -2544,6 +2701,14 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
             this.renderScheduled = true;
             requestAnimationFrame(() => this.batchRenderUpdates());
         }
+    }
+
+    // Добавить датчик в cooldown после freeze/unfreeze
+    addFreezeCooldown(sensorId, durationMs = 3000) {
+        this.freezeCooldowns.add(sensorId);
+        setTimeout(() => {
+            this.freezeCooldowns.delete(sensorId);
+        }, durationMs);
     }
 
     // Батчевый рендеринг обновлений DOM
@@ -3375,7 +3540,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
             <tr data-sensor-id="${sensor.id || ''}">
                 ${this.renderChartToggleCell(sensor.id, sensor.name, 'opcua')}
                 <td>${sensor.id ?? '—'}</td>
-                <td>${escapeHtml(sensor.name || '')}</td>
+                <td title="${escapeHtml(sensor.textname || sensor.comment || '')}">${escapeHtml(sensor.name || '')}</td>
                 <td><span class="${typeBadgeClass}">${iotype || '—'}</span></td>
                 <td>${sensor.value ?? '—'}</td>
                 <td>${sensor.tick ?? '—'}</td>
@@ -3770,6 +3935,11 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
         this.unsubscribeFromSSE();
     }
 
+    // ModbusMaster регистры - показываем badge "MB"
+    getChartOptions() {
+        return { badge: 'MB', prefix: 'mb' };
+    }
+
     async reloadAll() {
         await Promise.allSettled([
             this.loadStatus(),
@@ -4124,7 +4294,7 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
                 <tr data-sensor-id="${reg.id}">
                     ${this.renderChartToggleCell(reg.id, reg.name, 'mbreg')}
                     <td>${reg.id}</td>
-                    <td>${escapeHtml(reg.name || '')}</td>
+                    <td title="${escapeHtml(reg.textname || reg.comment || '')}">${escapeHtml(reg.name || '')}</td>
                     <td>${reg.iotype || ''}</td>
                     <td><span class="mb-respond ${respondClass}">${deviceAddr || ''}</span></td>
                     <td>${regInfo.mbreg || ''}</td>
@@ -4372,6 +4542,11 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
         this.unsubscribeFromSSE();
     }
 
+    // ModbusSlave регистры - показываем badge "MB"
+    getChartOptions() {
+        return { badge: 'MB', prefix: 'mb' };
+    }
+
     async reloadAll() {
         await Promise.allSettled([
             this.loadStatus(),
@@ -4473,6 +4648,7 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
                                 <th class="col-type">Тип</th>
                                 <th class="col-mbaddr">MB Addr</th>
                                 <th class="col-register">Регистр</th>
+                                <th class="col-func">Функция</th>
                                 <th class="col-access">Доступ</th>
                                 <th class="col-value">Значение</th>
                             </tr>
@@ -4703,17 +4879,21 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
             }
         });
 
-        // ModbusSlave формат: device - это mbaddr, нет mbfunc, есть amode
+        // ModbusSlave формат: device - это mbaddr, register содержит mbreg/mbfunc, есть amode
         const html = this.allRegisters.map(reg => {
             const mbAddr = reg.device;
+            const regInfo = reg.register || {};
+            const mbreg = regInfo.mbreg !== undefined ? regInfo.mbreg : reg.mbreg;
+            const mbfunc = regInfo.mbfunc;
             return `
                 <tr data-sensor-id="${reg.id}">
                     ${this.renderChartToggleCell(reg.id, reg.name, 'mbsreg')}
                     <td>${reg.id}</td>
-                    <td>${escapeHtml(reg.name || '')}</td>
+                    <td title="${escapeHtml(reg.textname || reg.comment || '')}">${escapeHtml(reg.name || '')}</td>
                     <td>${reg.iotype || ''}</td>
                     <td>${mbAddr || ''}</td>
-                    <td>${reg.mbreg !== undefined ? reg.mbreg : ''}</td>
+                    <td>${mbreg !== undefined ? mbreg : ''}</td>
+                    <td>${mbfunc !== undefined ? mbfunc : ''}</td>
                     <td>${reg.amode || ''}</td>
                     <td>${reg.value !== undefined ? reg.value : ''}</td>
                 </tr>
@@ -5359,7 +5539,7 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
             <tr data-sensor-id="${sensor.id || ''}">
                 ${this.renderChartToggleCell(sensor.id, sensor.name, 'opcuasrv')}
                 <td>${sensor.id || ''}</td>
-                <td class="sensor-name">${sensor.name || ''}</td>
+                <td class="sensor-name" title="${escapeHtml(sensor.textname || sensor.comment || '')}">${sensor.name || ''}</td>
                 <td><span class="${typeBadgeClass}">${iotype}</span></td>
                 <td class="sensor-value">${sensor.value !== undefined ? formatValue(sensor.value) : '—'}</td>
                 <td>${sensor.vtype || ''}</td>
@@ -6826,11 +7006,16 @@ const sensorDialogState = {
 };
 
 // Открыть диалог выбора датчика
-function openSensorDialog(objectName) {
-    sensorDialogState.objectName = objectName;
+// tabKey - ключ вкладки (serverId:objectName)
+function openSensorDialog(tabKey) {
+    sensorDialogState.objectName = tabKey;
 
-    // Загрузить список уже добавленных внешних датчиков
-    sensorDialogState.addedSensors = getExternalSensorsFromStorage(objectName);
+    // Получаем displayName для localStorage (без serverId)
+    const tabState = state.tabs.get(tabKey);
+    const displayName = tabState?.displayName || tabKey;
+
+    // Загрузить список уже добавленных внешних датчиков (по displayName)
+    sensorDialogState.addedSensors = getExternalSensorsFromStorage(displayName);
 
     const overlay = document.getElementById('sensor-dialog-overlay');
     const filterInput = document.getElementById('sensor-filter-input');
@@ -7078,8 +7263,13 @@ async function unsubscribeFromIONCSensor(objectName, sensorId) {
 }
 
 // Добавить внешний датчик на график
-function addExternalSensor(objectName, sensorName) {
+// tabKey - ключ вкладки (serverId:objectName)
+function addExternalSensor(tabKey, sensorName) {
     let sensor;
+
+    // Получаем displayName для localStorage (без serverId)
+    const tabState = state.tabs.get(tabKey);
+    const displayName = tabState?.displayName || tabKey;
 
     if (state.capabilities.smEnabled) {
         // SM включен - ищем датчик в глобальном списке
@@ -7103,35 +7293,38 @@ function addExternalSensor(objectName, sensorName) {
         value: sensor.value
     });
 
-    // Сохраняем в localStorage
-    saveExternalSensorsToStorage(objectName, sensorDialogState.addedSensors);
+    // Сохраняем в localStorage (используем displayName для переносимости между сессиями)
+    saveExternalSensorsToStorage(displayName, sensorDialogState.addedSensors);
 
-    // Создаём график для внешнего датчика
-    createExternalSensorChart(objectName, sensor);
+    // Создаём график для внешнего датчика (используем tabKey)
+    createExternalSensorChart(tabKey, sensor);
 
     // Обновляем таблицу (чтобы кнопка стала disabled)
     renderSensorTable();
 
-    console.log(`Добавлен внешний датчик ${sensorName} для ${objectName}`);
+    console.log(`Добавлен внешний датчик ${sensorName} для ${displayName}`);
 
     if (state.capabilities.smEnabled) {
         // SM включен - подписываемся через SM API
-        subscribeToExternalSensors(objectName, [sensorName]);
+        subscribeToExternalSensors(tabKey, [sensorName]);
     } else {
         // SM выключен - подписываемся через IONC API
-        subscribeToIONCSensor(objectName, sensor.id);
+        subscribeToIONCSensor(tabKey, sensor.id);
     }
 }
 
 // Создать график для внешнего датчика
 // tabKey - ключ для state.tabs (serverId:objectName)
-function createExternalSensorChart(tabKey, sensor) {
+// options.badge - текст badge ('SM', 'MB', null для скрытия)
+// options.prefix - префикс для varName (по умолчанию 'ext')
+function createExternalSensorChart(tabKey, sensor, options = {}) {
     const tabState = state.tabs.get(tabKey);
     if (!tabState) return;
 
     // Используем displayName из tabState для ID элементов (без serverId)
     const objectName = tabState.displayName;
-    const varName = `ext:${sensor.name}`; // Префикс ext: для внешних датчиков
+    const prefix = options.prefix || 'ext';
+    const varName = `${prefix}:${sensor.name}`; // Префикс для идентификации источника
 
     // Проверяем, не создан ли уже график
     if (tabState.charts.has(varName)) {
@@ -7150,6 +7343,10 @@ function createExternalSensorChart(tabKey, sensor) {
     // Используем CSS-безопасный ID (заменяем : на -)
     const safeVarName = varName.replace(/:/g, '-');
 
+    // Badge: SM для SharedMemory, MB для Modbus, или скрыт
+    const badge = options.badge !== undefined ? options.badge : 'SM';
+    const badgeHtml = badge ? `<span class="chart-panel-badge ${badge === 'SM' ? 'external-badge' : 'modbus-badge'}">${badge}</span>` : '';
+
     const chartDiv = document.createElement('div');
     chartDiv.className = 'chart-panel external-sensor-chart';
     chartDiv.id = `chart-panel-${objectName}-${safeVarName}`;
@@ -7160,7 +7357,8 @@ function createExternalSensorChart(tabKey, sensor) {
                 <span class="chart-panel-title">${escapeHtml(displayName)}</span>
                 <span class="chart-panel-value" id="legend-value-${objectName}-${safeVarName}">--</span>
                 <span class="chart-panel-textname">${escapeHtml(sensor.name)}</span>
-                <span class="chart-panel-badge external-badge">SM</span>
+                <span class="type-badge type-${sensor.iotype || 'unknown'}">${sensor.iotype || '?'}</span>
+                ${badgeHtml}
             </div>
             <div class="chart-panel-right">
                 <label class="fill-toggle" title="Заливка фона">
@@ -7294,7 +7492,7 @@ function createExternalSensorChart(tabKey, sensor) {
 
     // Обработчик удаления (передаём tabKey, а не objectName)
     chartDiv.querySelector('.chart-remove-btn').addEventListener('click', () => {
-        removeExternalSensor(tabKey, sensor.name);
+        removeExternalSensor(tabKey, sensor.name, { prefix });
     });
 
     // Обработчик чекбокса заливки
@@ -7309,13 +7507,15 @@ function createExternalSensorChart(tabKey, sensor) {
 
 // Удалить внешний датчик с графика
 // tabKey - ключ для state.tabs (serverId:objectName)
-function removeExternalSensor(tabKey, sensorName) {
+// options.prefix - префикс для varName (по умолчанию 'ext')
+function removeExternalSensor(tabKey, sensorName, options = {}) {
     const tabState = state.tabs.get(tabKey);
     if (!tabState) return;
 
     // Используем displayName из tabState для ID элементов (без serverId)
     const objectName = tabState.displayName;
-    const varName = `ext:${sensorName}`;
+    const prefix = options.prefix || 'ext';
+    const varName = `${prefix}:${sensorName}`;
     const safeVarName = varName.replace(/:/g, '-');
 
     // Удаляем график
@@ -7353,6 +7553,12 @@ function removeExternalSensor(tabKey, sensorName) {
         if (ioncCheckbox) {
             ioncCheckbox.checked = false;
         }
+    }
+
+    // Снять галочку в любой таблице по data-sensor-name (Modbus, OPCUA и др.)
+    const chartCheckbox = document.querySelector(`.chart-checkbox[data-sensor-name="${sensorName}"]`);
+    if (chartCheckbox) {
+        chartCheckbox.checked = false;
     }
 
     // Обновляем состояние диалога если открыт
@@ -7442,7 +7648,9 @@ function restoreExternalSensors(tabKey, displayName) {
                     iotype: sensorData.iotype || sensorData.type,
                     value: sensorData.value
                 };
-                createExternalSensorChart(tabKey, sensor);
+                // Используем сохранённые опции графика (badge, prefix) или дефолтные
+                const chartOptions = sensorData.chartOptions || { badge: 'SM', prefix: 'ext' };
+                createExternalSensorChart(tabKey, sensor, chartOptions);
                 restoredSensorIds.push(sensorData.id);
                 restoredSensorNames.push(sensorName);
 
@@ -8080,6 +8288,7 @@ async function addChart(objectName, varName, sensorId, passedTextname) {
                 <span class="chart-panel-title">${displayName}</span>
                 <span class="chart-panel-value" id="legend-value-${objectName}-${varName}">--</span>
                 <span class="chart-panel-textname">${textName}</span>
+                ${sensor?.iotype ? `<span class="type-badge type-${sensor.iotype}">${sensor.iotype}</span>` : ''}
             </div>
             <div class="chart-panel-right">
                 <label class="fill-toggle" title="Заливка фона">
