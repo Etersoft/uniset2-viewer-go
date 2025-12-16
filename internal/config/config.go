@@ -128,7 +128,7 @@ func Parse() *Config {
 	flag.StringVar(&cfg.SQLitePath, "sqlite-path", "./history.db", "SQLite database path")
 	flag.DurationVar(&cfg.HistoryTTL, "history-ttl", time.Hour, "History retention time")
 	flag.StringVar(&cfg.LogFormat, "log-format", "text", "Log format: text or json")
-	flag.StringVar(&cfg.LogLevel, "log-level", "info", "Log level: debug, info, warn, error")
+	flag.StringVar(&cfg.LogLevel, "log-level", "warn", "Log level: debug, info, warn, error")
 	flag.StringVar(&cfg.ConFile, "uniset-config", "", "UniSet2 XML configuration file (sensors metadata)")
 	flag.StringVar(&cfg.ConfigFile, "config", "", "YAML configuration file for servers")
 	flag.StringVar(&cfg.SMURL, "sm-url", "", "SharedMemory HTTP API URL (empty = disabled)")
