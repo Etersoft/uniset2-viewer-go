@@ -30,8 +30,8 @@ type Poller struct {
 	mu sync.RWMutex
 	// subscriptions: objectName -> set of sensorIDs
 	subscriptions map[string]map[int64]struct{}
-	// lastValues: objectName -> sensorID -> value (для отправки только изменений)
-	lastValues map[string]map[int64]int64
+	// lastValues: objectName -> sensorID -> hash (value+real_value для отправки только изменений)
+	lastValues map[string]map[int64]string
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -49,7 +49,7 @@ func NewPoller(client *uniset.Client, interval time.Duration, batchSize int, cal
 		callback:      callback,
 		batchSize:     batchSize,
 		subscriptions: make(map[string]map[int64]struct{}),
-		lastValues:    make(map[string]map[int64]int64),
+		lastValues:    make(map[string]map[int64]string),
 		ctx:           ctx,
 		cancel:        cancel,
 	}
@@ -78,7 +78,7 @@ func (p *Poller) Subscribe(objectName string, sensorIDs []int64) {
 		p.subscriptions[objectName] = make(map[int64]struct{})
 	}
 	if p.lastValues[objectName] == nil {
-		p.lastValues[objectName] = make(map[int64]int64)
+		p.lastValues[objectName] = make(map[int64]string)
 	}
 
 	for _, id := range sensorIDs {
@@ -213,7 +213,7 @@ func (p *Poller) poll() {
 
 		// Добавляем изменившиеся значения в batch
 		for _, sensor := range sensors {
-			if p.hasValueChanged(objectName, sensor.ID, sensor.Value) {
+			if p.hasValueChanged(objectName, sensor) {
 				batch = append(batch, SensorUpdate{
 					ObjectName: objectName,
 					Sensor:     sensor,
@@ -286,17 +286,19 @@ func (p *Poller) pollObjectBatched(objectName string, sensorIDs []int64) ([]unis
 	return allSensors, nil
 }
 
-func (p *Poller) hasValueChanged(objectName string, sensorID int64, newValue int64) bool {
+func (p *Poller) hasValueChanged(objectName string, sensor uniset.IONCSensor) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	if p.lastValues[objectName] == nil {
-		p.lastValues[objectName] = make(map[int64]int64)
+		p.lastValues[objectName] = make(map[int64]string)
 	}
 
-	lastValue, exists := p.lastValues[objectName][sensorID]
-	if !exists || lastValue != newValue {
-		p.lastValues[objectName][sensorID] = newValue
+	// Хеш включает Value и RealValue - чтобы обновлять и при изменении real_value (для замороженных датчиков)
+	newHash := fmt.Sprintf("%d|%d", sensor.Value, sensor.RealValue)
+	lastHash, exists := p.lastValues[objectName][sensor.ID]
+	if !exists || lastHash != newHash {
+		p.lastValues[objectName][sensor.ID] = newHash
 		return true
 	}
 	return false

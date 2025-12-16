@@ -1710,8 +1710,6 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
         // Для батчевого рендеринга
         this.pendingUpdates = new Map(); // id -> sensor
         this.renderScheduled = false;
-        // Cooldown после freeze/unfreeze - игнорируем SSE обновления
-        this.freezeCooldowns = new Set(); // sensor IDs в cooldown
 
         // Virtual scroll properties (как в OPCUA)
         this.allSensors = [];           // Все загруженные сенсоры
@@ -2363,9 +2361,11 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                     throw new Error(err.error || 'Failed to freeze');
                 }
 
+                // Локальное обновление для мгновенной обратной связи
+                // SSE обновления подтвердят состояние из API
+                sensor.real_value = sensor.value;
                 sensor.frozen = true;
                 sensor.value = value;
-                self.addFreezeCooldown(sensorId); // Игнорируем SSE обновления на 3 сек
                 self.reRenderSensorRow(sensorId);
                 closeIoncDialog();
             } catch (err) {
@@ -2402,8 +2402,9 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                 throw new Error(err.error || 'Failed to freeze');
             }
 
+            // Локальное обновление для мгновенной обратной связи
+            sensor.real_value = sensor.value;
             sensor.frozen = true;
-            this.addFreezeCooldown(sensorId); // Игнорируем SSE обновления на 3 сек
             this.reRenderSensorRow(sensorId);
         } catch (err) {
             showIoncDialogError(`Error: ${err.message}`);
@@ -2457,9 +2458,8 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                     throw new Error(err.error || 'Failed to unfreeze');
                 }
 
+                // Локальное обновление для мгновенной обратной связи
                 sensor.frozen = false;
-                self.addFreezeCooldown(sensorId);
-                // После разморозки значение возвращается к real_value
                 if (sensor.real_value !== undefined) {
                     sensor.value = sensor.real_value;
                 }
@@ -2499,9 +2499,8 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                 throw new Error(err.error || 'Failed to unfreeze');
             }
 
+            // Локальное обновление для мгновенной обратной связи
             sensor.frozen = false;
-            this.addFreezeCooldown(sensorId);
-            // После разморозки значение возвращается к real_value
             if (sensor.real_value !== undefined) {
                 sensor.value = sensor.real_value;
             }
@@ -2683,17 +2682,18 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
 
     // Обработка SSE обновления датчика (батчевая версия)
     handleIONCSensorUpdate(sensor) {
-        // Пропускаем обновления для датчиков в cooldown (после freeze/unfreeze)
-        if (this.freezeCooldowns.has(sensor.id)) {
-            return;
-        }
-
         // Обновляем в sensorMap
         if (this.sensorMap.has(sensor.id)) {
             const oldSensor = this.sensorMap.get(sensor.id);
+
+            // API возвращает всю информацию:
+            // - frozen: флаг заморозки
+            // - value: замороженное значение (если frozen) или текущее (если нет)
+            // - real_value: реальное значение SM
             Object.assign(oldSensor, sensor);
+
             // Добавляем в очередь на рендеринг
-            this.pendingUpdates.set(sensor.id, sensor);
+            this.pendingUpdates.set(sensor.id, oldSensor);
         }
 
         // Планируем батчевый рендеринг
@@ -2701,14 +2701,6 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
             this.renderScheduled = true;
             requestAnimationFrame(() => this.batchRenderUpdates());
         }
-    }
-
-    // Add sensor в cooldown после freeze/unfreeze
-    addFreezeCooldown(sensorId, durationMs = 3000) {
-        this.freezeCooldowns.add(sensorId);
-        setTimeout(() => {
-            this.freezeCooldowns.delete(sensorId);
-        }, durationMs);
     }
 
     // Батчевый рендеринг обновлений DOM
@@ -2719,12 +2711,23 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
 
         // Обновляем DOM для всех ожидающих датчиков
         for (const [id, sensor] of this.pendingUpdates) {
-            // Обновляем значение
+            // Обновляем значение с учётом формата frozen
             const valueEl = document.getElementById(`ionc-value-${this.objectName}-${id}`);
             if (valueEl) {
-                valueEl.textContent = sensor.value;
-                // Добавляем анимацию при обновлении
-                valueEl.classList.add('ionc-value-updated');
+                // Рендерим правильный формат в зависимости от состояния frozen
+                if (sensor.frozen && sensor.real_value !== undefined && sensor.real_value !== sensor.value) {
+                    // Формат: real_value → frozen_value❄
+                    valueEl.className = 'ionc-value ionc-value-frozen ionc-value-updated';
+                    valueEl.innerHTML = `
+                        <span class="ionc-real-value">${sensor.real_value}</span>
+                        <span class="ionc-frozen-arrow">→</span>
+                        <span class="ionc-frozen-value">${sensor.value}❄</span>
+                    `;
+                } else {
+                    // Обычный формат
+                    valueEl.className = 'ionc-value ionc-value-updated';
+                    valueEl.textContent = sensor.value;
+                }
             }
 
             // Обновляем флаги если изменились
