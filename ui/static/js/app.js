@@ -1372,7 +1372,7 @@ class BaseObjectRenderer {
     // Переопределяется в наследниках для специфичных API
     subscribeToChartSensor(sensorId) {
         // По умолчанию используем IONC подписку
-        subscribeToIONCSensor(this.objectName, sensorId);
+        subscribeToIONCSensor(this.tabKey, sensorId);
     }
 
     // Сгенерировать HTML для checkbox добавления на график
@@ -6312,7 +6312,11 @@ class LogViewer {
 
     async sendCommand(command, level = 0, filter = '') {
         try {
-            await fetch(`/api/logs/${encodeURIComponent(this.objectName)}/command`, {
+            let url = `/api/logs/${encodeURIComponent(this.objectName)}/command`;
+            if (this.serverId) {
+                url += `?server=${encodeURIComponent(this.serverId)}`;
+            }
+            await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ command, level, filter })
@@ -6853,10 +6857,12 @@ async function unwatchObject(name, serverId = null) {
     return response.json();
 }
 
-async function fetchVariableHistory(objectName, variableName, count = 100) {
-    const response = await fetch(
-        `/api/objects/${encodeURIComponent(objectName)}/variables/${encodeURIComponent(variableName)}/history?count=${count}`
-    );
+async function fetchVariableHistory(objectName, variableName, count = 100, serverId = null) {
+    let url = `/api/objects/${encodeURIComponent(objectName)}/variables/${encodeURIComponent(variableName)}/history?count=${count}`;
+    if (serverId) {
+        url += `&server=${encodeURIComponent(serverId)}`;
+    }
+    const response = await fetch(url);
     if (!response.ok) throw new Error('Failed to load history');
     return response.json();
 }
@@ -7182,9 +7188,19 @@ function escapeHtml(text) {
 }
 
 // Подписаться на внешние датчики через API
-async function subscribeToExternalSensors(objectName, sensorNames) {
+// tabKey - ключ вкладки (serverId:objectName)
+async function subscribeToExternalSensors(tabKey, sensorNames) {
     try {
-        const response = await fetch(`/api/objects/${encodeURIComponent(objectName)}/external-sensors`, {
+        const tabState = state.tabs.get(tabKey);
+        const serverId = tabState?.serverId;
+        const objectName = tabState?.displayName || tabKey;
+
+        let url = `/api/objects/${encodeURIComponent(objectName)}/external-sensors`;
+        if (serverId) {
+            url += `?server=${encodeURIComponent(serverId)}`;
+        }
+
+        const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ sensors: sensorNames })
@@ -7199,12 +7215,19 @@ async function subscribeToExternalSensors(objectName, sensorNames) {
 }
 
 // Отписаться от внешнего датчика через API
-async function unsubscribeFromExternalSensor(objectName, sensorName) {
+// tabKey - ключ вкладки (serverId:objectName)
+async function unsubscribeFromExternalSensor(tabKey, sensorName) {
     try {
-        const response = await fetch(
-            `/api/objects/${encodeURIComponent(objectName)}/external-sensors/${encodeURIComponent(sensorName)}`,
-            { method: 'DELETE' }
-        );
+        const tabState = state.tabs.get(tabKey);
+        const serverId = tabState?.serverId;
+        const objectName = tabState?.displayName || tabKey;
+
+        let url = `/api/objects/${encodeURIComponent(objectName)}/external-sensors/${encodeURIComponent(sensorName)}`;
+        if (serverId) {
+            url += `?server=${encodeURIComponent(serverId)}`;
+        }
+
+        const response = await fetch(url, { method: 'DELETE' });
         if (!response.ok) {
             const err = await response.json();
             console.warn('Error отписки от датчика:', err.error || response.statusText);
@@ -7215,9 +7238,19 @@ async function unsubscribeFromExternalSensor(objectName, sensorName) {
 }
 
 // Подписаться на IONC датчик через API
-async function subscribeToIONCSensor(objectName, sensorId) {
+// tabKey - ключ вкладки (serverId:objectName)
+async function subscribeToIONCSensor(tabKey, sensorId) {
     try {
-        const response = await fetch(`/api/objects/${encodeURIComponent(objectName)}/ionc/subscribe`, {
+        const tabState = state.tabs.get(tabKey);
+        const serverId = tabState?.serverId;
+        const objectName = tabState?.displayName || tabKey;
+
+        let url = `/api/objects/${encodeURIComponent(objectName)}/ionc/subscribe`;
+        if (serverId) {
+            url += `?server=${encodeURIComponent(serverId)}`;
+        }
+
+        const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ sensor_ids: [sensorId] })
@@ -7227,11 +7260,10 @@ async function subscribeToIONCSensor(objectName, sensorId) {
             console.warn('Error подписки на IONC датчик:', err.error || response.statusText);
         } else {
             // Добавляем в список подписок рендерера
-            const tabState = state.tabs.get(objectName);
             if (tabState && tabState.renderer && tabState.renderer.subscribedSensorIds) {
                 tabState.renderer.subscribedSensorIds.add(sensorId);
             }
-            console.log(`IONC: Подписка на датчик ${sensorId} для ${objectName}`);
+            console.log(`IONC: Подписка на датчик ${sensorId} для ${objectName} (server: ${serverId})`);
         }
     } catch (err) {
         console.warn('Error подписки на IONC датчик:', err);
@@ -7239,9 +7271,19 @@ async function subscribeToIONCSensor(objectName, sensorId) {
 }
 
 // Отписаться от IONC датчика через API
-async function unsubscribeFromIONCSensor(objectName, sensorId) {
+// tabKey - ключ вкладки (serverId:objectName)
+async function unsubscribeFromIONCSensor(tabKey, sensorId) {
     try {
-        const response = await fetch(`/api/objects/${encodeURIComponent(objectName)}/ionc/unsubscribe`, {
+        const tabState = state.tabs.get(tabKey);
+        const serverId = tabState?.serverId;
+        const objectName = tabState?.displayName || tabKey;
+
+        let url = `/api/objects/${encodeURIComponent(objectName)}/ionc/unsubscribe`;
+        if (serverId) {
+            url += `?server=${encodeURIComponent(serverId)}`;
+        }
+
+        const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ sensor_ids: [sensorId] })
@@ -7251,11 +7293,10 @@ async function unsubscribeFromIONCSensor(objectName, sensorId) {
             console.warn('Error отписки от IONC датчика:', err.error || response.statusText);
         } else {
             // Удаляем из списка подписок рендерера
-            const tabState = state.tabs.get(objectName);
             if (tabState && tabState.renderer && tabState.renderer.subscribedSensorIds) {
                 tabState.renderer.subscribedSensorIds.delete(sensorId);
             }
-            console.log(`IONC: Отписка от датчика ${sensorId} для ${objectName}`);
+            console.log(`IONC: Отписка от датчика ${sensorId} для ${objectName} (server: ${serverId})`);
         }
     } catch (err) {
         console.warn('Error отписки от IONC датчика:', err);
@@ -7571,9 +7612,9 @@ function removeExternalSensor(tabKey, sensorName, options = {}) {
 
     // Отписываемся от датчика через API
     if (state.capabilities.smEnabled) {
-        unsubscribeFromExternalSensor(objectName, sensorName);
+        unsubscribeFromExternalSensor(tabKey, sensorName);
     } else if (sensor) {
-        unsubscribeFromIONCSensor(objectName, sensor.id);
+        unsubscribeFromIONCSensor(tabKey, sensor.id);
     }
 }
 
@@ -7687,10 +7728,15 @@ function restoreExternalSensors(tabKey, displayName) {
         // Подписываемся на все восстановленные датчики
         if (restoredSensorIds.length > 0) {
             if (state.capabilities.smEnabled) {
-                subscribeToExternalSensors(displayName, restoredSensorNames);
+                subscribeToExternalSensors(tabKey, restoredSensorNames);
             } else if (tabState.renderer && tabState.renderer.subscribedSensorIds) {
                 // IONC подписка
-                fetch(`/api/objects/${encodeURIComponent(displayName)}/ionc/subscribe`, {
+                const serverId = tabState.serverId;
+                let url = `/api/objects/${encodeURIComponent(displayName)}/ionc/subscribe`;
+                if (serverId) {
+                    url += `?server=${encodeURIComponent(serverId)}`;
+                }
+                fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ sensor_ids: restoredSensorIds })
@@ -8316,7 +8362,8 @@ async function addChart(objectName, varName, sensorId, passedTextname) {
 
     // Загружаем историю
     try {
-        const history = await fetchVariableHistory(objectName, varName, 200);
+        const serverId = tabState?.serverId;
+        const history = await fetchVariableHistory(objectName, varName, 200, serverId);
         const ctx = document.getElementById(`canvas-${objectName}-${varName}`).getContext('2d');
 
         // Преобразуем данные для временной шкалы
@@ -8445,11 +8492,15 @@ async function addChart(objectName, varName, sensorId, passedTextname) {
 }
 
 async function updateChart(objectName, varName, chart) {
-    const tabState = state.tabs.get(objectName);
+    // objectName может быть displayName или tabKey
+    const tabKey = findTabKeyByDisplayName(objectName) || objectName;
+    const tabState = state.tabs.get(tabKey);
     if (!tabState || !tabState.charts.has(varName)) return;
 
     try {
-        const history = await fetchVariableHistory(objectName, varName, 200);
+        const serverId = tabState?.serverId;
+        const displayName = tabState?.displayName || objectName;
+        const history = await fetchVariableHistory(displayName, varName, 200, serverId);
 
         // Преобразуем данные для временной шкалы
         const chartData = history.points?.map(p => ({
