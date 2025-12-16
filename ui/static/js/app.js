@@ -4295,7 +4295,7 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
                     ${this.renderChartToggleCell(reg.id, reg.name, 'mbreg')}
                     <td>${reg.id}</td>
                     <td title="${escapeHtml(reg.textname || reg.comment || '')}">${escapeHtml(reg.name || '')}</td>
-                    <td>${reg.iotype || ''}</td>
+                    <td>${reg.iotype ? `<span class="type-badge type-${reg.iotype}">${reg.iotype}</span>` : ''}</td>
                     <td><span class="mb-respond ${respondClass}">${deviceAddr || ''}</span></td>
                     <td>${regInfo.mbreg || ''}</td>
                     <td>${regInfo.mbfunc || ''}</td>
@@ -4890,7 +4890,7 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
                     ${this.renderChartToggleCell(reg.id, reg.name, 'mbsreg')}
                     <td>${reg.id}</td>
                     <td title="${escapeHtml(reg.textname || reg.comment || '')}">${escapeHtml(reg.name || '')}</td>
-                    <td>${reg.iotype || ''}</td>
+                    <td>${reg.iotype ? `<span class="type-badge type-${reg.iotype}">${reg.iotype}</span>` : ''}</td>
                     <td>${mbAddr || ''}</td>
                     <td>${mbreg !== undefined ? mbreg : ''}</td>
                     <td>${mbfunc !== undefined ? mbfunc : ''}</td>
