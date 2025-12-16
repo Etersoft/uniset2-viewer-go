@@ -276,5 +276,85 @@ test.describe('ModbusMaster renderer', () => {
       await chartLabel.click();
       await expect(chartCheckbox).not.toBeChecked();
     });
+
+    test('should create stepped chart for DI sensor', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('#objects-list li', { timeout: 15000 });
+
+      const mbItem = page.locator('#objects-list li', { hasText: MB_OBJECT });
+      await mbItem.click();
+
+      await page.waitForSelector('.tab-panel.active', { timeout: 10000 });
+      await page.waitForSelector(`#mb-registers-tbody-${MB_OBJECT} tr`, { timeout: 10000 });
+
+      // Find a DI type register row
+      const diRow = page.locator(`#mb-registers-tbody-${MB_OBJECT} tr`, { hasText: 'DI' }).first();
+      await expect(diRow).toBeVisible();
+
+      // Click on chart toggle for DI sensor
+      const chartLabel = diRow.locator('.chart-toggle-label');
+      await chartLabel.click();
+
+      // Wait for chart to be created
+      const chartsContainer = page.locator(`#charts-${MB_OBJECT}`);
+      await expect(chartsContainer.locator('.chart-wrapper')).toHaveCount(1);
+
+      // Get the canvas element and verify chart has stepped option
+      const canvas = chartsContainer.locator('canvas').first();
+      const canvasId = await canvas.getAttribute('id');
+
+      // Verify stepped option is set to 'before' for discrete sensor
+      const isStepped = await page.evaluate((id) => {
+        const canvas = document.getElementById(id) as HTMLCanvasElement;
+        if (!canvas) return false;
+        // @ts-ignore - Chart.js stores chart instance on canvas
+        const chart = Chart.getChart(canvas);
+        if (!chart) return false;
+        const dataset = chart.data.datasets[0];
+        return dataset.stepped === 'before';
+      }, canvasId);
+
+      expect(isStepped).toBe(true);
+    });
+
+    test('should create smooth chart for AI sensor (not stepped)', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('#objects-list li', { timeout: 15000 });
+
+      const mbItem = page.locator('#objects-list li', { hasText: MB_OBJECT });
+      await mbItem.click();
+
+      await page.waitForSelector('.tab-panel.active', { timeout: 10000 });
+      await page.waitForSelector(`#mb-registers-tbody-${MB_OBJECT} tr`, { timeout: 10000 });
+
+      // Find an AI type register row
+      const aiRow = page.locator(`#mb-registers-tbody-${MB_OBJECT} tr`, { hasText: 'AI' }).first();
+      await expect(aiRow).toBeVisible();
+
+      // Click on chart toggle for AI sensor
+      const chartLabel = aiRow.locator('.chart-toggle-label');
+      await chartLabel.click();
+
+      // Wait for chart to be created
+      const chartsContainer = page.locator(`#charts-${MB_OBJECT}`);
+      await expect(chartsContainer.locator('.chart-wrapper')).toHaveCount(1);
+
+      // Get the canvas element and verify chart does NOT have stepped option
+      const canvas = chartsContainer.locator('canvas').first();
+      const canvasId = await canvas.getAttribute('id');
+
+      // Verify stepped option is false for analog sensor
+      const isStepped = await page.evaluate((id) => {
+        const canvas = document.getElementById(id) as HTMLCanvasElement;
+        if (!canvas) return true; // fail if can't find
+        // @ts-ignore - Chart.js stores chart instance on canvas
+        const chart = Chart.getChart(canvas);
+        if (!chart) return true; // fail if can't find chart
+        const dataset = chart.data.datasets[0];
+        return dataset.stepped === 'before';
+      }, canvasId);
+
+      expect(isStepped).toBe(false);
+    });
   });
 });

@@ -371,5 +371,83 @@ test.describe('OPCUAExchange renderer', () => {
       await chartLabel.click();
       await expect(chartCheckbox).not.toBeChecked();
     });
+
+    test('should create stepped chart for DI sensor', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('#objects-list li', { timeout: 10000 });
+      await page.locator('#objects-list li', { hasText: OPCUA_OBJECT }).click();
+
+      const panel = page.locator('.tab-panel.active');
+      await panel.waitFor({ timeout: 10000 });
+      await page.waitForSelector(`#opcua-sensors-${OPCUA_OBJECT} tr`, { timeout: 10000 });
+
+      // Find a DI type sensor row
+      const diRow = panel.locator(`#opcua-sensors-${OPCUA_OBJECT} tr`, { hasText: 'DI' }).first();
+      await expect(diRow).toBeVisible();
+
+      // Click on chart toggle for DI sensor
+      const chartLabel = diRow.locator('.chart-toggle-label');
+      await chartLabel.click();
+
+      // Wait for chart to be created
+      const chartsContainer = panel.locator(`#charts-${OPCUA_OBJECT}`);
+      await expect(chartsContainer.locator('.chart-wrapper')).toHaveCount(1);
+
+      // Get the canvas element and verify chart has stepped option
+      const canvas = chartsContainer.locator('canvas').first();
+      const canvasId = await canvas.getAttribute('id');
+
+      // Verify stepped option is set to 'before' for discrete sensor
+      const isStepped = await page.evaluate((id) => {
+        const canvas = document.getElementById(id) as HTMLCanvasElement;
+        if (!canvas) return false;
+        // @ts-ignore - Chart.js stores chart instance on canvas
+        const chart = Chart.getChart(canvas);
+        if (!chart) return false;
+        const dataset = chart.data.datasets[0];
+        return dataset.stepped === 'before';
+      }, canvasId);
+
+      expect(isStepped).toBe(true);
+    });
+
+    test('should create smooth chart for AI sensor (not stepped)', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('#objects-list li', { timeout: 10000 });
+      await page.locator('#objects-list li', { hasText: OPCUA_OBJECT }).click();
+
+      const panel = page.locator('.tab-panel.active');
+      await panel.waitFor({ timeout: 10000 });
+      await page.waitForSelector(`#opcua-sensors-${OPCUA_OBJECT} tr`, { timeout: 10000 });
+
+      // Find an AI type sensor row
+      const aiRow = panel.locator(`#opcua-sensors-${OPCUA_OBJECT} tr`, { hasText: 'AI' }).first();
+      await expect(aiRow).toBeVisible();
+
+      // Click on chart toggle for AI sensor
+      const chartLabel = aiRow.locator('.chart-toggle-label');
+      await chartLabel.click();
+
+      // Wait for chart to be created
+      const chartsContainer = panel.locator(`#charts-${OPCUA_OBJECT}`);
+      await expect(chartsContainer.locator('.chart-wrapper')).toHaveCount(1);
+
+      // Get the canvas element and verify chart does NOT have stepped option
+      const canvas = chartsContainer.locator('canvas').first();
+      const canvasId = await canvas.getAttribute('id');
+
+      // Verify stepped option is false for analog sensor
+      const isStepped = await page.evaluate((id) => {
+        const canvas = document.getElementById(id) as HTMLCanvasElement;
+        if (!canvas) return true; // fail if can't find
+        // @ts-ignore - Chart.js stores chart instance on canvas
+        const chart = Chart.getChart(canvas);
+        if (!chart) return true; // fail if can't find chart
+        const dataset = chart.data.datasets[0];
+        return dataset.stepped === 'before';
+      }, canvasId);
+
+      expect(isStepped).toBe(false);
+    });
   });
 });
