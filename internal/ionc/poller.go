@@ -22,9 +22,10 @@ type BatchUpdateCallback func(updates []SensorUpdate)
 
 // Poller опрашивает IONC датчики для подписанных клиентов
 type Poller struct {
-	client   *uniset.Client
-	interval time.Duration
-	callback BatchUpdateCallback
+	client    *uniset.Client
+	interval  time.Duration
+	callback  BatchUpdateCallback
+	batchSize int // макс. датчиков в одном запросе
 
 	mu sync.RWMutex
 	// subscriptions: objectName -> set of sensorIDs
@@ -38,13 +39,15 @@ type Poller struct {
 }
 
 // NewPoller создает новый IONC poller
-func NewPoller(client *uniset.Client, interval time.Duration, callback BatchUpdateCallback) *Poller {
+// batchSize - макс. количество датчиков в одном запросе (0 = без ограничения)
+func NewPoller(client *uniset.Client, interval time.Duration, batchSize int, callback BatchUpdateCallback) *Poller {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Poller{
 		client:        client,
 		interval:      interval,
 		callback:      callback,
+		batchSize:     batchSize,
 		subscriptions: make(map[string]map[int64]struct{}),
 		lastValues:    make(map[string]map[int64]int64),
 		ctx:           ctx,
@@ -227,6 +230,15 @@ func (p *Poller) poll() {
 }
 
 func (p *Poller) pollObject(objectName string, sensorIDs []int64) ([]uniset.IONCSensor, error) {
+	// Если батчинг включен и датчиков больше чем batchSize, разбиваем на батчи
+	if p.batchSize > 0 && len(sensorIDs) > p.batchSize {
+		return p.pollObjectBatched(objectName, sensorIDs)
+	}
+
+	return p.pollObjectSingle(objectName, sensorIDs)
+}
+
+func (p *Poller) pollObjectSingle(objectName string, sensorIDs []int64) ([]uniset.IONCSensor, error) {
 	// Формируем строку запроса: id1,id2,id3
 	query := ""
 	for i, id := range sensorIDs {
@@ -242,6 +254,36 @@ func (p *Poller) pollObject(objectName string, sensorIDs []int64) ([]uniset.IONC
 	}
 
 	return resp.Sensors, nil
+}
+
+func (p *Poller) pollObjectBatched(objectName string, sensorIDs []int64) ([]uniset.IONCSensor, error) {
+	var allSensors []uniset.IONCSensor
+	var lastErr error
+
+	// Разбиваем на батчи
+	for i := 0; i < len(sensorIDs); i += p.batchSize {
+		end := i + p.batchSize
+		if end > len(sensorIDs) {
+			end = len(sensorIDs)
+		}
+		batch := sensorIDs[i:end]
+
+		sensors, err := p.pollObjectSingle(objectName, batch)
+		if err != nil {
+			lastErr = err
+			slog.Debug("IONC batch poll failed", "object", objectName, "batch", i/p.batchSize, "error", err)
+			continue
+		}
+
+		allSensors = append(allSensors, sensors...)
+	}
+
+	// Возвращаем ошибку только если не получили ни одного датчика
+	if len(allSensors) == 0 && lastErr != nil {
+		return nil, lastErr
+	}
+
+	return allSensors, nil
 }
 
 func (p *Poller) hasValueChanged(objectName string, sensorID int64, newValue int64) bool {

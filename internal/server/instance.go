@@ -63,6 +63,7 @@ func NewInstance(
 	pollInterval time.Duration,
 	historyTTL time.Duration,
 	supplier string,
+	sensorBatchSize int,
 	objectCallback ObjectEventCallback,
 	ioncCallback IONCEventCallback,
 	modbusCallback ModbusEventCallback,
@@ -90,21 +91,21 @@ func NewInstance(
 	})
 
 	// Создаём IONC poller
-	ioncPoller := ionc.NewPoller(client, pollInterval, func(updates []ionc.SensorUpdate) {
+	ioncPoller := ionc.NewPoller(client, pollInterval, sensorBatchSize, func(updates []ionc.SensorUpdate) {
 		if ioncCallback != nil {
 			ioncCallback(serverID, serverName, updates)
 		}
 	})
 
 	// Создаём Modbus poller
-	modbusPoller := modbus.NewPoller(client, pollInterval, func(updates []modbus.RegisterUpdate) {
+	modbusPoller := modbus.NewPoller(client, pollInterval, sensorBatchSize, func(updates []modbus.RegisterUpdate) {
 		if modbusCallback != nil {
 			modbusCallback(serverID, serverName, updates)
 		}
 	})
 
 	// Создаём OPCUA poller
-	opcuaPoller := opcua.NewPoller(client, pollInterval, func(updates []opcua.SensorUpdate) {
+	opcuaPoller := opcua.NewPoller(client, pollInterval, sensorBatchSize, func(updates []opcua.SensorUpdate) {
 		if opcuaCallback != nil {
 			opcuaCallback(serverID, serverName, updates)
 		}

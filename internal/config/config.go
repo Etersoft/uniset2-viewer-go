@@ -99,18 +99,27 @@ type Config struct {
 	// Настройки стриминга логов
 	LogStream *LogStreamConfig
 
-	Addr           string // адрес для прослушивания (формат: :port или host:port)
-	PollInterval   time.Duration
-	Storage        StorageType
-	SQLitePath     string
-	HistoryTTL     time.Duration
-	LogFormat      string
-	LogLevel       string
-	ConFile        string
-	ConfigFile     string        // путь к YAML конфигу
-	SMURL          string        // URL SharedMemory API (пусто = отключено)
-	SMPollInterval time.Duration // Интервал опроса SM (0 = использовать PollInterval)
-	UnisetSupplier string        // Имя поставщика для операций set/freeze/unfreeze
+	Addr            string // адрес для прослушивания (формат: :port или host:port)
+	PollInterval    time.Duration
+	Storage         StorageType
+	SQLitePath      string
+	HistoryTTL      time.Duration
+	LogFormat       string
+	LogLevel        string
+	ConFile         string
+	ConfigFile      string        // путь к YAML конфигу
+	SMURL           string        // URL SharedMemory API (пусто = отключено)
+	SMPollInterval  time.Duration // Интервал опроса SM (0 = использовать PollInterval)
+	UnisetSupplier  string        // Имя поставщика для операций set/freeze/unfreeze
+	SensorBatchSize int           // Макс. количество датчиков в одном запросе (default: 300)
+}
+
+// GetSensorBatchSize возвращает размер батча датчиков с default
+func (c *Config) GetSensorBatchSize() int {
+	if c.SensorBatchSize <= 0 {
+		return 300
+	}
+	return c.SensorBatchSize
 }
 
 func Parse() *Config {
@@ -134,6 +143,7 @@ func Parse() *Config {
 	flag.StringVar(&cfg.SMURL, "sm-url", "", "SharedMemory HTTP API URL (empty = disabled)")
 	flag.DurationVar(&cfg.SMPollInterval, "sm-poll-interval", 0, "SharedMemory polling interval (0 = use poll-interval)")
 	flag.StringVar(&cfg.UnisetSupplier, "uniset-supplier", "TestProc", "UniSet2 supplier name for set/freeze/unfreeze operations")
+	flag.IntVar(&cfg.SensorBatchSize, "sensor-batch-size", 300, "Max sensors per request to UniSet2 (default: 300)")
 
 	flag.Parse()
 
@@ -151,6 +161,9 @@ func Parse() *Config {
 			cfg.Servers = yamlConfig.Servers
 			cfg.UI = yamlConfig.UI
 			cfg.LogStream = yamlConfig.LogStream
+			if yamlConfig.SensorBatchSize > 0 {
+				cfg.SensorBatchSize = yamlConfig.SensorBatchSize
+			}
 		}
 	}
 

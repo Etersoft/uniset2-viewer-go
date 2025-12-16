@@ -22,9 +22,10 @@ type BatchUpdateCallback func(updates []RegisterUpdate)
 
 // Poller опрашивает Modbus регистры для подписанных клиентов
 type Poller struct {
-	client   *uniset.Client
-	interval time.Duration
-	callback BatchUpdateCallback
+	client    *uniset.Client
+	interval  time.Duration
+	callback  BatchUpdateCallback
+	batchSize int // макс. регистров в одном запросе
 
 	mu sync.RWMutex
 	// subscriptions: objectName -> set of registerIDs
@@ -38,13 +39,15 @@ type Poller struct {
 }
 
 // NewPoller создает новый Modbus poller
-func NewPoller(client *uniset.Client, interval time.Duration, callback BatchUpdateCallback) *Poller {
+// batchSize - макс. количество регистров в одном запросе (0 = без ограничения)
+func NewPoller(client *uniset.Client, interval time.Duration, batchSize int, callback BatchUpdateCallback) *Poller {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Poller{
 		client:        client,
 		interval:      interval,
 		callback:      callback,
+		batchSize:     batchSize,
 		subscriptions: make(map[string]map[int64]struct{}),
 		lastValues:    make(map[string]map[int64]int64),
 		ctx:           ctx,
@@ -227,6 +230,15 @@ func (p *Poller) poll() {
 }
 
 func (p *Poller) pollObject(objectName string, registerIDs []int64) ([]uniset.MBRegister, error) {
+	// Если батчинг включен и регистров больше чем batchSize, разбиваем на батчи
+	if p.batchSize > 0 && len(registerIDs) > p.batchSize {
+		return p.pollObjectBatched(objectName, registerIDs)
+	}
+
+	return p.pollObjectSingle(objectName, registerIDs)
+}
+
+func (p *Poller) pollObjectSingle(objectName string, registerIDs []int64) ([]uniset.MBRegister, error) {
 	// Формируем строку запроса: id1,id2,id3
 	query := ""
 	for i, id := range registerIDs {
@@ -281,6 +293,36 @@ func (p *Poller) pollObject(objectName string, registerIDs []int64) ([]uniset.MB
 	}
 
 	return registers, nil
+}
+
+func (p *Poller) pollObjectBatched(objectName string, registerIDs []int64) ([]uniset.MBRegister, error) {
+	var allRegisters []uniset.MBRegister
+	var lastErr error
+
+	// Разбиваем на батчи
+	for i := 0; i < len(registerIDs); i += p.batchSize {
+		end := i + p.batchSize
+		if end > len(registerIDs) {
+			end = len(registerIDs)
+		}
+		batch := registerIDs[i:end]
+
+		registers, err := p.pollObjectSingle(objectName, batch)
+		if err != nil {
+			lastErr = err
+			slog.Debug("Modbus batch poll failed", "object", objectName, "batch", i/p.batchSize, "error", err)
+			continue
+		}
+
+		allRegisters = append(allRegisters, registers...)
+	}
+
+	// Возвращаем ошибку только если не получили ни одного регистра
+	if len(allRegisters) == 0 && lastErr != nil {
+		return nil, lastErr
+	}
+
+	return allRegisters, nil
 }
 
 func (p *Poller) hasValueChanged(objectName string, registerID int64, newValue int64) bool {

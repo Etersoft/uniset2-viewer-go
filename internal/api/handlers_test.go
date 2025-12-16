@@ -1039,7 +1039,7 @@ func setupTestHandlersWithServerManager(servers map[string]*httptest.Server) *Ha
 	}
 
 	// Create server manager
-	serverMgr := server.NewManager(store, 5*time.Second, time.Hour, "TestProc")
+	serverMgr := server.NewManager(store, 5*time.Second, time.Hour, "TestProc", 0)
 
 	// Add servers
 	for id, srv := range servers {

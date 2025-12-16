@@ -15,7 +15,7 @@ import (
 
 func TestPoller_SubscribeUnsubscribe(t *testing.T) {
 	client := uniset.NewClient("http://localhost:9999")
-	poller := NewPoller(client, time.Second, nil)
+	poller := NewPoller(client, time.Second, 0, nil)
 
 	// Test Subscribe
 	poller.Subscribe("Object1", []int64{100, 101})
@@ -48,7 +48,7 @@ func TestPoller_SubscribeUnsubscribe(t *testing.T) {
 
 func TestPoller_UnsubscribeAll(t *testing.T) {
 	client := uniset.NewClient("http://localhost:9999")
-	poller := NewPoller(client, time.Second, nil)
+	poller := NewPoller(client, time.Second, 0, nil)
 
 	poller.Subscribe("Object1", []int64{100, 101, 102})
 
@@ -62,7 +62,7 @@ func TestPoller_UnsubscribeAll(t *testing.T) {
 
 func TestPoller_GetAllSubscriptions(t *testing.T) {
 	client := uniset.NewClient("http://localhost:9999")
-	poller := NewPoller(client, time.Second, nil)
+	poller := NewPoller(client, time.Second, 0, nil)
 
 	poller.Subscribe("Object1", []int64{100, 101})
 	poller.Subscribe("Object2", []int64{200})
@@ -83,7 +83,7 @@ func TestPoller_GetAllSubscriptions(t *testing.T) {
 
 func TestPoller_SubscriptionCount(t *testing.T) {
 	client := uniset.NewClient("http://localhost:9999")
-	poller := NewPoller(client, time.Second, nil)
+	poller := NewPoller(client, time.Second, 0, nil)
 
 	if poller.SubscriptionCount() != 0 {
 		t.Errorf("expected 0 subscriptions initially, got %d", poller.SubscriptionCount())
@@ -125,7 +125,7 @@ func TestPoller_Poll(t *testing.T) {
 		mu.Unlock()
 	}
 
-	poller := NewPoller(client, 50*time.Millisecond, callback)
+	poller := NewPoller(client, 50*time.Millisecond, 0, callback)
 
 	// Subscribe to sensors
 	poller.Subscribe("SharedMemory", []int64{100, 101})
@@ -164,7 +164,7 @@ func TestPoller_NoSubscriptions(t *testing.T) {
 	defer server.Close()
 
 	client := uniset.NewClient(server.URL)
-	poller := NewPoller(client, 50*time.Millisecond, nil)
+	poller := NewPoller(client, 50*time.Millisecond, 0, nil)
 
 	// Start polling without subscriptions
 	poller.Start()
@@ -205,7 +205,7 @@ func TestPoller_OnlyChangedValuesEmitted(t *testing.T) {
 		mu.Unlock()
 	}
 
-	poller := NewPoller(client, 30*time.Millisecond, callback)
+	poller := NewPoller(client, 30*time.Millisecond, 0, callback)
 
 	poller.Subscribe("SharedMemory", []int64{100})
 
@@ -232,7 +232,7 @@ func TestPoller_OnlyChangedValuesEmitted(t *testing.T) {
 
 func TestPoller_StartStop(t *testing.T) {
 	client := uniset.NewClient("http://localhost:9999")
-	poller := NewPoller(client, time.Second, nil)
+	poller := NewPoller(client, time.Second, 0, nil)
 
 	// Should not panic on Start/Stop
 	poller.Start()
@@ -311,7 +311,7 @@ func TestPoller_MultipleObjects(t *testing.T) {
 		updatesMu.Unlock()
 	}
 
-	poller := NewPoller(client, 50*time.Millisecond, callback)
+	poller := NewPoller(client, 50*time.Millisecond, 0, callback)
 
 	// Subscribe to multiple objects
 	poller.Subscribe("Object1", []int64{100})

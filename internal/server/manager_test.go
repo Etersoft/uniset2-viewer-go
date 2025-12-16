@@ -17,7 +17,7 @@ import (
 
 func TestNewManager(t *testing.T) {
 	store := storage.NewMemoryStorage()
-	mgr := NewManager(store, time.Second, time.Hour, "TestSupplier")
+	mgr := NewManager(store, time.Second, time.Hour, "TestSupplier", 0)
 
 	if mgr == nil {
 		t.Fatal("NewManager returned nil")
@@ -33,7 +33,7 @@ func TestManagerAddServer(t *testing.T) {
 	defer server.Close()
 
 	store := storage.NewMemoryStorage()
-	mgr := NewManager(store, time.Second, time.Hour, "")
+	mgr := NewManager(store, time.Second, time.Hour, "", 0)
 
 	cfg := config.ServerConfig{
 		ID:   "server1",
@@ -59,7 +59,7 @@ func TestManagerAddServer(t *testing.T) {
 
 func TestManagerAddServerEmptyURL(t *testing.T) {
 	store := storage.NewMemoryStorage()
-	mgr := NewManager(store, time.Second, time.Hour, "")
+	mgr := NewManager(store, time.Second, time.Hour, "", 0)
 
 	cfg := config.ServerConfig{
 		ID:   "server1",
@@ -78,7 +78,7 @@ func TestManagerRemoveServer(t *testing.T) {
 	defer server.Close()
 
 	store := storage.NewMemoryStorage()
-	mgr := NewManager(store, time.Second, time.Hour, "")
+	mgr := NewManager(store, time.Second, time.Hour, "", 0)
 
 	cfg := config.ServerConfig{
 		ID:   "server1",
@@ -109,7 +109,7 @@ func TestManagerGetServer(t *testing.T) {
 	defer server.Close()
 
 	store := storage.NewMemoryStorage()
-	mgr := NewManager(store, time.Second, time.Hour, "")
+	mgr := NewManager(store, time.Second, time.Hour, "", 0)
 
 	cfg := config.ServerConfig{
 		ID:   "server1",
@@ -138,7 +138,7 @@ func TestManagerGetServerByURL(t *testing.T) {
 	defer server.Close()
 
 	store := storage.NewMemoryStorage()
-	mgr := NewManager(store, time.Second, time.Hour, "")
+	mgr := NewManager(store, time.Second, time.Hour, "", 0)
 
 	cfg := config.ServerConfig{
 		ID:   "server1",
@@ -170,7 +170,7 @@ func TestManagerListServers(t *testing.T) {
 	defer server2.Close()
 
 	store := storage.NewMemoryStorage()
-	mgr := NewManager(store, time.Second, time.Hour, "")
+	mgr := NewManager(store, time.Second, time.Hour, "", 0)
 
 	mgr.AddServer(config.ServerConfig{
 		ID:   "server1",
@@ -192,7 +192,7 @@ func TestManagerListServers(t *testing.T) {
 
 func TestManagerGetPollInterval(t *testing.T) {
 	store := storage.NewMemoryStorage()
-	mgr := NewManager(store, 5*time.Second, time.Hour, "")
+	mgr := NewManager(store, 5*time.Second, time.Hour, "", 0)
 
 	interval := mgr.GetPollInterval()
 	if interval != 5*time.Second {
@@ -205,7 +205,7 @@ func TestManagerSetPollInterval(t *testing.T) {
 	defer server.Close()
 
 	store := storage.NewMemoryStorage()
-	mgr := NewManager(store, time.Second, time.Hour, "")
+	mgr := NewManager(store, time.Second, time.Hour, "", 0)
 
 	// Add a server so we can verify interval is propagated
 	mgr.AddServer(config.ServerConfig{
@@ -235,7 +235,7 @@ func TestManagerSetPollInterval(t *testing.T) {
 
 func TestManagerSetObjectCallback(t *testing.T) {
 	store := storage.NewMemoryStorage()
-	mgr := NewManager(store, time.Second, time.Hour, "")
+	mgr := NewManager(store, time.Second, time.Hour, "", 0)
 
 	mgr.SetObjectCallback(func(serverID, serverName, objectName string, data *uniset.ObjectData) {
 		// callback set
@@ -248,7 +248,7 @@ func TestManagerSetObjectCallback(t *testing.T) {
 
 func TestManagerSetIONCCallback(t *testing.T) {
 	store := storage.NewMemoryStorage()
-	mgr := NewManager(store, time.Second, time.Hour, "")
+	mgr := NewManager(store, time.Second, time.Hour, "", 0)
 
 	mgr.SetIONCCallback(func(serverID, serverName string, updates []ionc.SensorUpdate) {})
 
@@ -259,7 +259,7 @@ func TestManagerSetIONCCallback(t *testing.T) {
 
 func TestManagerSetStatusCallback(t *testing.T) {
 	store := storage.NewMemoryStorage()
-	mgr := NewManager(store, time.Second, time.Hour, "")
+	mgr := NewManager(store, time.Second, time.Hour, "", 0)
 
 	mgr.SetStatusCallback(func(serverID, serverName string, connected bool, lastError string) {})
 
@@ -270,7 +270,7 @@ func TestManagerSetStatusCallback(t *testing.T) {
 
 func TestManagerSetObjectsCallback(t *testing.T) {
 	store := storage.NewMemoryStorage()
-	mgr := NewManager(store, time.Second, time.Hour, "")
+	mgr := NewManager(store, time.Second, time.Hour, "", 0)
 
 	mgr.SetObjectsCallback(func(serverID, serverName string, objects []string) {})
 
@@ -297,7 +297,7 @@ func TestManagerGetAllObjects(t *testing.T) {
 	defer server2.Close()
 
 	store := storage.NewMemoryStorage()
-	mgr := NewManager(store, time.Second, time.Hour, "")
+	mgr := NewManager(store, time.Second, time.Hour, "", 0)
 
 	mgr.AddServer(config.ServerConfig{ID: "s1", URL: server1.URL, Name: "Server1"})
 	mgr.AddServer(config.ServerConfig{ID: "s2", URL: server2.URL, Name: "Server2"})
@@ -334,7 +334,7 @@ func TestManagerGetAllObjectsGrouped(t *testing.T) {
 	defer server1.Close()
 
 	store := storage.NewMemoryStorage()
-	mgr := NewManager(store, time.Second, time.Hour, "")
+	mgr := NewManager(store, time.Second, time.Hour, "", 0)
 
 	mgr.AddServer(config.ServerConfig{ID: "s1", URL: server1.URL, Name: "Server1"})
 
@@ -361,7 +361,7 @@ func TestManagerGetObjectData(t *testing.T) {
 	defer server.Close()
 
 	store := storage.NewMemoryStorage()
-	mgr := NewManager(store, time.Second, time.Hour, "")
+	mgr := NewManager(store, time.Second, time.Hour, "", 0)
 
 	mgr.AddServer(config.ServerConfig{ID: "s1", URL: server.URL, Name: "Server1"})
 
@@ -390,7 +390,7 @@ func TestManagerWatch(t *testing.T) {
 	defer server.Close()
 
 	store := storage.NewMemoryStorage()
-	mgr := NewManager(store, time.Second, time.Hour, "")
+	mgr := NewManager(store, time.Second, time.Hour, "", 0)
 
 	mgr.AddServer(config.ServerConfig{ID: "s1", URL: server.URL, Name: "Server1"})
 
@@ -410,7 +410,7 @@ func TestManagerUnwatch(t *testing.T) {
 	defer server.Close()
 
 	store := storage.NewMemoryStorage()
-	mgr := NewManager(store, time.Second, time.Hour, "")
+	mgr := NewManager(store, time.Second, time.Hour, "", 0)
 
 	mgr.AddServer(config.ServerConfig{ID: "s1", URL: server.URL, Name: "Server1"})
 
@@ -432,7 +432,7 @@ func TestManagerGetLastData(t *testing.T) {
 	defer server.Close()
 
 	store := storage.NewMemoryStorage()
-	mgr := NewManager(store, time.Second, time.Hour, "")
+	mgr := NewManager(store, time.Second, time.Hour, "", 0)
 
 	mgr.AddServer(config.ServerConfig{ID: "s1", URL: server.URL, Name: "Server1"})
 
@@ -454,7 +454,7 @@ func TestManagerGetIONCPoller(t *testing.T) {
 	defer server.Close()
 
 	store := storage.NewMemoryStorage()
-	mgr := NewManager(store, time.Second, time.Hour, "")
+	mgr := NewManager(store, time.Second, time.Hour, "", 0)
 
 	mgr.AddServer(config.ServerConfig{ID: "s1", URL: server.URL, Name: "Server1"})
 
@@ -477,7 +477,7 @@ func TestManagerGetClient(t *testing.T) {
 	defer server.Close()
 
 	store := storage.NewMemoryStorage()
-	mgr := NewManager(store, time.Second, time.Hour, "")
+	mgr := NewManager(store, time.Second, time.Hour, "", 0)
 
 	mgr.AddServer(config.ServerConfig{ID: "s1", URL: server.URL, Name: "Server1"})
 
@@ -500,7 +500,7 @@ func TestManagerGetFirstServer(t *testing.T) {
 	defer server.Close()
 
 	store := storage.NewMemoryStorage()
-	mgr := NewManager(store, time.Second, time.Hour, "")
+	mgr := NewManager(store, time.Second, time.Hour, "", 0)
 
 	// No servers
 	_, exists := mgr.GetFirstServer()
@@ -525,7 +525,7 @@ func TestManagerShutdown(t *testing.T) {
 	defer server.Close()
 
 	store := storage.NewMemoryStorage()
-	mgr := NewManager(store, 100*time.Millisecond, time.Hour, "")
+	mgr := NewManager(store, 100*time.Millisecond, time.Hour, "", 0)
 
 	mgr.AddServer(config.ServerConfig{ID: "s1", URL: server.URL, Name: "Server1"})
 	mgr.AddServer(config.ServerConfig{ID: "s2", URL: server.URL, Name: "Server2"})
@@ -548,7 +548,7 @@ func TestManagerShutdownTimeout(t *testing.T) {
 	defer server.Close()
 
 	store := storage.NewMemoryStorage()
-	mgr := NewManager(store, time.Second, time.Hour, "")
+	mgr := NewManager(store, time.Second, time.Hour, "", 0)
 
 	mgr.AddServer(config.ServerConfig{ID: "s1", URL: server.URL, Name: "Server1"})
 
@@ -565,7 +565,7 @@ func TestManagerCallbacksPassedToInstance(t *testing.T) {
 	defer server.Close()
 
 	store := storage.NewMemoryStorage()
-	mgr := NewManager(store, 50*time.Millisecond, time.Hour, "")
+	mgr := NewManager(store, 50*time.Millisecond, time.Hour, "", 0)
 
 	var mu sync.Mutex
 	var statusCalled bool

@@ -36,10 +36,11 @@ type Manager struct {
 	mu        sync.RWMutex
 	instances map[string]*Instance // serverID -> Instance
 
-	storage      storage.Storage
-	pollInterval time.Duration
-	historyTTL   time.Duration
-	supplier     string // supplier name for set/freeze/unfreeze
+	storage         storage.Storage
+	pollInterval    time.Duration
+	historyTTL      time.Duration
+	supplier        string // supplier name for set/freeze/unfreeze
+	sensorBatchSize int    // макс. датчиков/регистров в одном запросе
 
 	// Callbacks для SSE
 	objectCallback  ObjectEventCallback
@@ -56,13 +57,15 @@ func NewManager(
 	pollInterval time.Duration,
 	historyTTL time.Duration,
 	supplier string,
+	sensorBatchSize int,
 ) *Manager {
 	return &Manager{
-		instances:    make(map[string]*Instance),
-		storage:      store,
-		pollInterval: pollInterval,
-		historyTTL:   historyTTL,
-		supplier:     supplier,
+		instances:       make(map[string]*Instance),
+		storage:         store,
+		pollInterval:    pollInterval,
+		historyTTL:      historyTTL,
+		supplier:        supplier,
+		sensorBatchSize: sensorBatchSize,
 	}
 }
 
@@ -129,6 +132,7 @@ func (m *Manager) AddServer(cfg config.ServerConfig) error {
 		m.pollInterval,
 		m.historyTTL,
 		m.supplier,
+		m.sensorBatchSize,
 		m.objectCallback,
 		m.ioncCallback,
 		m.modbusCallback,

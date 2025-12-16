@@ -78,7 +78,7 @@ func main() {
 	defer logServerMgr.Close()
 
 	// Create ServerManager
-	serverMgr := server.NewManager(store, cfg.PollInterval, cfg.HistoryTTL, cfg.UnisetSupplier)
+	serverMgr := server.NewManager(store, cfg.PollInterval, cfg.HistoryTTL, cfg.UnisetSupplier, cfg.GetSensorBatchSize())
 
 	// Create SSE hub (needed for callbacks)
 	sseHub := api.NewSSEHub()

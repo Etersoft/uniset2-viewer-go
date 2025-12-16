@@ -9,9 +9,10 @@ import (
 
 // ConfigFile представляет структуру YAML файла конфигурации
 type ConfigFile struct {
-	Servers   []ServerConfig   `yaml:"servers"`
-	UI        *UIConfig        `yaml:"ui,omitempty"`
-	LogStream *LogStreamConfig `yaml:"logStream,omitempty"`
+	Servers         []ServerConfig   `yaml:"servers"`
+	UI              *UIConfig        `yaml:"ui,omitempty"`
+	LogStream       *LogStreamConfig `yaml:"logStream,omitempty"`
+	SensorBatchSize int              `yaml:"sensorBatchSize,omitempty"` // Макс. датчиков в одном запросе (default: 300)
 }
 
 // LoadFromYAML загружает полную конфигурацию из YAML файла

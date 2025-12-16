@@ -32,9 +32,10 @@ type BatchUpdateCallback func(updates []SensorUpdate)
 
 // Poller опрашивает OPC UA датчики для подписанных клиентов
 type Poller struct {
-	client   *uniset.Client
-	interval time.Duration
-	callback BatchUpdateCallback
+	client    *uniset.Client
+	interval  time.Duration
+	callback  BatchUpdateCallback
+	batchSize int // макс. датчиков в одном цикле опроса (0 = без ограничения)
 
 	mu sync.RWMutex
 	// subscriptions: objectName -> set of sensorIDs
@@ -48,13 +49,15 @@ type Poller struct {
 }
 
 // NewPoller создает новый OPC UA poller
-func NewPoller(client *uniset.Client, interval time.Duration, callback BatchUpdateCallback) *Poller {
+// batchSize - макс. количество датчиков в одном цикле опроса (0 = без ограничения)
+func NewPoller(client *uniset.Client, interval time.Duration, batchSize int, callback BatchUpdateCallback) *Poller {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Poller{
 		client:        client,
 		interval:      interval,
 		callback:      callback,
+		batchSize:     batchSize,
 		subscriptions: make(map[string]map[int64]struct{}),
 		lastValues:    make(map[string]map[int64]string),
 		ctx:           ctx,
