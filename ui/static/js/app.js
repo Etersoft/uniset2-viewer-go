@@ -215,7 +215,7 @@ function initSSE() {
     eventSource.addEventListener('object_data', (e) => {
         try {
             const event = JSON.parse(e.data);
-            const { objectName, serverId, data } = event;
+            const { objectName, serverId, data, timestamp } = event;
 
             // Обновляем время последнего обновления в индикаторе
             updateSSEStatus('connected', new Date());
@@ -231,13 +231,54 @@ function initSSE() {
                     tabState.renderer.update(data);
                 }
 
-                // Обновляем графики (кроме внешних датчиков - они обновляются через SSE)
+                // Обновляем графики напрямую из SSE данных (без запроса истории)
+                const eventTimestamp = new Date(timestamp);
+                const maxPoints = 1000;
+
                 tabState.charts.forEach((chartData, varName) => {
-                    // Пропускаем внешние датчики (ext:) - у них нет истории на сервере
+                    // Пропускаем внешние датчики (ext:) - они обновляются через sensor_data
                     if (varName.startsWith('ext:')) {
                         return;
                     }
-                    updateChart(tabState.displayName, varName, chartData.chart);
+
+                    // Извлекаем значение из data в зависимости от типа переменной
+                    let value = undefined;
+
+                    // Проверяем io.in.* переменные
+                    if (varName.startsWith('io.in.')) {
+                        const ioKey = varName.substring('io.in.'.length);
+                        if (data.io?.in?.[ioKey]) {
+                            value = data.io.in[ioKey].value;
+                        }
+                    }
+                    // Проверяем io.out.* переменные
+                    else if (varName.startsWith('io.out.')) {
+                        const ioKey = varName.substring('io.out.'.length);
+                        if (data.io?.out?.[ioKey]) {
+                            value = data.io.out[ioKey].value;
+                        }
+                    }
+
+                    // Если нашли значение - добавляем точку на график
+                    if (value !== undefined) {
+                        const dataPoint = { x: eventTimestamp, y: value };
+                        chartData.chart.data.datasets[0].data.push(dataPoint);
+
+                        // Ограничиваем количество точек
+                        if (chartData.chart.data.datasets[0].data.length > maxPoints) {
+                            chartData.chart.data.datasets[0].data.shift();
+                        }
+                    }
+                });
+
+                // Синхронизируем временную шкалу для всех графиков объекта
+                syncAllChartsTimeRange(tabKey);
+
+                // Обновляем все графики одним batch update
+                tabState.charts.forEach((chartData, varName) => {
+                    if (!varName.startsWith('ext:')) {
+                        chartData.chart.update('none');
+                    }
                 });
             }
         } catch (err) {
@@ -1307,7 +1348,7 @@ class BaseObjectRenderer {
 
     // Общий метод для обработки LogServer (рендеринг секции + инициализация LogViewer)
     handleLogServer(logServerData) {
-        renderLogServer(this.objectName, logServerData);
+        renderLogServer(this.tabKey, logServerData);
         this.initLogViewer(logServerData);
     }
 
@@ -1534,8 +1575,8 @@ class UniSetManagerRenderer extends BaseObjectRenderer {
     }
 
     initialize() {
-        setupFilterHandlers(this.objectName);
-        setupChartsResize(this.objectName);
+        setupFilterHandlers(this.tabKey);
+        setupChartsResize(this.tabKey);
         loadIOLayoutState(this.objectName);
         setupIOSections(this.objectName);
     }
@@ -1550,13 +1591,13 @@ class UniSetManagerRenderer extends BaseObjectRenderer {
 
         // Объединяем Variables и extra (дополнительные переменные не входящие в стандартные поля)
         const allVariables = { ...(data.Variables || {}), ...(data.extra || {}) };
-        renderVariables(this.objectName, allVariables);
-        renderIO(this.objectName, 'inputs', data.io?.in || {});
-        renderIO(this.objectName, 'outputs', data.io?.out || {});
-        renderTimers(this.objectName, data.Timers || {});
-        renderObjectInfo(this.objectName, data.object);
-        renderStatistics(this.objectName, data.Statistics);
-        updateChartLegends(this.objectName, data);
+        renderVariables(this.tabKey, allVariables);
+        renderIO(this.tabKey, 'inputs', data.io?.in || {});
+        renderIO(this.tabKey, 'outputs', data.io?.out || {});
+        renderTimers(this.tabKey, data.Timers || {});
+        renderObjectInfo(this.tabKey, data.object);
+        renderStatistics(this.tabKey, data.Statistics);
+        updateChartLegends(this.tabKey, data);
         this.handleLogServer(data.LogServer);
     }
 
@@ -1583,17 +1624,17 @@ class UniSetObjectRenderer extends BaseObjectRenderer {
     }
 
     initialize() {
-        setupFilterHandlers(this.objectName);
-        setupChartsResize(this.objectName);
+        setupFilterHandlers(this.tabKey);
+        setupChartsResize(this.tabKey);
     }
 
     update(data) {
         // Объединяем Variables и extra (дополнительные переменные не входящие в стандартные поля)
         const allVariables = { ...(data.Variables || {}), ...(data.extra || {}) };
-        renderVariables(this.objectName, allVariables);
-        renderObjectInfo(this.objectName, data.object);
-        renderStatistics(this.objectName, data.Statistics);
-        updateChartLegends(this.objectName, data);
+        renderVariables(this.tabKey, allVariables);
+        renderObjectInfo(this.tabKey, data.object);
+        renderStatistics(this.tabKey, data.Statistics);
+        updateChartLegends(this.tabKey, data);
         this.handleLogServer(data.LogServer);
     }
 
@@ -1644,7 +1685,7 @@ class FallbackRenderer extends BaseObjectRenderer {
         }
 
         // Обновляем информацию об объекте
-        renderObjectInfo(this.objectName, data.object);
+        renderObjectInfo(this.tabKey, data.object);
     }
 }
 
@@ -1739,7 +1780,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
         this.setupEventListeners();
         this.loadSensors();
         this.loadLostConsumers();
-        setupChartsResize(this.objectName);
+        setupChartsResize(this.tabKey);
         setupIONCSensorsResize(this.objectName);
         this.setupVirtualScroll();
     }
@@ -2676,7 +2717,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
 
     update(data) {
         // При обновлении объекта обновляем информацию
-        renderObjectInfo(this.objectName, data.object);
+        renderObjectInfo(this.tabKey, data.object);
         this.handleLogServer(data.LogServer);
     }
 
@@ -2865,7 +2906,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
     initialize() {
         this.bindEvents();
         this.reloadAll();
-        setupChartsResize(this.objectName);
+        setupChartsResize(this.tabKey);
         this.setupDiagnosticsResize();
         this.setupSensorsResize();
         this.setupVirtualScroll();
@@ -3842,8 +3883,8 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
     }
 
     update(data) {
-        renderObjectInfo(this.objectName, data.object);
-        updateChartLegends(this.objectName, data);
+        renderObjectInfo(this.tabKey, data.object);
+        updateChartLegends(this.tabKey, data);
         this.handleLogServer(data.LogServer);
     }
 }
@@ -3926,7 +3967,7 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
     initialize() {
         this.bindEvents();
         this.reloadAll();
-        setupChartsResize(this.objectName);
+        setupChartsResize(this.tabKey);
         this.setupRegistersResize();
         this.setupVirtualScroll();
         this.initStatusAutoRefresh();
@@ -4436,8 +4477,8 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
     }
 
     update(data) {
-        renderObjectInfo(this.objectName, data.object);
-        updateChartLegends(this.objectName, data);
+        renderObjectInfo(this.tabKey, data.object);
+        updateChartLegends(this.tabKey, data);
         this.handleLogServer(data.LogServer);
     }
 }
@@ -4533,7 +4574,7 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
     initialize() {
         this.bindEvents();
         this.reloadAll();
-        setupChartsResize(this.objectName);
+        setupChartsResize(this.tabKey);
         this.setupRegistersResize();
         this.setupVirtualScroll();
         this.initStatusAutoRefresh();
@@ -5030,8 +5071,8 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
     }
 
     update(data) {
-        renderObjectInfo(this.objectName, data.object);
-        updateChartLegends(this.objectName, data);
+        renderObjectInfo(this.tabKey, data.object);
+        updateChartLegends(this.tabKey, data);
         this.handleLogServer(data.LogServer);
     }
 }
@@ -5113,7 +5154,7 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
     initialize() {
         this.bindEvents();
         this.reloadAll();
-        setupChartsResize(this.objectName);
+        setupChartsResize(this.tabKey);
         this.setupSensorsResize();
         this.setupVirtualScroll();
         this.initStatusAutoRefresh();
@@ -8154,15 +8195,49 @@ async function loadObjectData(name) {
     }
 }
 
-function renderVariables(objectName, variables, filterText = '') {
-    const tbody = document.getElementById(`variables-${objectName}`);
+// ============================================================================
+// Helper для безопасного поиска элементов внутри панели вкладки
+// Решает проблему конфликта ID при multi-server с одинаковыми displayName
+// ============================================================================
+
+/**
+ * Находит элемент внутри панели конкретной вкладки
+ * @param {string} tabKey - Ключ вкладки (serverId:objectName или objectName для single-server)
+ * @param {string} elementId - ID элемента для поиска
+ * @returns {HTMLElement|null} - Найденный элемент или null
+ */
+function getElementInTab(tabKey, elementId) {
+    const panel = document.querySelector(`.tab-panel[data-name="${tabKey}"]`);
+    if (!panel) return null;
+    return panel.querySelector(`#${elementId}`);
+}
+
+/**
+ * Находит все элементы внутри панели конкретной вкладки
+ * @param {string} tabKey - Ключ вкладки
+ * @param {string} selector - CSS селектор
+ * @returns {NodeList} - Список найденных элементов
+ */
+function getElementsInTab(tabKey, selector) {
+    const panel = document.querySelector(`.tab-panel[data-name="${tabKey}"]`);
+    if (!panel) return [];
+    return panel.querySelectorAll(selector);
+}
+
+// ============================================================================
+// Функции рендеринга (обновлены для работы с tabKey вместо displayName)
+// ============================================================================
+
+function renderVariables(tabKey, variables, filterText = '') {
+    const tabState = state.tabs.get(tabKey);
+    if (!tabState) return;
+
+    const displayName = tabState.displayName || tabKey;
+    const tbody = getElementInTab(tabKey, `variables-${displayName}`);
     if (!tbody) return;
 
     // Сохраняем переменные в state для фильтрации
-    const tabState = state.tabs.get(objectName);
-    if (tabState) {
-        tabState.variables = variables;
-    }
+    tabState.variables = variables;
 
     tbody.innerHTML = '';
     const filterLower = filterText.toLowerCase();
@@ -8184,9 +8259,14 @@ function renderVariables(objectName, variables, filterText = '') {
     });
 }
 
-function renderIO(objectName, type, ioData) {
-    const tbody = document.getElementById(`${type}-${objectName}`);
-    const countBadge = document.getElementById(`${type}-count-${objectName}`);
+function renderIO(tabKey, type, ioData) {
+    const tabState = state.tabs.get(tabKey);
+    if (!tabState) return;
+
+    const displayName = tabState.displayName || tabKey;
+
+    const tbody = getElementInTab(tabKey, `${type}-${displayName}`);
+    const countBadge = getElementInTab(tabKey, `${type}-count-${displayName}`);
     if (!tbody) return;
 
     const entries = Object.entries(ioData);
@@ -8196,13 +8276,13 @@ function renderIO(objectName, type, ioData) {
     }
 
     // Получаем текущий фильтр (глобальный) и закреплённые строки
-    const filterInput = document.getElementById(`io-filter-global-${objectName}`);
+    const filterInput = getElementInTab(tabKey, `io-filter-global-${displayName}`);
     const filterText = filterInput ? filterInput.value.toLowerCase() : '';
-    const pinnedRows = getIOPinnedRows(objectName, type);
+    const pinnedRows = getIOPinnedRows(tabKey, type);
     const hasPinned = pinnedRows.size > 0;
 
     // Показываем/скрываем кнопку "снять все"
-    const unpinBtn = document.getElementById(`io-unpin-${type}-${objectName}`);
+    const unpinBtn = getElementInTab(tabKey, `io-unpin-${type}-${displayName}`);
     if (unpinBtn) {
         unpinBtn.style.display = hasPinned ? 'inline' : 'none';
     }
@@ -8237,12 +8317,12 @@ function renderIO(objectName, type, ioData) {
             <td class="io-chart-col">
                 <span class="chart-toggle">
                     <input type="checkbox"
-                           id="chart-${objectName}-${varName}"
-                           data-object="${objectName}"
+                           id="chart-${displayName}-${varName}"
+                           data-object="${tabKey}"
                            data-variable="${varName}"
                            data-sensor-id="${io.id}"
-                           ${hasChart(objectName, varName) ? 'checked' : ''}>
-                    <label class="chart-toggle-label" for="chart-${objectName}-${varName}">
+                           ${hasChart(tabKey, varName) ? 'checked' : ''}>
+                    <label class="chart-toggle-label" for="chart-${displayName}-${varName}">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M3 3v18h18"/>
                             <path d="M18 9l-5 5-4-4-3 3"/>
@@ -8261,16 +8341,16 @@ function renderIO(objectName, type, ioData) {
         const pinToggle = tr.querySelector('.io-pin-toggle');
         pinToggle.addEventListener('click', (e) => {
             e.stopPropagation();
-            toggleIOPin(objectName, type, rowKey);
+            toggleIOPin(tabKey, type, rowKey);
         });
 
         // Chart toggle handler
         const checkbox = tr.querySelector('input[type="checkbox"]');
         checkbox.addEventListener('change', (e) => {
             if (e.target.checked) {
-                addChart(objectName, varName, io.id, textname);
+                addChart(tabKey, varName, io.id, textname);
             } else {
-                removeChart(objectName, varName);
+                removeChart(tabKey, varName);
             }
         });
 
@@ -8306,13 +8386,13 @@ function hasChart(objectName, varName) {
     return tabState && tabState.charts.has(varName);
 }
 
-async function addChart(objectName, varName, sensorId, passedTextname) {
-    const tabKey = findTabKeyByDisplayName(objectName);
-    if (!tabKey) return;
+async function addChart(tabKey, varName, sensorId, passedTextname) {
     const tabState = state.tabs.get(tabKey);
     if (!tabState || tabState.charts.has(varName)) return;
 
-    const chartsContainer = document.getElementById(`charts-${objectName}`);
+    const displayName = tabState.displayName || tabKey;
+
+    const chartsContainer = getElementInTab(tabKey, `charts-${displayName}`);
     // Ищем сенсор по ID или по имени переменной
     let sensor = sensorId ? getSensorInfo(sensorId) : null;
     if (!sensor) {
@@ -8322,29 +8402,29 @@ async function addChart(objectName, varName, sensorId, passedTextname) {
     }
     const isDiscrete = isDiscreteSignal(sensor);
     const color = getNextColor();
-    const displayName = sensor?.name || varName.split('.').pop();
+    const sensorDisplayName = sensor?.name || varName.split('.').pop();
     // textname: приоритет - справочник сенсоров, потом переданный параметр (comment из API)
     const textName = sensor?.textname || passedTextname || '';
 
     // Создаём панель графика
     const chartDiv = document.createElement('div');
     chartDiv.className = 'chart-panel';
-    chartDiv.id = `chart-panel-${objectName}-${varName}`;
+    chartDiv.id = `chart-panel-${displayName}-${varName}`;
     chartDiv.innerHTML = `
         <div class="chart-panel-header">
             <div class="chart-panel-info">
-                <span class="legend-color-picker" data-object="${objectName}" data-variable="${varName}" style="background:${color}" title="Click to choose color"></span>
-                <span class="chart-panel-title">${displayName}</span>
-                <span class="chart-panel-value" id="legend-value-${objectName}-${varName}">--</span>
+                <span class="legend-color-picker" data-object="${tabKey}" data-variable="${varName}" style="background:${color}" title="Click to choose color"></span>
+                <span class="chart-panel-title">${sensorDisplayName}</span>
+                <span class="chart-panel-value" id="legend-value-${displayName}-${varName}">--</span>
                 <span class="chart-panel-textname">${textName}</span>
                 ${sensor?.iotype ? `<span class="type-badge type-${sensor.iotype}">${sensor.iotype}</span>` : ''}
             </div>
             <div class="chart-panel-right">
                 <label class="fill-toggle" title="Fill background">
-                    <input type="checkbox" id="fill-${objectName}-${varName}" ${!isDiscrete ? 'checked' : ''}>
+                    <input type="checkbox" id="fill-${displayName}-${varName}" ${!isDiscrete ? 'checked' : ''}>
                     <span class="fill-toggle-label">fill</span>
                 </label>
-                <button class="btn-icon" title="Close" onclick="removeChartByButton('${objectName}', '${varName}')">
+                <button class="btn-icon" title="Close" onclick="removeChartByButton('${tabKey}', '${varName}')">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M18 6L6 18M6 6l12 12"/>
                     </svg>
@@ -8352,22 +8432,22 @@ async function addChart(objectName, varName, sensorId, passedTextname) {
             </div>
         </div>
         <div class="chart-wrapper">
-            <canvas id="canvas-${objectName}-${varName}"></canvas>
+            <canvas id="canvas-${displayName}-${varName}"></canvas>
         </div>
     `;
     chartsContainer.appendChild(chartDiv);
 
     // Обработчик для чекбокса заливки
-    const fillCheckbox = document.getElementById(`fill-${objectName}-${varName}`);
+    const fillCheckbox = getElementInTab(tabKey, `fill-${displayName}-${varName}`);
     fillCheckbox.addEventListener('change', (e) => {
-        toggleChartFill(objectName, varName, e.target.checked);
+        toggleChartFill(tabKey, varName, e.target.checked);
     });
 
     // Загружаем историю
     try {
         const serverId = tabState?.serverId;
-        const history = await fetchVariableHistory(objectName, varName, 200, serverId);
-        const ctx = document.getElementById(`canvas-${objectName}-${varName}`).getContext('2d');
+        const history = await fetchVariableHistory(displayName, varName, 200, serverId);
+        const ctx = getElementInTab(tabKey, `canvas-${displayName}-${varName}`).getContext('2d');
 
         // Преобразуем данные для временной шкалы
         const historyData = history.points?.map(p => ({
@@ -8376,7 +8456,7 @@ async function addChart(objectName, varName, sensorId, passedTextname) {
         })) || [];
 
         // Получаем диапазон времени (при первом графике устанавливается начало)
-        const timeRange = getTimeRangeForObject(objectName);
+        const timeRange = getTimeRangeForObject(tabKey);
 
         // Заливка по умолчанию только для аналоговых
         const fillEnabled = !isDiscrete;
@@ -8386,7 +8466,7 @@ async function addChart(objectName, varName, sensorId, passedTextname) {
             type: 'line',
             data: {
                 datasets: [{
-                    label: displayName,
+                    label: sensorDisplayName,
                     data: historyData,
                     borderColor: color,
                     backgroundColor: `${color}20`,
@@ -8462,12 +8542,15 @@ async function addChart(objectName, varName, sensorId, passedTextname) {
         const chart = new Chart(ctx, chartConfig);
 
         // Синхронизируем все графики после добавления нового
-        syncAllChartsTimeRange(objectName);
+        syncAllChartsTimeRange(tabKey);
 
         // Обновить начальное значение в легенде
         if (history.points && history.points.length > 0) {
             const lastValue = history.points[history.points.length - 1].value;
-            document.getElementById(`legend-value-${objectName}-${varName}`).textContent = formatValue(lastValue);
+            const legendValueEl = getElementInTab(tabKey, `legend-value-${displayName}-${varName}`);
+            if (legendValueEl) {
+                legendValueEl.textContent = formatValue(lastValue);
+            }
         }
 
         // Сохраняем данные графика
@@ -8482,7 +8565,7 @@ async function addChart(objectName, varName, sensorId, passedTextname) {
         // Периодическое обновление только если SSE не подключен
         if (!state.sse.connected) {
             chartData.updateInterval = setInterval(async () => {
-                await updateChart(objectName, varName, chart);
+                await updateChart(tabKey, varName, chart);
             }, state.sse.pollInterval);
         }
 
@@ -8563,6 +8646,7 @@ function getTimeRangeForObject(objectName) {
 }
 
 // Синхронизировать диапазон времени для всех графиков
+// objectName может быть tabKey (serverId:objectName) или displayName
 function syncAllChartsTimeRange(objectName) {
     const tabState = state.tabs.get(objectName);
     if (!tabState) return;
@@ -8577,15 +8661,25 @@ function syncAllChartsTimeRange(objectName) {
     });
 
     // Обновить отображение оси X (показывать только на последнем графике)
+    // Используем displayName для DOM операций
     updateXAxisVisibility(objectName);
 }
 
 // Показывать ось X только на последнем графике
+// objectName может быть tabKey (serverId:objectName) или displayName
 function updateXAxisVisibility(objectName) {
     const tabState = state.tabs.get(objectName);
     if (!tabState) return;
 
-    const chartPanels = document.querySelectorAll(`#charts-${objectName} .chart-panel`);
+    // Используем displayName для DOM селекторов (без serverId)
+    const displayName = tabState.displayName || objectName;
+
+    // ВАЖНО: Ограничиваем поиск панелью конкретной вкладки
+    // для избежания конфликтов ID при multi-server (когда displayName одинаковый)
+    const tabPanel = document.querySelector(`.tab-panel[data-name="${objectName}"]`);
+    if (!tabPanel) return;
+
+    const chartPanels = tabPanel.querySelectorAll(`#charts-${displayName} .chart-panel`);
     const chartCount = chartPanels.length;
 
     let index = 0;
@@ -8597,15 +8691,17 @@ function updateXAxisVisibility(objectName) {
     });
 }
 
-function updateChartLegends(objectName, data) {
-    const tabState = state.tabs.get(objectName);
+function updateChartLegends(tabKey, data) {
+    const tabState = state.tabs.get(tabKey);
     if (!tabState) return;
+
+    const displayName = tabState.displayName || tabKey;
 
     // Обновляем значения в таблицах
     if (data.io?.in) {
         Object.entries(data.io.in).forEach(([key, io]) => {
             const varName = `io.in.${key}`;
-            const legendEl = document.getElementById(`legend-value-${objectName}-${varName}`);
+            const legendEl = getElementInTab(tabKey, `legend-value-${displayName}-${varName}`);
             if (legendEl) {
                 legendEl.textContent = formatValue(io.value);
             }
@@ -8615,7 +8711,7 @@ function updateChartLegends(objectName, data) {
     if (data.io?.out) {
         Object.entries(data.io.out).forEach(([key, io]) => {
             const varName = `io.out.${key}`;
-            const legendEl = document.getElementById(`legend-value-${objectName}-${varName}`);
+            const legendEl = getElementInTab(tabKey, `legend-value-${displayName}-${varName}`);
             if (legendEl) {
                 legendEl.textContent = formatValue(io.value);
             }
@@ -8623,11 +8719,11 @@ function updateChartLegends(objectName, data) {
     }
 }
 
-function removeChart(objectName, varName) {
-    const tabKey = findTabKeyByDisplayName(objectName);
-    if (!tabKey) return;
+function removeChart(tabKey, varName) {
     const tabState = state.tabs.get(tabKey);
     if (!tabState) return;
+
+    const displayName = tabState.displayName || tabKey;
 
     const chartData = tabState.charts.get(varName);
     if (chartData) {
@@ -8636,22 +8732,22 @@ function removeChart(objectName, varName) {
         tabState.charts.delete(varName);
     }
 
-    document.getElementById(`chart-panel-${objectName}-${varName}`)?.remove();
+    getElementInTab(tabKey, `chart-panel-${displayName}-${varName}`)?.remove();
 
     // Снять галочку в таблице (обычная IO таблица)
-    const checkbox = document.getElementById(`chart-${objectName}-${varName}`);
+    const checkbox = getElementInTab(tabKey, `chart-${displayName}-${varName}`);
     if (checkbox) {
         checkbox.checked = false;
     }
 
     // Снять галочку в таблице IONC (датчики SharedMemory)
-    const ioncCheckbox = document.getElementById(`ionc-chart-${objectName}-${varName}`);
+    const ioncCheckbox = getElementInTab(tabKey, `ionc-chart-${displayName}-${varName}`);
     if (ioncCheckbox) {
         ioncCheckbox.checked = false;
     }
 
     // Обновить видимость оси X на оставшихся графиках
-    updateXAxisVisibility(objectName);
+    updateXAxisVisibility(tabKey);
 }
 
 // Глобальная функция для кнопки закрытия графика
@@ -8676,9 +8772,14 @@ const timerDataCache = {};
 let timerUpdateInterval = null;
 
 // Рендеринг таймеров
-function renderTimers(objectName, timersData) {
-    const tbody = document.getElementById(`timers-${objectName}`);
-    const countBadge = document.getElementById(`timers-count-${objectName}`);
+function renderTimers(tabKey, timersData) {
+    const tabState = state.tabs.get(tabKey);
+    if (!tabState) return;
+
+    const displayName = tabState.displayName || tabKey;
+
+    const tbody = getElementInTab(tabKey, `timers-${displayName}`);
+    const countBadge = getElementInTab(tabKey, `timers-count-${displayName}`);
     if (!tbody) return;
 
     // Извлечь таймеры из объекта (исключая count)
@@ -8690,7 +8791,7 @@ function renderTimers(objectName, timersData) {
     });
 
     // Сохраняем в кэш для локального обновления
-    timerDataCache[objectName] = {
+    timerDataCache[tabKey] = {
         timers: timers,
         lastUpdate: Date.now()
     };
@@ -8699,25 +8800,30 @@ function renderTimers(objectName, timersData) {
         countBadge.textContent = timers.length;
     }
 
-    renderTimersTable(objectName, timers);
+    renderTimersTable(tabKey, timers);
 
     // Запускаем интервал локального обновления если ещё не запущен
     startTimerUpdateInterval();
 }
 
 // Отрисовка таблицы таймеров
-function renderTimersTable(objectName, timers) {
-    const tbody = document.getElementById(`timers-${objectName}`);
+function renderTimersTable(tabKey, timers) {
+    const tabState = state.tabs.get(tabKey);
+    if (!tabState) return;
+
+    const displayName = tabState.displayName || tabKey;
+
+    const tbody = getElementInTab(tabKey, `timers-${displayName}`);
     if (!tbody) return;
 
     // Получаем текущий фильтр (глобальный) и закреплённые строки
-    const filterInput = document.getElementById(`io-filter-global-${objectName}`);
+    const filterInput = getElementInTab(tabKey, `io-filter-global-${displayName}`);
     const filterText = filterInput ? filterInput.value.toLowerCase() : '';
-    const pinnedRows = getIOPinnedRows(objectName, 'timers');
+    const pinnedRows = getIOPinnedRows(tabKey, 'timers');
     const hasPinned = pinnedRows.size > 0;
 
     // Показываем/скрываем кнопку "снять все"
-    const unpinBtn = document.getElementById(`io-unpin-timers-${objectName}`);
+    const unpinBtn = getElementInTab(tabKey, `io-unpin-timers-${displayName}`);
     if (unpinBtn) {
         unpinBtn.style.display = hasPinned ? 'inline' : 'none';
     }
@@ -8774,7 +8880,7 @@ function renderTimersTable(objectName, timers) {
         const pinToggle = tr.querySelector('.io-pin-toggle');
         pinToggle.addEventListener('click', (e) => {
             e.stopPropagation();
-            toggleIOPin(objectName, 'timers', rowKey);
+            toggleIOPin(tabKey, 'timers', rowKey);
         });
 
         tbody.appendChild(tr);
@@ -8817,8 +8923,13 @@ function stopTimerUpdateInterval() {
 }
 
 // Рендеринг информации об объекте
-function renderObjectInfo(objectName, objectData) {
-    const tbody = document.getElementById(`object-info-${objectName}`);
+function renderObjectInfo(tabKey, objectData) {
+    const tabState = state.tabs.get(tabKey);
+    if (!tabState) return;
+
+    const displayName = tabState.displayName || tabKey;
+
+    const tbody = getElementInTab(tabKey, `object-info-${displayName}`);
     if (!tbody || !objectData) return;
 
     tbody.innerHTML = '';
@@ -8864,9 +8975,14 @@ function renderObjectInfo(objectName, objectData) {
 }
 
 // Рендеринг LogServer
-function renderLogServer(objectName, logServerData) {
-    const section = document.getElementById(`logserver-section-${objectName}`);
-    const tbody = document.getElementById(`logserver-${objectName}`);
+function renderLogServer(tabKey, logServerData) {
+    const tabState = state.tabs.get(tabKey);
+    if (!tabState) return;
+
+    const displayName = tabState.displayName || tabKey;
+
+    const section = getElementInTab(tabKey, `logserver-section-${displayName}`);
+    const tbody = getElementInTab(tabKey, `logserver-${displayName}`);
     if (!section || !tbody) return;
 
     if (!logServerData) {
@@ -8946,9 +9062,14 @@ function renderLogServer(objectName, logServerData) {
 }
 
 // Рендеринг статистики
-function renderStatistics(objectName, statsData) {
-    const section = document.getElementById(`statistics-section-${objectName}`);
-    const container = document.getElementById(`statistics-${objectName}`);
+function renderStatistics(tabKey, statsData) {
+    const tabState = state.tabs.get(tabKey);
+    if (!tabState) return;
+
+    const displayName = tabState.displayName || tabKey;
+
+    const section = getElementInTab(tabKey, `statistics-section-${displayName}`);
+    const container = getElementInTab(tabKey, `statistics-${displayName}`);
     if (!section || !container) return;
 
     if (!statsData) {
@@ -8959,10 +9080,7 @@ function renderStatistics(objectName, statsData) {
     section.style.display = 'block';
 
     // Сохраняем данные статистики в state для фильтрации
-    const tabState = state.tabs.get(objectName);
-    if (tabState) {
-        tabState.statisticsData = statsData;
-    }
+    tabState.statisticsData = statsData;
 
     // Проверяем, был ли уже создан контейнер
     let generalTable = container.querySelector('.stats-general-table');
@@ -8978,9 +9096,9 @@ function renderStatistics(objectName, statsData) {
                 <div class="stats-subtitle">Sensors</div>
                 <input type="text"
                        class="filter-input stats-filter"
-                       id="filter-stats-${objectName}"
+                       id="filter-stats-${displayName}"
                        placeholder="Filter by sensor name..."
-                       data-object="${objectName}">
+                       data-object="${tabKey}">
                 <table class="variables-table stats-sensors-table">
                     <thead>
                         <tr>
@@ -8995,16 +9113,16 @@ function renderStatistics(objectName, statsData) {
         `;
 
         // Настроить обработчик фильтра
-        const filterInput = container.querySelector(`#filter-stats-${objectName}`);
+        const filterInput = container.querySelector(`#filter-stats-${displayName}`);
         if (filterInput) {
             filterInput.addEventListener('input', (e) => {
-                renderStatisticsSensors(objectName, e.target.value);
+                renderStatisticsSensors(tabKey, e.target.value);
             });
             filterInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') {
                     filterInput.value = '';
                     filterInput.blur();
-                    renderStatisticsSensors(objectName, '');
+                    renderStatisticsSensors(tabKey, '');
                 }
             });
         }
@@ -9032,19 +9150,21 @@ function renderStatistics(objectName, statsData) {
     // Обновляем секцию сенсоров
     if (statsData.sensors && typeof statsData.sensors === 'object' && Object.keys(statsData.sensors).length > 0) {
         sensorsSection.style.display = 'block';
-        const currentFilter = container.querySelector(`#filter-stats-${objectName}`)?.value || '';
-        renderStatisticsSensors(objectName, currentFilter);
+        const currentFilter = container.querySelector(`#filter-stats-${displayName}`)?.value || '';
+        renderStatisticsSensors(tabKey, currentFilter);
     } else {
         sensorsSection.style.display = 'none';
     }
 }
 
 // Рендеринг таблицы сенсоров в статистике с фильтрацией
-function renderStatisticsSensors(objectName, filterText = '') {
-    const tabState = state.tabs.get(objectName);
+function renderStatisticsSensors(tabKey, filterText = '') {
+    const tabState = state.tabs.get(tabKey);
     if (!tabState || !tabState.statisticsData?.sensors) return;
 
-    const container = document.getElementById(`statistics-${objectName}`);
+    const displayName = tabState.displayName || tabKey;
+
+    const container = getElementInTab(tabKey, `statistics-${displayName}`);
     if (!container) return;
 
     const tbody = container.querySelector('.stats-sensors-table tbody');
@@ -9231,15 +9351,20 @@ document.addEventListener('click', (e) => {
 });
 
 // Настройка обработчиков фильтра для вкладки
-function setupFilterHandlers(objectName) {
-    const filterInput = document.getElementById(`filter-variables-${objectName}`);
+function setupFilterHandlers(tabKey) {
+    const tabState = state.tabs.get(tabKey);
+    if (!tabState) return;
+
+    const displayName = tabState.displayName || tabKey;
+
+    const filterInput = getElementInTab(tabKey, `filter-variables-${displayName}`);
     if (!filterInput) return;
 
     // Обработка ввода
     filterInput.addEventListener('input', (e) => {
-        const tabState = state.tabs.get(objectName);
+        const tabState = state.tabs.get(tabKey);
         if (tabState && tabState.variables) {
-            renderVariables(objectName, tabState.variables, e.target.value);
+            renderVariables(tabKey, tabState.variables, e.target.value);
         }
     });
 
@@ -9248,18 +9373,23 @@ function setupFilterHandlers(objectName) {
         if (e.key === 'Escape') {
             filterInput.value = '';
             filterInput.blur();
-            const tabState = state.tabs.get(objectName);
+            const tabState = state.tabs.get(tabKey);
             if (tabState && tabState.variables) {
-                renderVariables(objectName, tabState.variables, '');
+                renderVariables(tabKey, tabState.variables, '');
             }
         }
     });
 }
 
 // Настройка resize для графиков
-function setupChartsResize(objectName) {
-    const resizeHandle = document.getElementById(`charts-resize-${objectName}`);
-    const chartsContainer = document.getElementById(`charts-container-${objectName}`);
+function setupChartsResize(tabKey) {
+    const tabState = state.tabs.get(tabKey);
+    if (!tabState) return;
+
+    const displayName = tabState.displayName || tabKey;
+
+    const resizeHandle = getElementInTab(tabKey, `charts-resize-${displayName}`);
+    const chartsContainer = getElementInTab(tabKey, `charts-container-${displayName}`);
 
     if (!resizeHandle || !chartsContainer) return;
 
@@ -9283,7 +9413,7 @@ function setupChartsResize(objectName) {
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
         // Сохраняем высоту
-        saveChartsHeight(objectName, chartsContainer.offsetHeight);
+        saveChartsHeight(tabKey, chartsContainer.offsetHeight);
     };
 
     resizeHandle.addEventListener('mousedown', (e) => {
@@ -9298,27 +9428,32 @@ function setupChartsResize(objectName) {
     });
 
     // Загружаем сохранённую высоту
-    loadChartsHeight(objectName);
+    loadChartsHeight(tabKey);
 }
 
-function saveChartsHeight(objectName, height) {
+function saveChartsHeight(tabKey, height) {
     try {
         const saved = JSON.parse(localStorage.getItem('uniset2-viewer-charts-height') || '{}');
-        saved[objectName] = height;
+        saved[tabKey] = height;
         localStorage.setItem('uniset2-viewer-charts-height', JSON.stringify(saved));
     } catch (err) {
         console.warn('Failed to save charts height:', err);
     }
 }
 
-function loadChartsHeight(objectName) {
+function loadChartsHeight(tabKey) {
+    const tabState = state.tabs.get(tabKey);
+    if (!tabState) return;
+
+    const displayName = tabState.displayName || tabKey;
+
     try {
         const saved = JSON.parse(localStorage.getItem('uniset2-viewer-charts-height') || '{}');
-        if (saved[objectName]) {
-            const chartsContainer = document.getElementById(`charts-container-${objectName}`);
+        if (saved[tabKey]) {
+            const chartsContainer = getElementInTab(tabKey, `charts-container-${displayName}`);
             if (chartsContainer) {
-                chartsContainer.style.height = `${saved[objectName]}px`;
-                chartsContainer.style.maxHeight = `${saved[objectName]}px`;
+                chartsContainer.style.height = `${saved[tabKey]}px`;
+                chartsContainer.style.maxHeight = `${saved[tabKey]}px`;
             }
         }
     } catch (err) {
@@ -9758,20 +9893,20 @@ function setupIOUnpinAll(objectName, type) {
 }
 
 // Pinned rows management
-function getIOPinnedRows(objectName, type) {
+function getIOPinnedRows(tabKey, type) {
     try {
         const saved = JSON.parse(localStorage.getItem('uniset2-viewer-io-pinned') || '{}');
-        const key = `${objectName}-${type}`;
+        const key = `${tabKey}-${type}`;
         return new Set(saved[key] || []);
     } catch (err) {
         return new Set();
     }
 }
 
-function saveIOPinnedRows(objectName, type, pinnedSet) {
+function saveIOPinnedRows(tabKey, type, pinnedSet) {
     try {
         const saved = JSON.parse(localStorage.getItem('uniset2-viewer-io-pinned') || '{}');
-        const key = `${objectName}-${type}`;
+        const key = `${tabKey}-${type}`;
         saved[key] = Array.from(pinnedSet);
         localStorage.setItem('uniset2-viewer-io-pinned', JSON.stringify(saved));
     } catch (err) {
@@ -9779,8 +9914,8 @@ function saveIOPinnedRows(objectName, type, pinnedSet) {
     }
 }
 
-function toggleIOPin(objectName, type, rowKey) {
-    const pinned = getIOPinnedRows(objectName, type);
+function toggleIOPin(tabKey, type, rowKey) {
+    const pinned = getIOPinnedRows(tabKey, type);
     const keyStr = String(rowKey);
 
     if (pinned.has(keyStr)) {
@@ -9789,23 +9924,23 @@ function toggleIOPin(objectName, type, rowKey) {
         pinned.add(keyStr);
     }
 
-    saveIOPinnedRows(objectName, type, pinned);
+    saveIOPinnedRows(tabKey, type, pinned);
 
     // Перерисовываем
-    const tabState = state.tabs.get(objectName);
+    const tabState = state.tabs.get(tabKey);
     if (tabState) {
         if (type === 'inputs' && tabState.ioData?.in) {
-            renderIO(objectName, 'inputs', tabState.ioData.in);
+            renderIO(tabKey, 'inputs', tabState.ioData.in);
         } else if (type === 'outputs' && tabState.ioData?.out) {
-            renderIO(objectName, 'outputs', tabState.ioData.out);
+            renderIO(tabKey, 'outputs', tabState.ioData.out);
         } else if (type === 'timers' && tabState.timersData) {
-            renderTimers(objectName, tabState.timersData);
+            renderTimers(tabKey, tabState.timersData);
         }
     }
 }
 
-function clearIOPinnedRows(objectName, type) {
-    saveIOPinnedRows(objectName, type, new Set());
+function clearIOPinnedRows(tabKey, type) {
+    saveIOPinnedRows(tabKey, type, new Set());
 }
 
 // Установка временного диапазона
