@@ -18,10 +18,13 @@ docker-compose --profile dev down
 
 ```bash
 # Запуск dev-сервера
-docker-compose --profile dev up -d --build
+docker-compose up dev-viewer -d --build
 
 # Dev-сервер доступен на http://localhost:8000
+# Подключается к реальным UniSet2 серверам на портах 9090, 9191, 9292, 9393, 9494, 9595, 9696
 ```
+
+ВАЖНО: Запускать именно `docker-compose up dev-viewer`, а не `docker-compose --profile dev up`, чтобы избежать конфликта портов между сервисами dev-viewer и viewer (оба используют порт 8000).
 
 ## Build
 
