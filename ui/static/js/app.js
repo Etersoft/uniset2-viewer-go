@@ -1017,6 +1017,71 @@ const SectionHeightMixin = {
     }
 };
 
+const PinManagementMixin = {
+    /**
+     * Получает закрепленные элементы (датчики/регистры)
+     * @param {string} storageKey - Ключ в localStorage
+     * @returns {Set<string>}
+     */
+    getPinnedItems(storageKey) {
+        try {
+            const saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
+            return new Set(saved[this.objectName] || []);
+        } catch (err) {
+            return new Set();
+        }
+    },
+
+    /**
+     * Сохраняет закрепленные элементы
+     * @param {string} storageKey - Ключ в localStorage
+     * @param {Set<string>} pinnedSet - Множество ID закрепленных элементов
+     */
+    savePinnedItems(storageKey, pinnedSet) {
+        try {
+            const saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
+            saved[this.objectName] = Array.from(pinnedSet);
+            localStorage.setItem(storageKey, JSON.stringify(saved));
+        } catch (err) {
+            console.warn('Failed to save pinned items:', err);
+        }
+    },
+
+    /**
+     * Переключает закрепление элемента
+     * @param {string} storageKey - Ключ в localStorage
+     * @param {number|string} itemId - ID элемента
+     * @param {Function} renderCallback - Callback для перерисовки
+     */
+    toggleItemPin(storageKey, itemId, renderCallback) {
+        const pinned = this.getPinnedItems(storageKey);
+        const idStr = String(itemId);
+
+        if (pinned.has(idStr)) {
+            pinned.delete(idStr);
+        } else {
+            pinned.add(idStr);
+        }
+
+        this.savePinnedItems(storageKey, pinned);
+        if (renderCallback) {
+            renderCallback.call(this);
+        }
+    },
+
+    /**
+     * Снимает закрепление со всех элементов
+     * @param {string} storageKey - Ключ в localStorage
+     * @param {Function} renderCallback - Callback для перерисовки
+     */
+    unpinAllItems(storageKey, renderCallback) {
+        this.savePinnedItems(storageKey, new Set());
+        if (renderCallback) {
+            renderCallback.call(this);
+        }
+    }
+};
+
 // Функция для применения миксина к классу
 function applyMixin(targetClass, mixin) {
     Object.getOwnPropertyNames(mixin).forEach(name => {
@@ -3937,41 +4002,19 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
 
     // Pin management для датчиков
     getPinnedSensors() {
-        try {
-            const saved = JSON.parse(localStorage.getItem('uniset2-viewer-opcua-pinned') || '{}');
-            return new Set(saved[this.objectName] || []);
-        } catch (err) {
-            return new Set();
-        }
+        return this.getPinnedItems('uniset2-viewer-opcua-pinned');
     }
 
     savePinnedSensors(pinnedSet) {
-        try {
-            const saved = JSON.parse(localStorage.getItem('uniset2-viewer-opcua-pinned') || '{}');
-            saved[this.objectName] = Array.from(pinnedSet);
-            localStorage.setItem('uniset2-viewer-opcua-pinned', JSON.stringify(saved));
-        } catch (err) {
-            console.warn('Failed to save pinned sensors:', err);
-        }
+        this.savePinnedItems('uniset2-viewer-opcua-pinned', pinnedSet);
     }
 
     toggleSensorPin(sensorId) {
-        const pinned = this.getPinnedSensors();
-        const idStr = String(sensorId);
-
-        if (pinned.has(idStr)) {
-            pinned.delete(idStr);
-        } else {
-            pinned.add(idStr);
-        }
-
-        this.savePinnedSensors(pinned);
-        this.renderVisibleSensors();
+        this.toggleItemPin('uniset2-viewer-opcua-pinned', sensorId, this.renderVisibleSensors);
     }
 
     unpinAllSensors() {
-        this.savePinnedSensors(new Set());
-        this.renderVisibleSensors();
+        this.unpinAllItems('uniset2-viewer-opcua-pinned', this.renderVisibleSensors);
     }
 }
 
@@ -3983,6 +4026,7 @@ applyMixin(OPCUAExchangeRenderer, FilterMixin);
 applyMixin(OPCUAExchangeRenderer, ParamsAccessibilityMixin);
 applyMixin(OPCUAExchangeRenderer, ItemCounterMixin);
 applyMixin(OPCUAExchangeRenderer, SectionHeightMixin);
+applyMixin(OPCUAExchangeRenderer, PinManagementMixin);
 
 // ============================================================================
 // ModbusMasterRenderer - рендерер для ModbusMaster объектов
@@ -4609,41 +4653,19 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
 
     // Pin management для регистров
     getPinnedRegisters() {
-        try {
-            const saved = JSON.parse(localStorage.getItem('uniset2-viewer-mb-pinned') || '{}');
-            return new Set(saved[this.objectName] || []);
-        } catch (err) {
-            return new Set();
-        }
+        return this.getPinnedItems('uniset2-viewer-mb-pinned');
     }
 
     savePinnedRegisters(pinnedSet) {
-        try {
-            const saved = JSON.parse(localStorage.getItem('uniset2-viewer-mb-pinned') || '{}');
-            saved[this.objectName] = Array.from(pinnedSet);
-            localStorage.setItem('uniset2-viewer-mb-pinned', JSON.stringify(saved));
-        } catch (err) {
-            console.warn('Failed to save pinned registers:', err);
-        }
+        this.savePinnedItems('uniset2-viewer-mb-pinned', pinnedSet);
     }
 
     toggleRegisterPin(registerId) {
-        const pinned = this.getPinnedRegisters();
-        const idStr = String(registerId);
-
-        if (pinned.has(idStr)) {
-            pinned.delete(idStr);
-        } else {
-            pinned.add(idStr);
-        }
-
-        this.savePinnedRegisters(pinned);
-        this.renderRegisters();
+        this.toggleItemPin('uniset2-viewer-mb-pinned', registerId, this.renderRegisters);
     }
 
     unpinAllRegisters() {
-        this.savePinnedRegisters(new Set());
-        this.renderRegisters();
+        this.unpinAllItems('uniset2-viewer-mb-pinned', this.renderRegisters);
     }
 }
 
@@ -4655,6 +4677,7 @@ applyMixin(ModbusMasterRenderer, FilterMixin);
 applyMixin(ModbusMasterRenderer, ParamsAccessibilityMixin);
 applyMixin(ModbusMasterRenderer, ItemCounterMixin);
 applyMixin(ModbusMasterRenderer, SectionHeightMixin);
+applyMixin(ModbusMasterRenderer, PinManagementMixin);
 
 // Регистрируем стандартные рендереры
 registerRenderer('UniSetManager', UniSetManagerRenderer);
@@ -5281,41 +5304,19 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
 
     // Pin management для регистров
     getPinnedRegisters() {
-        try {
-            const saved = JSON.parse(localStorage.getItem('uniset2-viewer-mbs-pinned') || '{}');
-            return new Set(saved[this.objectName] || []);
-        } catch (err) {
-            return new Set();
-        }
+        return this.getPinnedItems('uniset2-viewer-mbs-pinned');
     }
 
     savePinnedRegisters(pinnedSet) {
-        try {
-            const saved = JSON.parse(localStorage.getItem('uniset2-viewer-mbs-pinned') || '{}');
-            saved[this.objectName] = Array.from(pinnedSet);
-            localStorage.setItem('uniset2-viewer-mbs-pinned', JSON.stringify(saved));
-        } catch (err) {
-            console.warn('Failed to save pinned registers:', err);
-        }
+        this.savePinnedItems('uniset2-viewer-mbs-pinned', pinnedSet);
     }
 
     toggleRegisterPin(registerId) {
-        const pinned = this.getPinnedRegisters();
-        const idStr = String(registerId);
-
-        if (pinned.has(idStr)) {
-            pinned.delete(idStr);
-        } else {
-            pinned.add(idStr);
-        }
-
-        this.savePinnedRegisters(pinned);
-        this.renderRegisters();
+        this.toggleItemPin('uniset2-viewer-mbs-pinned', registerId, this.renderRegisters);
     }
 
     unpinAllRegisters() {
-        this.savePinnedRegisters(new Set());
-        this.renderRegisters();
+        this.unpinAllItems('uniset2-viewer-mbs-pinned', this.renderRegisters);
     }
 }
 
@@ -5327,6 +5328,7 @@ applyMixin(ModbusSlaveRenderer, FilterMixin);
 applyMixin(ModbusSlaveRenderer, ParamsAccessibilityMixin);
 applyMixin(ModbusSlaveRenderer, ItemCounterMixin);
 applyMixin(ModbusSlaveRenderer, SectionHeightMixin);
+applyMixin(ModbusSlaveRenderer, PinManagementMixin);
 
 // ModbusSlave рендерер (по extensionType)
 registerRenderer('ModbusSlave', ModbusSlaveRenderer);
@@ -5990,41 +5992,19 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
 
     // Pin management для датчиков
     getPinnedSensors() {
-        try {
-            const saved = JSON.parse(localStorage.getItem('uniset2-viewer-opcuasrv-pinned') || '{}');
-            return new Set(saved[this.objectName] || []);
-        } catch (err) {
-            return new Set();
-        }
+        return this.getPinnedItems('uniset2-viewer-opcuasrv-pinned');
     }
 
     savePinnedSensors(pinnedSet) {
-        try {
-            const saved = JSON.parse(localStorage.getItem('uniset2-viewer-opcuasrv-pinned') || '{}');
-            saved[this.objectName] = Array.from(pinnedSet);
-            localStorage.setItem('uniset2-viewer-opcuasrv-pinned', JSON.stringify(saved));
-        } catch (err) {
-            console.warn('Failed to save pinned sensors:', err);
-        }
+        this.savePinnedItems('uniset2-viewer-opcuasrv-pinned', pinnedSet);
     }
 
     toggleSensorPin(sensorId) {
-        const pinned = this.getPinnedSensors();
-        const idStr = String(sensorId);
-
-        if (pinned.has(idStr)) {
-            pinned.delete(idStr);
-        } else {
-            pinned.add(idStr);
-        }
-
-        this.savePinnedSensors(pinned);
-        this.renderVisibleSensors();
+        this.toggleItemPin('uniset2-viewer-opcuasrv-pinned', sensorId, this.renderVisibleSensors);
     }
 
     unpinAllSensors() {
-        this.savePinnedSensors(new Set());
-        this.renderVisibleSensors();
+        this.unpinAllItems('uniset2-viewer-opcuasrv-pinned', this.renderVisibleSensors);
     }
 }
 
@@ -6036,6 +6016,7 @@ applyMixin(OPCUAServerRenderer, FilterMixin);
 applyMixin(OPCUAServerRenderer, ParamsAccessibilityMixin);
 applyMixin(OPCUAServerRenderer, ItemCounterMixin);
 applyMixin(OPCUAServerRenderer, SectionHeightMixin);
+applyMixin(OPCUAServerRenderer, PinManagementMixin);
 
 // OPCUAServer рендерер (по extensionType)
 registerRenderer('OPCUAServer', OPCUAServerRenderer);
