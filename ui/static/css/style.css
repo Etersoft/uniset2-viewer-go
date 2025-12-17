@@ -274,6 +274,7 @@
 
 /* Common column widths for sensors/registers tables */
 /* Minimum widths based on character count: ~8px per char (mono) or ~7px (regular) + padding */
+.sensors-table .col-pin { width: 55px; text-align: center; }
 .sensors-table .col-chart { width: 30px; }
 .sensors-table .col-id { width: 100px; }  /* 10 chars */
 .sensors-table .col-name { /* auto - takes remaining space, truncated with ellipsis */ }

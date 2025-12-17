@@ -398,24 +398,42 @@ function initSSE() {
             const { objectName, serverId } = event;
             const registers = event.data; // массив регистров
 
+            console.log('[SSE] modbus_register_batch event:', { objectName, serverId, registers: registers?.length });
+
             // Формируем ключ вкладки: serverId:objectName
             const tabKey = `${serverId}:${objectName}`;
+            console.log('[SSE] Looking for tabKey:', tabKey);
+            console.log('[SSE] Available tabs:', Array.from(state.tabs.keys()));
 
             // Находим вкладку с Modbus рендерером
             const tabState = state.tabs.get(tabKey);
-            if (!tabState) return;
+            if (!tabState) {
+                console.warn('[SSE] Tab not found for:', tabKey);
+                return;
+            }
 
             // Проверяем, что это Modbus рендерер (Master или Slave)
             const renderer = tabState.renderer;
-            if (!renderer) return;
+            if (!renderer) {
+                console.warn('[SSE] No renderer in tabState for:', tabKey);
+                return;
+            }
+
+            console.log('[SSE] Renderer type:', renderer.constructor.name);
 
             const isModbusRenderer = renderer.constructor.name === 'ModbusMasterRenderer' ||
                                      renderer.constructor.name === 'ModbusSlaveRenderer';
-            if (!isModbusRenderer) return;
+            if (!isModbusRenderer) {
+                console.warn('[SSE] Not a Modbus renderer:', renderer.constructor.name);
+                return;
+            }
 
             // Вызываем обработчик обновления регистров
             if (typeof renderer.handleModbusRegisterUpdates === 'function') {
+                console.log('[SSE] Calling handleModbusRegisterUpdates with', registers.length, 'registers');
                 renderer.handleModbusRegisterUpdates(registers);
+            } else {
+                console.warn('[SSE] handleModbusRegisterUpdates not found');
             }
         } catch (err) {
             console.warn('SSE: Error обработки modbus_register_batch:', err);
@@ -3966,14 +3984,14 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
         if (!tbody) return;
 
         const rows = tbody.querySelectorAll('tr');
-        rows.forEach((row, index) => {
-            const sensor = this.allSensors[this.startIndex + index];
-            if (!sensor) return;
+        rows.forEach(row => {
+            const sensorId = parseInt(row.dataset.sensorId);
+            if (!sensorId) return;
 
-            const update = updateMap.get(sensor.id);
+            const update = updateMap.get(sensorId);
             if (update && update.value !== undefined) {
-                // Value ячейка (4-я колонка)
-                const valueCell = row.querySelector('td:nth-child(4)');
+                // Value ячейка (6-я колонка)
+                const valueCell = row.querySelector('td:nth-child(6)');
                 if (valueCell) {
                     const oldValue = valueCell.textContent;
                     const newValue = String(update.value);
@@ -3985,8 +4003,8 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
                         valueCell.classList.add('value-changed');
                     }
                 }
-                // Tick ячейка (6-я колонка, т.к. добавлен Pin)
-                const tickCell = row.querySelector('td:nth-child(8)');
+                // Tick ячейка (7-я колонка)
+                const tickCell = row.querySelector('td:nth-child(7)');
                 if (tickCell && update.tick !== undefined) {
                     tickCell.textContent = String(update.tick);
                 }
@@ -4622,14 +4640,14 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
         if (!tbody) return;
 
         const rows = tbody.querySelectorAll('tr');
-        rows.forEach((row, index) => {
-            const reg = this.allRegisters[index];
-            if (!reg) return;
+        rows.forEach(row => {
+            const regId = parseInt(row.dataset.sensorId);
+            if (!regId) return;
 
-            const update = updateMap.get(reg.id);
+            const update = updateMap.get(regId);
             if (update && update.value !== undefined) {
-                // В ModbusMaster значение в 7-й ячейке (Value), MB Val в 8-й
-                const valueCell = row.querySelector('td:nth-child(7)');
+                // В ModbusMaster значение в 6-й ячейке (Value), MB Val в 10-й
+                const valueCell = row.querySelector('td:nth-child(6)');
                 if (valueCell) {
                     const oldValue = valueCell.textContent;
                     const newValue = String(update.value);
@@ -5233,6 +5251,8 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
     handleModbusRegisterUpdates(registers) {
         if (!Array.isArray(registers) || registers.length === 0) return;
 
+        console.log('[ModbusSlave] handleModbusRegisterUpdates:', registers);
+
         // Добавляем в очередь на обновление
         this.pendingUpdates.push(...registers);
 
@@ -5251,22 +5271,29 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
         const updates = this.pendingUpdates;
         this.pendingUpdates = [];
 
+        console.log('[ModbusSlave] batchRenderUpdates: updates=', updates);
+
         // Создаём map для быстрого поиска
         const updateMap = new Map();
         updates.forEach(reg => {
             updateMap.set(reg.id, reg);
         });
 
+        console.log('[ModbusSlave] updateMap size:', updateMap.size);
+        console.log('[ModbusSlave] allRegisters length:', this.allRegisters.length);
+
         // Обновляем данные в allRegisters
         let hasChanges = false;
         this.allRegisters.forEach((reg, index) => {
             const update = updateMap.get(reg.id);
             if (update && update.value !== reg.value) {
+                console.log('[ModbusSlave] UPDATE id:', reg.id, 'old:', reg.value, 'new:', update.value);
                 this.allRegisters[index] = { ...reg, value: update.value };
                 hasChanges = true;
             }
         });
 
+        console.log('[ModbusSlave] hasChanges:', hasChanges);
         if (!hasChanges) return;
 
         // Обновляем только изменившиеся ячейки в DOM
@@ -5274,22 +5301,30 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
         if (!tbody) return;
 
         const rows = tbody.querySelectorAll('tr');
-        rows.forEach((row, index) => {
-            const reg = this.allRegisters[index];
-            if (!reg) return;
+        console.log('[ModbusSlave] DOM update: rows count:', rows.length);
+        rows.forEach(row => {
+            const regId = parseInt(row.dataset.sensorId);
+            console.log('[ModbusSlave] Processing row with regId:', regId);
+            if (!regId) return;
 
-            const update = updateMap.get(reg.id);
+            const update = updateMap.get(regId);
+            console.log('[ModbusSlave] Update for', regId, ':', update);
             if (update && update.value !== undefined) {
-                const valueCell = row.querySelector('td:last-child');
+                // В ModbusSlave значение в 6-й ячейке (Value)
+                const valueCell = row.querySelector('td:nth-child(6)');
                 if (valueCell) {
                     const oldValue = valueCell.textContent;
                     const newValue = String(update.value);
+                    console.log('[ModbusSlave] DOM update id:', regId, 'oldValue:', oldValue, 'newValue:', newValue);
                     if (oldValue !== newValue) {
                         valueCell.textContent = newValue;
+                        console.log('[ModbusSlave] ✓ Value updated in DOM');
                         // CSS анимация изменения
                         valueCell.classList.remove('value-changed');
                         void valueCell.offsetWidth; // force reflow
                         valueCell.classList.add('value-changed');
+                    } else {
+                        console.log('[ModbusSlave] Values are equal, skipping');
                     }
                 }
             }
