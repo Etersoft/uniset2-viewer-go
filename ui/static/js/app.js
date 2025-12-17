@@ -1984,10 +1984,14 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                 newSensors = this.applyLocalFilters(newSensors);
             }
 
+            // Дедупликация: добавляем только датчики которых еще нет
+            const existingIds = new Set(this.allSensors.map(s => s.id));
+            const uniqueNewSensors = newSensors.filter(s => !existingIds.has(s.id));
+
             // Добавить к уже загруженным
-            this.allSensors = [...this.allSensors, ...newSensors];
+            this.allSensors = [...this.allSensors, ...uniqueNewSensors];
             this.sensors = this.allSensors; // Для совместимости
-            newSensors.forEach(s => this.sensorMap.set(s.id, s));
+            uniqueNewSensors.forEach(s => this.sensorMap.set(s.id, s));
 
             this.hasMore = (data.sensors?.length || 0) === this.chunkSize;
             this.updateVisibleRows();
@@ -3507,7 +3511,11 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
                 );
             }
 
-            this.allSensors = [...this.allSensors, ...newSensors];
+            // Дедупликация: добавляем только датчики которых еще нет
+            const existingIds = new Set(this.allSensors.map(s => s.id));
+            const uniqueNewSensors = newSensors.filter(s => !existingIds.has(s.id));
+
+            this.allSensors = [...this.allSensors, ...uniqueNewSensors];
             this.hasMore = (data.sensors?.length || 0) === this.chunkSize;
             this.updateVisibleRows();
             this.updateSensorCount();
@@ -5506,7 +5514,11 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
             const data = await this.fetchJSON(url);
             let newSensors = data.sensors || [];
 
-            this.allSensors = [...this.allSensors, ...newSensors];
+            // Дедупликация: добавляем только датчики которых еще нет
+            const existingIds = new Set(this.allSensors.map(s => s.id));
+            const uniqueNewSensors = newSensors.filter(s => !existingIds.has(s.id));
+
+            this.allSensors = [...this.allSensors, ...uniqueNewSensors];
             this.hasMore = (data.sensors?.length || 0) === this.chunkSize;
             this.updateVisibleRows();
             this.updateSensorCount();
