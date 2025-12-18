@@ -85,7 +85,13 @@ func (p *Poller) Subscribe(objectName string, registerIDs []int64) {
 		p.subscriptions[objectName][id] = struct{}{}
 	}
 
-	slog.Debug("Modbus registers subscribed", "object", objectName, "count", len(registerIDs))
+	// Считаем subscriptions напрямую, не вызывая SubscriptionCount() чтобы избежать deadlock
+	totalCount := 0
+	for _, regs := range p.subscriptions {
+		totalCount += len(regs)
+	}
+
+	slog.Info("Modbus registers subscribed", "object", objectName, "count", len(registerIDs), "total_subscriptions", totalCount)
 }
 
 // Unsubscribe отписывает от регистров объекта

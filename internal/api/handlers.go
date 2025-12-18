@@ -10,6 +10,7 @@ import (
 
 	"github.com/pv/uniset2-viewer-go/internal/config"
 	"github.com/pv/uniset2-viewer-go/internal/ionc"
+	"github.com/pv/uniset2-viewer-go/internal/logger"
 	"github.com/pv/uniset2-viewer-go/internal/logserver"
 	"github.com/pv/uniset2-viewer-go/internal/modbus"
 	"github.com/pv/uniset2-viewer-go/internal/opcua"
