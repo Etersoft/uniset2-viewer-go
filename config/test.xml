@@ -2504,6 +2504,12 @@
 			<item id="2198" iotype="AO" name="AO0998_C" textname="AO 0998"/>
 			<item id="2199" iotype="AO" name="AO0999_C" textname="AO 0999"/>
 			<item id="2200" iotype="AO" name="AO1000_C" textname="AO 1000"/>
+			<!-- Test sensors for SharedMemory (matching real SM sensor names) -->
+			<item id="15095" iotype="AI" name="Sensor15095_S" textname="Тестовый датчик 15095"/>
+			<item id="15096" iotype="AI" name="Sensor15096_S" textname="Тестовый датчик 15096"/>
+			<item id="15097" iotype="AI" name="Sensor15097_S" textname="Тестовый датчик 15097"/>
+			<item id="15098" iotype="AI" name="Sensor15098_S" textname="Тестовый датчик 15098"/>
+			<item id="15099" iotype="AI" name="Sensor15099_S" textname="Тестовый датчик 15099"/>
 			<xi:include href="generated-sensors.xml" xpointer="xpointer(/items/node())"/>
 		</sensors>
 

@@ -159,7 +159,8 @@ const sharedMemoryData = {
     maxSizeOfMessageQueue: 1000,
     msgCount: 0,
     name: 'SharedMemory',
-    objectType: 'IONotifyController'
+    objectType: 'IONotifyController',
+    extensionType: 'SharedMemory'
   }
 };
 
@@ -505,19 +506,46 @@ const server = http.createServer((req, res) => {
 
     res.end(JSON.stringify({ sensors }));
   } else if (url.startsWith('/api/v2/SharedMemory/get')) {
-    // Return mock sensor values to avoid noisy poller errors
-    const query = url.split('?')[1] || '';
-    const sensorsPart = query.split('&')[0] || '';
-    const sensorIds = sensorsPart.split(',').filter(Boolean);
-    const sensors = sensorIds.map(id => ({
-      id: Number(id) || 0,
-      name: `Sensor${id}_S`,
-      value: 0,
-      real_value: 0
-    }));
+    // Return mock sensor values from mockSensors
+    // URL format: /api/v2/SharedMemory/get?supplier=...&filter=id1,id2,id3
+    const urlObj = new URL(url, `http://localhost:${PORT}`);
+    const filter = urlObj.searchParams.get('filter') || '';
+    const sensorIds = filter.split(',').filter(Boolean).map(Number);
+    const sensors = sensorIds.map(id => {
+      const sensor = mockSensors.find(s => s.id === id);
+      if (sensor) {
+        return {
+          id: sensor.id,
+          name: sensor.name,
+          value: sensor.value,
+          real_value: sensor.real_value || sensor.value,
+          frozen: sensor.frozen || false,
+          blocked: sensor.blocked || false
+        };
+      }
+      return {
+        id: id,
+        name: `Sensor${id}_S`,
+        value: 0,
+        real_value: 0
+      };
+    });
     res.end(JSON.stringify({ sensors }));
   } else if (url.startsWith('/api/v2/SharedMemory/set?')) {
     // Mock set endpoint (GET method like real UniSet2)
+    // Parse query: /api/v2/SharedMemory/set?supplier=TestProc&{sensorId}={value}
+    const urlObj = new URL(url, `http://localhost:${PORT}`);
+    for (const [key, value] of urlObj.searchParams) {
+      if (key !== 'supplier') {
+        const sensorId = parseInt(key, 10);
+        const newValue = parseInt(value, 10);
+        const sensor = mockSensors.find(s => s.id === sensorId);
+        if (sensor && !isNaN(newValue)) {
+          sensor.value = newValue;
+          sensor.real_value = newValue;
+        }
+      }
+    }
     res.end(JSON.stringify({ result: 'OK' }));
   } else if (url.startsWith('/api/v2/SharedMemory/freeze?')) {
     // Mock freeze endpoint (GET method like real UniSet2)

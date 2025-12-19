@@ -13,6 +13,7 @@
     --accent-red: #f2495c;
     --accent-purple: #b877d9;
     --accent-cyan: #5794f2;
+    --accent-yellow: #f1c40f;
 
     /* Component Variables */
     --comp-border-radius: 4px;
@@ -3705,6 +3706,41 @@ header h1 {
     border-color: var(--accent-purple);
 }
 
+/* Кнопка генератора (серая как остальные, hover - жёлтый) */
+.ionc-btn-gen:hover:not(:disabled) {
+    border-color: var(--accent-yellow);
+    background: rgba(241, 196, 15, 0.15);
+}
+
+.ionc-btn-gen-stop {
+    color: var(--accent-red);
+}
+
+.ionc-btn-gen-stop:hover {
+    border-color: var(--accent-red);
+    background: rgba(231, 76, 60, 0.15);
+}
+
+/* Строка с активным генератором */
+.ionc-sensor-generating {
+    background: rgba(241, 196, 15, 0.08);
+}
+
+.ionc-sensor-generating:hover {
+    background: rgba(241, 196, 15, 0.15);
+}
+
+/* Анимация флага генератора */
+.ionc-flag-generator {
+    color: var(--accent-yellow);
+    animation: pulse-gen 1s ease-in-out infinite;
+}
+
+@keyframes pulse-gen {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
 .ionc-pagination {
     display: flex;
     align-items: center;
@@ -3941,6 +3977,50 @@ header h1 {
 
 .ionc-dialog-field input.error {
     border-color: var(--accent-red);
+}
+
+/* Select в диалоге */
+.ionc-dialog-select {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.ionc-dialog-select:focus {
+    outline: none;
+    border-color: var(--accent-blue);
+}
+
+/* Строка полей в диалоге */
+.ionc-dialog-field-row {
+    display: flex;
+    gap: 12px;
+}
+
+.ionc-dialog-field-half {
+    flex: 1;
+}
+
+/* Кнопка опасного действия */
+.ionc-dialog-btn-danger {
+    background: var(--accent-red);
+    color: white;
+}
+
+.ionc-dialog-btn-danger:hover {
+    background: #c0392b;
+}
+
+/* Предупреждение об активном генераторе */
+.ionc-dialog-warning-active {
+    background: rgba(155, 89, 182, 0.15);
+    border-color: var(--accent-purple);
 }
 
 .ionc-dialog-hint {

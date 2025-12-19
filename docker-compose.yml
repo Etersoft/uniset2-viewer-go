@@ -12,6 +12,7 @@ services:
     command: >
       ./uniset2-viewer --addr :8000
       --log-level debug
+      --uniset-config /app/config/test.xml
       --uniset-url http://localhost:9090
       --uniset-url http://localhost:9191
       --uniset-url http://localhost:9292
@@ -19,6 +20,8 @@ services:
       --uniset-url http://localhost:9494
       --uniset-url http://localhost:9595
       --uniset-url http://localhost:9696
+    volumes:
+      - ./config:/app/config:ro
     network_mode: host
     profiles:
       - dev
