@@ -236,8 +236,17 @@ func TestControlManager_ReleaseBySSE(t *testing.T) {
 	// Release by SSE disconnect
 	m.ReleaseBySSE("admin")
 
+	// ReleaseBySSE has 3 second grace period, so immediately after call
+	// HasController should still be true
+	if !m.HasController() {
+		t.Error("HasController should be true immediately after ReleaseBySSE (grace period)")
+	}
+
+	// Wait for grace period to pass (3 seconds + buffer)
+	time.Sleep(3500 * time.Millisecond)
+
 	if m.HasController() {
-		t.Error("HasController should be false after ReleaseBySSE")
+		t.Error("HasController should be false after grace period")
 	}
 }
 

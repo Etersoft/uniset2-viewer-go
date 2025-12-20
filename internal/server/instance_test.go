@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pv/uniset2-viewer-go/internal/config"
-	"github.com/pv/uniset2-viewer-go/internal/storage"
+	"github.com/pv/uniset-panel/internal/config"
+	"github.com/pv/uniset-panel/internal/storage"
 )
 
 // mockUnisetServer creates a test server simulating UniSet2 API

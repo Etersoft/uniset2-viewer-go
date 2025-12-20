@@ -1,4 +1,4 @@
-# uniset2-viewer-go
+# uniset-panel
 
 Веб-сервер для мониторинга состояния uniset2 процессов, отслеживания изменений внутренних переменных во времени с отображением графиков.
 
@@ -38,13 +38,13 @@
 ## Установка
 
 ```bash
-go build -o uniset2-viewer ./cmd/server
+go build -o uniset-panel ./cmd/server
 ```
 
 ## Запуск
 
 ```bash
-./uniset2-viewer [опции]
+./uniset-panel [опции]
 ```
 
 ### Параметры
@@ -68,13 +68,13 @@ go build -o uniset2-viewer ./cmd/server
 
 ```bash
 # Базовый запуск
-./uniset2-viewer --uniset-url http://192.168.1.100:8080
+./uniset-panel --uniset-url http://192.168.1.100:8080
 
 # С SQLite хранилищем
-./uniset2-viewer --uniset-url http://192.168.1.100:8080 --storage sqlite --sqlite-path /var/lib/uniset-viewer/history.db
+./uniset-panel --uniset-url http://192.168.1.100:8080 --storage sqlite --sqlite-path /var/lib/uniset-viewer/history.db
 
 # С кастомным интервалом опроса
-./uniset2-viewer --uniset-url http://192.168.1.100:8080 --poll-interval 2s
+./uniset-panel --uniset-url http://192.168.1.100:8080 --poll-interval 2s
 ```
 
 ## Архитектура
@@ -91,7 +91,7 @@ go build -o uniset2-viewer ./cmd/server
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                 uniset2-viewer-go (Go Server)               │
+│                 uniset-panel (Go Server)               │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
 │  │ HTTP Server │  │ UniSet      │  │ Storage             │  │
 │  │ (REST API)  │  │ Client      │  │ (memory/sqlite)     │  │
@@ -110,7 +110,7 @@ go build -o uniset2-viewer ./cmd/server
 ## Структура проекта
 
 ```
-uniset2-viewer-go/
+uniset-panel/
 ├── cmd/server/main.go       # точка входа
 ├── internal/
 │   ├── config/              # конфигурация
@@ -151,10 +151,10 @@ uniset2-viewer-go/
 
 ```bash
 # Включить recording с путём к файлу
-./uniset2-viewer --recording-path ./recording.db
+./uniset-panel --recording-path ./recording.db
 
 # Включить recording и запустить запись сразу
-./uniset2-viewer --recording-path ./recording.db --recording-enabled
+./uniset-panel --recording-path ./recording.db --recording-enabled
 ```
 
 ### UI управление

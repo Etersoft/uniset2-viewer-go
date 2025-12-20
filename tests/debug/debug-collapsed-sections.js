@@ -43,7 +43,7 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:8000';
 
     // Проверяем localStorage до клика
     let localStorageBefore = await page.evaluate(() => {
-        return localStorage.getItem('uniset2-viewer-collapsed');
+        return localStorage.getItem('uniset-panel-collapsed');
     });
     console.log('\nlocalStorage before:', localStorageBefore);
 
@@ -70,7 +70,7 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:8000';
 
     // Проверяем localStorage после клика
     let localStorageAfter = await page.evaluate(() => {
-        return localStorage.getItem('uniset2-viewer-collapsed');
+        return localStorage.getItem('uniset-panel-collapsed');
     });
     console.log('\nlocalStorage after:', localStorageAfter);
 

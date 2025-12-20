@@ -1,5 +1,5 @@
 # Пример конфигурации серверов UniSet2
-# Использование: ./uniset2-viewer --config config/servers.yaml
+# Использование: ./uniset-panel --config config/servers.yaml
 
 servers:
   - url: http://localhost:8080

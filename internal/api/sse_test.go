@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pv/uniset2-viewer-go/internal/poller"
-	"github.com/pv/uniset2-viewer-go/internal/storage"
-	"github.com/pv/uniset2-viewer-go/internal/uniset"
+	"github.com/pv/uniset-panel/internal/poller"
+	"github.com/pv/uniset-panel/internal/storage"
+	"github.com/pv/uniset-panel/internal/uniset"
 )
 
 // ============================================================================

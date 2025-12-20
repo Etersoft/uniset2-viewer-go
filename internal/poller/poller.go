@@ -5,10 +5,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pv/uniset2-viewer-go/internal/logger"
-	"github.com/pv/uniset2-viewer-go/internal/recording"
-	"github.com/pv/uniset2-viewer-go/internal/storage"
-	"github.com/pv/uniset2-viewer-go/internal/uniset"
+	"github.com/pv/uniset-panel/internal/logger"
+	"github.com/pv/uniset-panel/internal/recording"
+	"github.com/pv/uniset-panel/internal/storage"
+	"github.com/pv/uniset-panel/internal/uniset"
 )
 
 // EventCallback вызывается при получении новых данных объекта

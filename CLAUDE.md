@@ -30,7 +30,7 @@ docker-compose up dev-viewer -d --build
 
 ```bash
 # Сборка бинарника
-go build -o uniset2-viewer-go ./cmd/server
+go build -o uniset-panel ./cmd/server
 
 # Сборка через make
 make build

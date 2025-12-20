@@ -9,14 +9,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pv/uniset2-viewer-go/internal/config"
-	"github.com/pv/uniset2-viewer-go/internal/logserver"
-	"github.com/pv/uniset2-viewer-go/internal/poller"
-	"github.com/pv/uniset2-viewer-go/internal/sensorconfig"
-	"github.com/pv/uniset2-viewer-go/internal/server"
-	"github.com/pv/uniset2-viewer-go/internal/sm"
-	"github.com/pv/uniset2-viewer-go/internal/storage"
-	"github.com/pv/uniset2-viewer-go/internal/uniset"
+	"github.com/pv/uniset-panel/internal/config"
+	"github.com/pv/uniset-panel/internal/logserver"
+	"github.com/pv/uniset-panel/internal/poller"
+	"github.com/pv/uniset-panel/internal/sensorconfig"
+	"github.com/pv/uniset-panel/internal/server"
+	"github.com/pv/uniset-panel/internal/sm"
+	"github.com/pv/uniset-panel/internal/storage"
+	"github.com/pv/uniset-panel/internal/uniset"
 )
 
 func normalizeAPIPath(path string) string {

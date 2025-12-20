@@ -2929,7 +2929,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
     // Управление закреплёнными датчиками
     getPinnedSensors() {
         try {
-            const saved = JSON.parse(localStorage.getItem('uniset2-viewer-ionc-pinned') || '{}');
+            const saved = JSON.parse(localStorage.getItem('uniset-panel-ionc-pinned') || '{}');
             return new Set(saved[this.objectName] || []);
         } catch (err) {
             return new Set();
@@ -2938,9 +2938,9 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
 
     savePinnedSensors(pinnedSet) {
         try {
-            const saved = JSON.parse(localStorage.getItem('uniset2-viewer-ionc-pinned') || '{}');
+            const saved = JSON.parse(localStorage.getItem('uniset-panel-ionc-pinned') || '{}');
             saved[this.objectName] = Array.from(pinnedSet);
-            localStorage.setItem('uniset2-viewer-ionc-pinned', JSON.stringify(saved));
+            localStorage.setItem('uniset-panel-ionc-pinned', JSON.stringify(saved));
         } catch (err) {
             console.warn('Failed to save pinned sensors:', err);
         }
@@ -5049,38 +5049,38 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
     }
 
     loadDiagnosticsHeight() {
-        return this.loadSectionHeight('uniset2-viewer-opcua-diagnostics', 260);
+        return this.loadSectionHeight('uniset-panel-opcua-diagnostics', 260);
     }
 
     saveDiagnosticsHeight(value) {
         this.diagnosticsHeight = value;
-        this.saveSectionHeight('uniset2-viewer-opcua-diagnostics', value);
+        this.saveSectionHeight('uniset-panel-opcua-diagnostics', value);
     }
 
     setupDiagnosticsResize() {
         this.setupSectionResize(
             `opcua-diagnostics-resize-${this.objectName}`,
             `opcua-diagnostics-container-${this.objectName}`,
-            'uniset2-viewer-opcua-diagnostics',
+            'uniset-panel-opcua-diagnostics',
             'diagnosticsHeight',
             { minHeight: 160, maxHeight: 600 }
         );
     }
 
     loadSensorsHeight() {
-        return this.loadSectionHeight('uniset2-viewer-opcua-sensors', 320);
+        return this.loadSectionHeight('uniset-panel-opcua-sensors', 320);
     }
 
     saveSensorsHeight(value) {
         this.sensorsHeight = value;
-        this.saveSectionHeight('uniset2-viewer-opcua-sensors', value);
+        this.saveSectionHeight('uniset-panel-opcua-sensors', value);
     }
 
     setupSensorsResize() {
         this.setupSectionResize(
             `opcua-sensors-resize-${this.objectName}`,
             `opcua-sensors-container-${this.objectName}`,
-            'uniset2-viewer-opcua-sensors',
+            'uniset-panel-opcua-sensors',
             'sensorsHeight',
             { minHeight: 200, maxHeight: 700 }
         );
@@ -5207,19 +5207,19 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
 
     // Pin management для датчиков
     getPinnedSensors() {
-        return this.getPinnedItems('uniset2-viewer-opcua-pinned');
+        return this.getPinnedItems('uniset-panel-opcua-pinned');
     }
 
     savePinnedSensors(pinnedSet) {
-        this.savePinnedItems('uniset2-viewer-opcua-pinned', pinnedSet);
+        this.savePinnedItems('uniset-panel-opcua-pinned', pinnedSet);
     }
 
     toggleSensorPin(sensorId) {
-        this.toggleItemPin('uniset2-viewer-opcua-pinned', sensorId, this.renderVisibleSensors);
+        this.toggleItemPin('uniset-panel-opcua-pinned', sensorId, this.renderVisibleSensors);
     }
 
     unpinAllSensors() {
-        this.unpinAllItems('uniset2-viewer-opcua-pinned', this.renderVisibleSensors);
+        this.unpinAllItems('uniset-panel-opcua-pinned', this.renderVisibleSensors);
     }
 }
 
@@ -5830,19 +5830,19 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
     }
 
     loadRegistersHeight() {
-        return this.loadSectionHeight('uniset2-viewer-mb-registers', 320);
+        return this.loadSectionHeight('uniset-panel-mb-registers', 320);
     }
 
     saveRegistersHeight(value) {
         this.registersHeight = value;
-        this.saveSectionHeight('uniset2-viewer-mb-registers', value);
+        this.saveSectionHeight('uniset-panel-mb-registers', value);
     }
 
     setupRegistersResize() {
         this.setupSectionResize(
             `mb-registers-resize-${this.objectName}`,
             `mb-registers-container-${this.objectName}`,
-            'uniset2-viewer-mb-registers',
+            'uniset-panel-mb-registers',
             'registersHeight',
             { minHeight: 200, maxHeight: 700 }
         );
@@ -5934,19 +5934,19 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
 
     // Pin management для регистров
     getPinnedRegisters() {
-        return this.getPinnedItems('uniset2-viewer-mb-pinned');
+        return this.getPinnedItems('uniset-panel-mb-pinned');
     }
 
     savePinnedRegisters(pinnedSet) {
-        this.savePinnedItems('uniset2-viewer-mb-pinned', pinnedSet);
+        this.savePinnedItems('uniset-panel-mb-pinned', pinnedSet);
     }
 
     toggleRegisterPin(registerId) {
-        this.toggleItemPin('uniset2-viewer-mb-pinned', registerId, this.renderRegisters);
+        this.toggleItemPin('uniset-panel-mb-pinned', registerId, this.renderRegisters);
     }
 
     unpinAllRegisters() {
-        this.unpinAllItems('uniset2-viewer-mb-pinned', this.renderRegisters);
+        this.unpinAllItems('uniset-panel-mb-pinned', this.renderRegisters);
     }
 }
 
@@ -6557,19 +6557,19 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
     }
 
     loadRegistersHeight() {
-        return this.loadSectionHeight('uniset2-viewer-mbs-registers', 320);
+        return this.loadSectionHeight('uniset-panel-mbs-registers', 320);
     }
 
     saveRegistersHeight(value) {
         this.registersHeight = value;
-        this.saveSectionHeight('uniset2-viewer-mbs-registers', value);
+        this.saveSectionHeight('uniset-panel-mbs-registers', value);
     }
 
     setupRegistersResize() {
         this.setupSectionResize(
             `mbs-registers-resize-${this.objectName}`,
             `mbs-registers-container-${this.objectName}`,
-            'uniset2-viewer-mbs-registers',
+            'uniset-panel-mbs-registers',
             'registersHeight',
             { minHeight: 200, maxHeight: 700 }
         );
@@ -6661,19 +6661,19 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
 
     // Pin management для регистров
     getPinnedRegisters() {
-        return this.getPinnedItems('uniset2-viewer-mbs-pinned');
+        return this.getPinnedItems('uniset-panel-mbs-pinned');
     }
 
     savePinnedRegisters(pinnedSet) {
-        this.savePinnedItems('uniset2-viewer-mbs-pinned', pinnedSet);
+        this.savePinnedItems('uniset-panel-mbs-pinned', pinnedSet);
     }
 
     toggleRegisterPin(registerId) {
-        this.toggleItemPin('uniset2-viewer-mbs-pinned', registerId, this.renderRegisters);
+        this.toggleItemPin('uniset-panel-mbs-pinned', registerId, this.renderRegisters);
     }
 
     unpinAllRegisters() {
-        this.unpinAllItems('uniset2-viewer-mbs-pinned', this.renderRegisters);
+        this.unpinAllItems('uniset-panel-mbs-pinned', this.renderRegisters);
     }
 }
 
@@ -7272,18 +7272,18 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
 
     loadSensorsHeight() {
         // Используем формат JSON как другие рендереры
-        return this.loadSectionHeight('uniset2-viewer-opcuasrv-sensors', 300);
+        return this.loadSectionHeight('uniset-panel-opcuasrv-sensors', 300);
     }
 
     saveSensorsHeight(height) {
-        this.saveSectionHeight('uniset2-viewer-opcuasrv-sensors', height);
+        this.saveSectionHeight('uniset-panel-opcuasrv-sensors', height);
     }
 
     setupSensorsResize() {
         this.setupSectionResize(
             `opcuasrv-sensors-resize-${this.objectName}`,
             `opcuasrv-sensors-container-${this.objectName}`,
-            'uniset2-viewer-opcuasrv-sensors',
+            'uniset-panel-opcuasrv-sensors',
             'sensorsHeight',
             { minHeight: 200, maxHeight: 700 }
         );
@@ -7349,19 +7349,19 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
 
     // Pin management для датчиков
     getPinnedSensors() {
-        return this.getPinnedItems('uniset2-viewer-opcuasrv-pinned');
+        return this.getPinnedItems('uniset-panel-opcuasrv-pinned');
     }
 
     savePinnedSensors(pinnedSet) {
-        this.savePinnedItems('uniset2-viewer-opcuasrv-pinned', pinnedSet);
+        this.savePinnedItems('uniset-panel-opcuasrv-pinned', pinnedSet);
     }
 
     toggleSensorPin(sensorId) {
-        this.toggleItemPin('uniset2-viewer-opcuasrv-pinned', sensorId, this.renderVisibleSensors);
+        this.toggleItemPin('uniset-panel-opcuasrv-pinned', sensorId, this.renderVisibleSensors);
     }
 
     unpinAllSensors() {
-        this.unpinAllItems('uniset2-viewer-opcuasrv-pinned', this.renderVisibleSensors);
+        this.unpinAllItems('uniset-panel-opcuasrv-pinned', this.renderVisibleSensors);
     }
 }
 
@@ -7662,13 +7662,13 @@ class LogViewer {
 
     saveFilterOptions() {
         try {
-            const saved = JSON.parse(localStorage.getItem('uniset2-viewer-filter-options') || '{}');
+            const saved = JSON.parse(localStorage.getItem('uniset-panel-filter-options') || '{}');
             saved[this.objectName] = {
                 regex: this.filterRegex,
                 case: this.filterCase,
                 only: this.filterOnlyMatches
             };
-            localStorage.setItem('uniset2-viewer-filter-options', JSON.stringify(saved));
+            localStorage.setItem('uniset-panel-filter-options', JSON.stringify(saved));
         } catch (err) {
             console.warn('Failed to save filter options:', err);
         }
@@ -7676,7 +7676,7 @@ class LogViewer {
 
     loadFilterOptions() {
         try {
-            const saved = JSON.parse(localStorage.getItem('uniset2-viewer-filter-options') || '{}');
+            const saved = JSON.parse(localStorage.getItem('uniset-panel-filter-options') || '{}');
             if (saved[this.objectName]) {
                 const opts = saved[this.objectName];
                 this.filterRegex = opts.regex !== undefined ? opts.regex : true;
@@ -7699,9 +7699,9 @@ class LogViewer {
 
     saveBufferSize() {
         try {
-            const saved = JSON.parse(localStorage.getItem('uniset2-viewer-buffersize') || '{}');
+            const saved = JSON.parse(localStorage.getItem('uniset-panel-buffersize') || '{}');
             saved[this.objectName] = this.maxLines;
-            localStorage.setItem('uniset2-viewer-buffersize', JSON.stringify(saved));
+            localStorage.setItem('uniset-panel-buffersize', JSON.stringify(saved));
         } catch (err) {
             console.warn('Failed to save buffer size:', err);
         }
@@ -7709,7 +7709,7 @@ class LogViewer {
 
     loadSavedBufferSize() {
         try {
-            const saved = JSON.parse(localStorage.getItem('uniset2-viewer-buffersize') || '{}');
+            const saved = JSON.parse(localStorage.getItem('uniset-panel-buffersize') || '{}');
             if (saved[this.objectName]) {
                 this.maxLines = saved[this.objectName];
                 const bufferSelect = document.getElementById(`log-buffer-${this.objectName}`);
@@ -7850,9 +7850,9 @@ class LogViewer {
 
     saveLevels() {
         try {
-            const saved = JSON.parse(localStorage.getItem('uniset2-viewer-loglevels') || '{}');
+            const saved = JSON.parse(localStorage.getItem('uniset-panel-loglevels') || '{}');
             saved[this.objectName] = Array.from(this.selectedLevels);
-            localStorage.setItem('uniset2-viewer-loglevels', JSON.stringify(saved));
+            localStorage.setItem('uniset-panel-loglevels', JSON.stringify(saved));
         } catch (err) {
             console.warn('Failed to save log levels:', err);
         }
@@ -7860,7 +7860,7 @@ class LogViewer {
 
     loadSavedLevels() {
         try {
-            const saved = JSON.parse(localStorage.getItem('uniset2-viewer-loglevels') || '{}');
+            const saved = JSON.parse(localStorage.getItem('uniset-panel-loglevels') || '{}');
             if (saved[this.objectName]) {
                 this.selectedLevels = new Set(saved[this.objectName]);
                 this.updatePillsUI();
@@ -8421,9 +8421,9 @@ class LogViewer {
 
     saveHeight() {
         try {
-            const heights = JSON.parse(localStorage.getItem('uniset2-viewer-logheights') || '{}');
+            const heights = JSON.parse(localStorage.getItem('uniset-panel-logheights') || '{}');
             heights[this.objectName] = this.height;
-            localStorage.setItem('uniset2-viewer-logheights', JSON.stringify(heights));
+            localStorage.setItem('uniset-panel-logheights', JSON.stringify(heights));
         } catch (err) {
             console.warn('Failed to save log height:', err);
         }
@@ -8431,7 +8431,7 @@ class LogViewer {
 
     loadSavedHeight() {
         try {
-            const heights = JSON.parse(localStorage.getItem('uniset2-viewer-logheights') || '{}');
+            const heights = JSON.parse(localStorage.getItem('uniset-panel-logheights') || '{}');
             if (heights[this.objectName]) {
                 this.height = heights[this.objectName];
                 const container = document.getElementById(`log-container-${this.objectName}`);
@@ -9344,7 +9344,7 @@ function removeExternalSensor(tabKey, sensorName, options = {}) {
 // Возвращает Map<sensorName, sensorData> для обратной совместимости с Set API (.has, .add, .delete)
 function getExternalSensorsFromStorage(objectName) {
     try {
-        const key = `uniset2-viewer-external-sensors-${objectName}`;
+        const key = `uniset-panel-external-sensors-${objectName}`;
         const data = localStorage.getItem(key);
         if (data) {
             const parsed = JSON.parse(data);
@@ -9372,7 +9372,7 @@ function getExternalSensorsFromStorage(objectName) {
 // Save внешние датчики в localStorage
 function saveExternalSensorsToStorage(objectName, sensors) {
     try {
-        const key = `uniset2-viewer-external-sensors-${objectName}`;
+        const key = `uniset-panel-external-sensors-${objectName}`;
         // sensors - это Map<name, sensorData>
         const arr = [...sensors.values()];
         localStorage.setItem(key, JSON.stringify(arr));
@@ -10906,7 +10906,7 @@ function renderStatisticsSensors(tabKey, filterText = '') {
 // Восстановление состояния спойлеров из localStorage
 function restoreCollapsedSections(objectName) {
     try {
-        const saved = localStorage.getItem('uniset2-viewer-collapsed');
+        const saved = localStorage.getItem('uniset-panel-collapsed');
         if (saved) {
             state.collapsedSections = JSON.parse(saved);
         }
@@ -10938,7 +10938,7 @@ function saveCollapsedSections() {
     state.collapsedSections = collapsed;
 
     try {
-        localStorage.setItem('uniset2-viewer-collapsed', JSON.stringify(collapsed));
+        localStorage.setItem('uniset-panel-collapsed', JSON.stringify(collapsed));
     } catch (err) {
         console.warn('Error сохранения состояния спойлеров:', err);
     }
@@ -11157,9 +11157,9 @@ function setupChartsResize(tabKey) {
 
 function saveChartsHeight(tabKey, height) {
     try {
-        const saved = JSON.parse(localStorage.getItem('uniset2-viewer-charts-height') || '{}');
+        const saved = JSON.parse(localStorage.getItem('uniset-panel-charts-height') || '{}');
         saved[tabKey] = height;
-        localStorage.setItem('uniset2-viewer-charts-height', JSON.stringify(saved));
+        localStorage.setItem('uniset-panel-charts-height', JSON.stringify(saved));
     } catch (err) {
         console.warn('Failed to save charts height:', err);
     }
@@ -11172,7 +11172,7 @@ function loadChartsHeight(tabKey) {
     const displayName = tabState.displayName || tabKey;
 
     try {
-        const saved = JSON.parse(localStorage.getItem('uniset2-viewer-charts-height') || '{}');
+        const saved = JSON.parse(localStorage.getItem('uniset-panel-charts-height') || '{}');
         if (saved[tabKey]) {
             const chartsContainer = getElementInTab(tabKey, `charts-container-${displayName}`);
             if (chartsContainer) {
@@ -11232,9 +11232,9 @@ function setupIONCSensorsResize(objectName) {
 
 function saveIONCSensorsHeight(objectName, height) {
     try {
-        const saved = JSON.parse(localStorage.getItem('uniset2-viewer-ionc-height') || '{}');
+        const saved = JSON.parse(localStorage.getItem('uniset-panel-ionc-height') || '{}');
         saved[objectName] = height;
-        localStorage.setItem('uniset2-viewer-ionc-height', JSON.stringify(saved));
+        localStorage.setItem('uniset-panel-ionc-height', JSON.stringify(saved));
     } catch (err) {
         console.warn('Failed to save IONC sensors height:', err);
     }
@@ -11242,7 +11242,7 @@ function saveIONCSensorsHeight(objectName, height) {
 
 function loadIONCSensorsHeight(objectName) {
     try {
-        const saved = JSON.parse(localStorage.getItem('uniset2-viewer-ionc-height') || '{}');
+        const saved = JSON.parse(localStorage.getItem('uniset-panel-ionc-height') || '{}');
         if (saved[objectName]) {
             const sensorsContainer = document.getElementById(`ionc-sensors-container-${objectName}`);
             if (sensorsContainer) {
@@ -11274,9 +11274,9 @@ function toggleIOLayout(objectName) {
 
 function saveIOLayoutState(objectName, isSequential) {
     try {
-        const saved = JSON.parse(localStorage.getItem('uniset2-viewer-io-layout') || '{}');
+        const saved = JSON.parse(localStorage.getItem('uniset-panel-io-layout') || '{}');
         saved[objectName] = isSequential;
-        localStorage.setItem('uniset2-viewer-io-layout', JSON.stringify(saved));
+        localStorage.setItem('uniset-panel-io-layout', JSON.stringify(saved));
     } catch (err) {
         console.warn('Failed to save IO layout state:', err);
     }
@@ -11284,7 +11284,7 @@ function saveIOLayoutState(objectName, isSequential) {
 
 function loadIOLayoutState(objectName) {
     try {
-        const saved = JSON.parse(localStorage.getItem('uniset2-viewer-io-layout') || '{}');
+        const saved = JSON.parse(localStorage.getItem('uniset-panel-io-layout') || '{}');
         if (saved[objectName]) {
             const checkbox = document.getElementById(`io-sequential-${objectName}`);
             const ioGrid = document.getElementById(`io-grid-${objectName}`);
@@ -11364,9 +11364,9 @@ function saveSectionOrder(tabKey) {
         const sections = panel.querySelectorAll('.reorderable-section[data-section-id]');
         const order = Array.from(sections).map(s => s.dataset.sectionId);
 
-        const saved = JSON.parse(localStorage.getItem('uniset2-viewer-section-order') || '{}');
+        const saved = JSON.parse(localStorage.getItem('uniset-panel-section-order') || '{}');
         saved[tabKey] = order;
-        localStorage.setItem('uniset2-viewer-section-order', JSON.stringify(saved));
+        localStorage.setItem('uniset-panel-section-order', JSON.stringify(saved));
     } catch (err) {
         console.warn('Failed to save section order:', err);
     }
@@ -11375,7 +11375,7 @@ function saveSectionOrder(tabKey) {
 // tabKey - ключ вкладки (serverId:objectName)
 function loadSectionOrder(tabKey) {
     try {
-        const saved = JSON.parse(localStorage.getItem('uniset2-viewer-section-order') || '{}');
+        const saved = JSON.parse(localStorage.getItem('uniset-panel-section-order') || '{}');
         const order = saved[tabKey];
         if (!order || !Array.isArray(order)) return;
 
@@ -11476,10 +11476,10 @@ function setupIOCollapse(objectName, type) {
 
 function saveIOCollapseState(objectName, type, collapsed) {
     try {
-        const saved = JSON.parse(localStorage.getItem('uniset2-viewer-io-collapse') || '{}');
+        const saved = JSON.parse(localStorage.getItem('uniset-panel-io-collapse') || '{}');
         const key = `${objectName}-${type}`;
         saved[key] = collapsed ? 'collapsed' : 'expanded';
-        localStorage.setItem('uniset2-viewer-io-collapse', JSON.stringify(saved));
+        localStorage.setItem('uniset-panel-io-collapse', JSON.stringify(saved));
     } catch (err) {
         console.warn('Failed to save IO collapse state:', err);
     }
@@ -11487,7 +11487,7 @@ function saveIOCollapseState(objectName, type, collapsed) {
 
 function loadIOCollapseState(objectName, type) {
     try {
-        const saved = JSON.parse(localStorage.getItem('uniset2-viewer-io-collapse') || '{}');
+        const saved = JSON.parse(localStorage.getItem('uniset-panel-io-collapse') || '{}');
         const key = `${objectName}-${type}`;
         return saved[key] || 'expanded';
     } catch (err) {
@@ -11540,10 +11540,10 @@ function setupIOResize(objectName, type) {
 
 function saveIOHeight(objectName, type, height) {
     try {
-        const saved = JSON.parse(localStorage.getItem('uniset2-viewer-io-heights') || '{}');
+        const saved = JSON.parse(localStorage.getItem('uniset-panel-io-heights') || '{}');
         const key = `${objectName}-${type}`;
         saved[key] = height;
-        localStorage.setItem('uniset2-viewer-io-heights', JSON.stringify(saved));
+        localStorage.setItem('uniset-panel-io-heights', JSON.stringify(saved));
     } catch (err) {
         console.warn('Failed to save IO height:', err);
     }
@@ -11551,7 +11551,7 @@ function saveIOHeight(objectName, type, height) {
 
 function loadIOHeight(objectName, type) {
     try {
-        const saved = JSON.parse(localStorage.getItem('uniset2-viewer-io-heights') || '{}');
+        const saved = JSON.parse(localStorage.getItem('uniset-panel-io-heights') || '{}');
         const key = `${objectName}-${type}`;
         if (saved[key]) {
             const container = document.getElementById(`io-container-${type}-${objectName}`);
@@ -11627,7 +11627,7 @@ function setupIOUnpinAll(tabKey, objectName, type) {
 // Pinned rows management
 function getIOPinnedRows(tabKey, type) {
     try {
-        const saved = JSON.parse(localStorage.getItem('uniset2-viewer-io-pinned') || '{}');
+        const saved = JSON.parse(localStorage.getItem('uniset-panel-io-pinned') || '{}');
         const key = `${tabKey}-${type}`;
         return new Set(saved[key] || []);
     } catch (err) {
@@ -11637,10 +11637,10 @@ function getIOPinnedRows(tabKey, type) {
 
 function saveIOPinnedRows(tabKey, type, pinnedSet) {
     try {
-        const saved = JSON.parse(localStorage.getItem('uniset2-viewer-io-pinned') || '{}');
+        const saved = JSON.parse(localStorage.getItem('uniset-panel-io-pinned') || '{}');
         const key = `${tabKey}-${type}`;
         saved[key] = Array.from(pinnedSet);
-        localStorage.setItem('uniset2-viewer-io-pinned', JSON.stringify(saved));
+        localStorage.setItem('uniset-panel-io-pinned', JSON.stringify(saved));
     } catch (err) {
         console.warn('Failed to save pinned rows:', err);
     }
@@ -11706,13 +11706,13 @@ function saveSettings() {
         collapsedServerGroups: Array.from(state.collapsedServerGroups),
         serversSectionCollapsed: state.serversSectionCollapsed
     };
-    localStorage.setItem('uniset2-viewer-settings', JSON.stringify(settings));
+    localStorage.setItem('uniset-panel-settings', JSON.stringify(settings));
 }
 
 // Loading настроек из localStorage
 function loadSettings() {
     try {
-        const saved = localStorage.getItem('uniset2-viewer-settings');
+        const saved = localStorage.getItem('uniset-panel-settings');
         if (saved) {
             const settings = JSON.parse(saved);
 

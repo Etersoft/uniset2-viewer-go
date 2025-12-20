@@ -105,9 +105,9 @@ These functions operate within a single object's context:
 
 | Key | Format | Description |
 |-----|--------|-------------|
-| `uniset2-viewer-collapsed` | `{sectionId: boolean}` | Collapsed state of sections |
-| `uniset2-viewer-section-order` | `{tabKey: [sectionIds]}` | Order of sections per tab |
-| `uniset2-viewer-pinned-*` | `{objectName: [ids]}` | Pinned sensors per object |
+| `uniset-panel-collapsed` | `{sectionId: boolean}` | Collapsed state of sections |
+| `uniset-panel-section-order` | `{tabKey: [sectionIds]}` | Order of sections per tab |
+| `uniset-panel-pinned-*` | `{objectName: [ids]}` | Pinned sensors per object |
 
 ## SSE Events and Charts
 

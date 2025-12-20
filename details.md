@@ -1,8 +1,8 @@
-# uniset2-viewer-go — Детальное описание проекта
+# uniset-panel — Детальное описание проекта
 
 ## Обзор
 
-**uniset2-viewer-go** — веб-приложение для мониторинга процессов UniSet2 (промышленная платформа автоматизации). Приложение визуализирует состояния переменных и сигналов с историческими графиками в реальном времени.
+**uniset-panel** — веб-приложение для мониторинга процессов UniSet2 (промышленная платформа автоматизации). Приложение визуализирует состояния переменных и сигналов с историческими графиками в реальном времени.
 
 ## Основные возможности
 
@@ -149,14 +149,14 @@ make js-tests   # запуск в Docker (single + multi-server)
 
 ### Локальная сборка
 ```bash
-go build -mod=vendor -o uniset2-viewer ./cmd/server
-./uniset2-viewer --uniset-url http://localhost:8080 --port 8000
+go build -mod=vendor -o uniset-panel ./cmd/server
+./uniset-panel --uniset-url http://localhost:8080 --port 8000
 ```
 
 ### Docker
 ```bash
-docker build -t uniset2-viewer .
-docker run -p 8000:8000 -e UNISET_URL=http://host:8080 uniset2-viewer
+docker build -t uniset-panel .
+docker run -p 8000:8000 -e UNISET_URL=http://host:8080 uniset-panel
 ```
 
 ### Makefile targets
@@ -169,7 +169,7 @@ docker run -p 8000:8000 -e UNISET_URL=http://host:8080 uniset2-viewer
 ## Структура файлов
 
 ```
-uniset2-viewer-go/
+uniset-panel/
 ├── cmd/server/
 │   └── main.go              # точка входа
 ├── internal/

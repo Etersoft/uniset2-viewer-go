@@ -24,13 +24,13 @@ Recording позволяет записывать историю изменен�
 
 ```bash
 # Стандартный запуск
-./uniset2-viewer-go
+./uniset-panel
 
 # С автоматическим стартом записи
-./uniset2-viewer-go --recording-enabled
+./uniset-panel --recording-enabled
 
 # С кастомным путём и лимитом
-./uniset2-viewer-go --recording-path /data/history.db --max-records 500000
+./uniset-panel --recording-path /data/history.db --max-records 500000
 ```
 
 ### Docker Compose
@@ -38,7 +38,7 @@ Recording позволяет записывать историю изменен�
 ```yaml
 services:
   viewer:
-    image: uniset2-viewer-go
+    image: uniset-panel
     command: >
       --recording-path /data/recording.db
       --max-records 1000000

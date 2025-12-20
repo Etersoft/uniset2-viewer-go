@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/pv/uniset2-viewer-go/internal/ionc"
-	"github.com/pv/uniset2-viewer-go/internal/modbus"
-	"github.com/pv/uniset2-viewer-go/internal/opcua"
-	"github.com/pv/uniset2-viewer-go/internal/uniset"
+	"github.com/pv/uniset-panel/internal/ionc"
+	"github.com/pv/uniset-panel/internal/modbus"
+	"github.com/pv/uniset-panel/internal/opcua"
+	"github.com/pv/uniset-panel/internal/uniset"
 )
 
 // requireObjectName extracts object name from path and writes error if missing.

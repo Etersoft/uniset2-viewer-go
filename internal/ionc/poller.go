@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/pv/uniset2-viewer-go/internal/poller"
-	"github.com/pv/uniset2-viewer-go/internal/recording"
-	"github.com/pv/uniset2-viewer-go/internal/uniset"
+	"github.com/pv/uniset-panel/internal/poller"
+	"github.com/pv/uniset-panel/internal/recording"
+	"github.com/pv/uniset-panel/internal/uniset"
 )
 
 // SensorUpdate обновление значения IONC датчика

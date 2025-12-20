@@ -46,7 +46,7 @@ services:
       context: .
       dockerfile: Dockerfile
     command: >
-      ./uniset2-viewer
+      ./uniset-panel
       --addr :8000
       --uniset-url http://mock-uniset-1:9393
       --uniset-url http://mock-uniset-2:9394

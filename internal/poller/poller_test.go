@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pv/uniset2-viewer-go/internal/storage"
-	"github.com/pv/uniset2-viewer-go/internal/uniset"
+	"github.com/pv/uniset-panel/internal/storage"
+	"github.com/pv/uniset-panel/internal/uniset"
 )
 
 func newMockServer(t *testing.T, handler http.HandlerFunc) *httptest.Server {

@@ -17,7 +17,7 @@ const { chromium } = require('@playwright/test');
 
   console.log('\n✅ MBSlave1 opened successfully!');
   console.log('📊 Check docker logs in another terminal:');
-  console.log('   docker logs -f uniset2-viewer-go-dev-viewer-1 2>&1 | grep -i modbus\n');
+  console.log('   docker logs -f uniset-panel-dev-viewer-1 2>&1 | grep -i modbus\n');
   console.log('Browser will stay open. Press Ctrl+C to exit.\n');
 
   // Keep alive

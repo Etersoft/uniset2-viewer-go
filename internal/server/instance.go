@@ -6,13 +6,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pv/uniset2-viewer-go/internal/config"
-	"github.com/pv/uniset2-viewer-go/internal/ionc"
-	"github.com/pv/uniset2-viewer-go/internal/modbus"
-	"github.com/pv/uniset2-viewer-go/internal/opcua"
-	"github.com/pv/uniset2-viewer-go/internal/poller"
-	"github.com/pv/uniset2-viewer-go/internal/storage"
-	"github.com/pv/uniset2-viewer-go/internal/uniset"
+	"github.com/pv/uniset-panel/internal/config"
+	"github.com/pv/uniset-panel/internal/ionc"
+	"github.com/pv/uniset-panel/internal/modbus"
+	"github.com/pv/uniset-panel/internal/opcua"
+	"github.com/pv/uniset-panel/internal/poller"
+	"github.com/pv/uniset-panel/internal/storage"
+	"github.com/pv/uniset-panel/internal/uniset"
 )
 
 // ObjectEventCallback вызывается при получении данных объекта

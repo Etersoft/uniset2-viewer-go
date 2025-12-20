@@ -7,13 +7,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pv/uniset2-viewer-go/internal/config"
-	"github.com/pv/uniset2-viewer-go/internal/ionc"
-	"github.com/pv/uniset2-viewer-go/internal/modbus"
-	"github.com/pv/uniset2-viewer-go/internal/opcua"
-	"github.com/pv/uniset2-viewer-go/internal/recording"
-	"github.com/pv/uniset2-viewer-go/internal/storage"
-	"github.com/pv/uniset2-viewer-go/internal/uniset"
+	"github.com/pv/uniset-panel/internal/config"
+	"github.com/pv/uniset-panel/internal/ionc"
+	"github.com/pv/uniset-panel/internal/modbus"
+	"github.com/pv/uniset-panel/internal/opcua"
+	"github.com/pv/uniset-panel/internal/recording"
+	"github.com/pv/uniset-panel/internal/storage"
+	"github.com/pv/uniset-panel/internal/uniset"
 )
 
 // ObjectWithServer расширяет имя объекта информацией о сервере

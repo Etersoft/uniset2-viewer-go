@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pv/uniset2-viewer-go/internal/recording"
+	"github.com/pv/uniset-panel/internal/recording"
 )
 
 // BatchUpdateCallback функция обратного вызова для батчевых обновлений

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pv/uniset2-viewer-go/internal/storage"
+	"github.com/pv/uniset-panel/internal/storage"
 )
 
 // SensorSubscription подписка на датчик для объекта

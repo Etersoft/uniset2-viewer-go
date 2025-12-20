@@ -7,12 +7,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pv/uniset2-viewer-go/internal/ionc"
-	"github.com/pv/uniset2-viewer-go/internal/logger"
-	"github.com/pv/uniset2-viewer-go/internal/modbus"
-	"github.com/pv/uniset2-viewer-go/internal/opcua"
-	"github.com/pv/uniset2-viewer-go/internal/sm"
-	"github.com/pv/uniset2-viewer-go/internal/uniset"
+	"github.com/pv/uniset-panel/internal/ionc"
+	"github.com/pv/uniset-panel/internal/logger"
+	"github.com/pv/uniset-panel/internal/modbus"
+	"github.com/pv/uniset-panel/internal/opcua"
+	"github.com/pv/uniset-panel/internal/sm"
+	"github.com/pv/uniset-panel/internal/uniset"
 )
 
 // SSEHub управляет SSE подключениями клиентов

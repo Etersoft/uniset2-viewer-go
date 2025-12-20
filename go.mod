@@ -1,4 +1,4 @@
-module github.com/pv/uniset2-viewer-go
+module github.com/pv/uniset-panel
 
 go 1.23
 

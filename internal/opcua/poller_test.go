@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pv/uniset2-viewer-go/internal/uniset"
+	"github.com/pv/uniset-panel/internal/uniset"
 )
 
 func TestPoller_SubscribeUnsubscribe(t *testing.T) {

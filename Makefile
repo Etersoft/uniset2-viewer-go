@@ -2,7 +2,7 @@
 
 # Go build
 build:
-	go build -mod=vendor -o uniset2-viewer ./cmd/server
+	go build -mod=vendor -o uniset-panel ./cmd/server
 
 # Run for development (connects to UniSet servers at 9090 and 9191)
 # Usage: make run UNISET_URLS="http://localhost:9090 http://localhost:9191"
@@ -37,6 +37,6 @@ js-tests-all: js-tests js-tests-multi
 
 # Clean
 clean:
-	rm -f uniset2-viewer
+	rm -f uniset-panel
 	docker-compose down -v --rmi local 2>/dev/null || true
 	docker-compose -f docker-compose.multi.yml down -v --rmi local 2>/dev/null || true
