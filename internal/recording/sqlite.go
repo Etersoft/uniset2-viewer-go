@@ -30,7 +30,7 @@ func NewSQLiteBackend(dbPath string) *SQLiteBackend {
 func (s *SQLiteBackend) Open() error {
 	// Use WAL mode and busy_timeout for better concurrency
 	dsn := s.dbPath + "?_journal_mode=WAL&_busy_timeout=5000"
-	db, err := sql.Open("sqlite3", dsn)
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
