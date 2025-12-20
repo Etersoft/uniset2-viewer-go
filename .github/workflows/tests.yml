@@ -35,10 +35,10 @@ jobs:
 
       - name: Run E2E tests (single server)
         run: |
-          docker-compose up --build --abort-on-container-exit --exit-code-from e2e
-          docker-compose down
+          docker compose up --build --abort-on-container-exit --exit-code-from e2e
+          docker compose down
 
       - name: Run E2E tests (multi server)
         run: |
-          docker-compose -f docker-compose.multi.yml up --build --abort-on-container-exit --exit-code-from e2e-multi
-          docker-compose -f docker-compose.multi.yml down
+          docker compose -f docker-compose.multi.yml up --build --abort-on-container-exit --exit-code-from e2e-multi
+          docker compose -f docker-compose.multi.yml down
