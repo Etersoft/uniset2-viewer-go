@@ -15,6 +15,25 @@
 - **LogServer клиент** — просмотр логов процесса в реальном времени
 - **SSE (Server-Sent Events)** — получение обновлений данных без polling
 
+## Скриншоты
+
+### Мониторинг с графиками
+![Главная страница](docs/images/main-page.png)
+
+### Таблица сенсоров
+![Сенсоры](docs/images/sensors-table.png)
+
+### Modbus регистры
+![Modbus](docs/images/modbus.png)
+
+### LogServer
+![Логи](docs/images/log-server.png)
+
+### Режимы управления
+| Control mode | Read-only mode |
+|:---:|:---:|
+| ![Control](docs/images/control.png) | ![Read-only](docs/images/read_only_mode.png) |
+
 ## Установка
 
 ```bash
