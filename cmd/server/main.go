@@ -27,6 +27,9 @@ import (
 	"github.com/pv/uniset-panel/ui"
 )
 
+// Version is set at build time via ldflags
+var Version = "0.0.1"
+
 func main() {
 	cfg := config.Parse()
 
@@ -187,6 +190,7 @@ func main() {
 
 	// Create API handlers
 	handlers := api.NewHandlers(client, store, pollerInstance, sensorCfg, cfg.PollInterval)
+	handlers.SetVersion(Version)
 	handlers.SetLogServerManager(logServerMgr)
 	handlers.SetServerManager(serverMgr)
 	handlers.SetSSEHub(sseHub)

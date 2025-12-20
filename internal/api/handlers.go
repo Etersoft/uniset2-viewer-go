@@ -41,6 +41,7 @@ type Handlers struct {
 	logStreamConfig *config.LogStreamConfig
 	controlMgr      *ControlManager    // менеджер сессий контроля
 	recordingMgr    *recording.Manager // менеджер записи истории
+	version         string             // версия приложения
 }
 
 func NewHandlers(client *uniset.Client, store storage.Storage, p *poller.Poller, sensorCfg *sensorconfig.SensorConfig, pollInterval time.Duration) *Handlers {
@@ -127,6 +128,17 @@ func (h *Handlers) SetSSEHub(hub *SSEHub) {
 // GetSSEHub возвращает SSE hub для использования в poller
 func (h *Handlers) GetSSEHub() *SSEHub {
 	return h.sseHub
+}
+
+// SetVersion устанавливает версию приложения
+func (h *Handlers) SetVersion(version string) {
+	h.version = version
+}
+
+// GetVersion возвращает версию приложения (API handler)
+func (h *Handlers) GetVersion(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"version": h.version})
 }
 
 // getUniSetClient возвращает UniSet2 client с учётом serverID (multi-server)

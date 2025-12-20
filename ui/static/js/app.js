@@ -11759,8 +11759,27 @@ async function loadAppConfig() {
     }
 }
 
+// Загрузка версии приложения
+async function loadAppVersion() {
+    try {
+        const response = await fetch('/api/version');
+        if (response.ok) {
+            const data = await response.json();
+            const versionEl = document.getElementById('app-version');
+            if (versionEl && data.version) {
+                versionEl.textContent = `v${data.version}`;
+            }
+        }
+    } catch (err) {
+        console.warn('Failed to load app version:', err);
+    }
+}
+
 // Инициализация
 document.addEventListener('DOMContentLoaded', () => {
+    // Загружаем версию приложения
+    loadAppVersion();
+
     // Инициализация токена контроля (из URL или localStorage)
     initControlToken();
 

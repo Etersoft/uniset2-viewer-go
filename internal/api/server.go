@@ -21,6 +21,7 @@ func NewServer(handlers *Handlers, staticFS fs.FS) *Server {
 
 func (s *Server) setupRoutes(staticFS fs.FS) {
 	// API routes
+	s.mux.HandleFunc("GET /api/version", s.handlers.GetVersion)
 	s.mux.HandleFunc("GET /api/objects", s.handlers.GetObjects)
 	s.mux.HandleFunc("GET /api/objects/{name}", s.handlers.GetObjectData)
 	s.mux.HandleFunc("POST /api/objects/{name}/watch", s.handlers.WatchObject)

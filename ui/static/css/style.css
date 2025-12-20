@@ -474,6 +474,14 @@ header h1 {
     text-transform: uppercase;
 }
 
+.app-version {
+    font-size: 0.6rem;
+    font-weight: 400;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    vertical-align: middle;
+}
+
 .header-controls {
     display: flex;
     align-items: center;
