@@ -2498,12 +2498,13 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                                         <th class="ionc-col-type">Type</th>
                                         <th class="ionc-col-value">Value</th>
                                         <th class="ionc-col-flags">Status</th>
+                                        <th class="ionc-col-supplier">Supplier</th>
                                         <th class="ionc-col-consumers">Consumers</th>
                                         <th class="ionc-col-actions">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody class="ionc-sensors-tbody" id="ionc-sensors-tbody-${this.objectName}">
-                                    <tr><td colspan="9" class="ionc-loading">Loading...</td></tr>
+                                    <tr><td colspan="10" class="ionc-loading">Loading...</td></tr>
                                 </tbody>
                             </table>
                             <div class="ionc-loading-more" id="ionc-loading-more-${this.objectName}" style="display: none;">Loading...</div>
@@ -2555,7 +2556,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
 
         const tbody = document.getElementById(`ionc-sensors-tbody-${this.objectName}`);
         if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="9" class="ionc-loading">Loading...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" class="ionc-loading">Loading...</td></tr>';
         }
 
         // Проверяем режим фильтрации: false = серверная (default), true = UI
@@ -2877,6 +2878,9 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
         const isOnChart = this.isSensorOnChart(sensor.name);
         const varName = `ionc-${sensor.id}`;
 
+        // Supplier с fallback на supplier_id
+        const supplierValue = sensor.supplier || (sensor.supplier_id ? String(sensor.supplier_id) : '');
+
         return `
             <tr class="ionc-sensor-row ${frozenClass} ${blockedClass} ${readonlyClass} ${generatorClass}" data-sensor-id="${sensor.id}">
                 <td class="ionc-col-pin">
@@ -2914,6 +2918,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                     }
                 </td>
                 <td class="ionc-col-flags">${flags.join(' ') || '—'}</td>
+                <td class="ionc-col-supplier" id="ionc-supplier-${this.objectName}-${sensor.id}" title="${escapeHtml(supplierValue)}">${escapeHtml(supplierValue)}</td>
                 <td class="ionc-col-consumers">
                     <button class="ionc-btn ionc-btn-consumers" data-id="${sensor.id}" title="Show consumers">👥</button>
                 </td>
@@ -4048,6 +4053,14 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
             if (row) {
                 row.classList.toggle('ionc-sensor-frozen', sensor.frozen);
                 row.classList.toggle('ionc-sensor-blocked', sensor.blocked);
+            }
+
+            // Обновляем supplier если изменился
+            const supplierEl = getElementInTab(this.tabKey, `ionc-supplier-${this.objectName}-${id}`);
+            if (supplierEl) {
+                const supplierValue = sensor.supplier || (sensor.supplier_id ? String(sensor.supplier_id) : '');
+                supplierEl.textContent = supplierValue;
+                supplierEl.title = supplierValue;
             }
         }
 

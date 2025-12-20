@@ -191,11 +191,13 @@ func (c *Client) GetSMSensors() (*SMSensorsResponse, error) {
 
 // IONCSensor описывает датчик из IONotifyController с полными данными
 type IONCSensor struct {
-	ID          int64  `json:"id"`
-	Name        string `json:"name"`
-	Type        string `json:"type"`
-	Value       int64  `json:"value"`
-	RealValue   int64  `json:"real_value"`
+	ID         int64  `json:"id"`
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	Value      int64  `json:"value"`
+	Supplier   string `json:"supplier,omitempty"`
+	SupplierID int64  `json:"supplier_id,omitempty"`
+	RealValue  int64  `json:"real_value"`
 	DefaultVal  int64  `json:"default_val"`
 	Blocked     bool   `json:"blocked"`
 	Frozen      bool   `json:"frozen"`

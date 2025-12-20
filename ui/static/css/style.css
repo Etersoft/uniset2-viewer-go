@@ -3597,6 +3597,12 @@ header h1 {
 .ionc-col-type { width: 45px; }
 .ionc-col-value { width: 140px; font-family: 'JetBrains Mono', monospace; }  /* 15 chars */
 .ionc-col-flags { width: 100px; text-align: center; }  /* 10 chars */
+.ionc-col-supplier {
+    width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 .ionc-col-consumers { width: 100px; text-align: center; }  /* "Подписчики" */
 .ionc-col-actions { width: 130px; text-align: center; white-space: nowrap; }  /* 15 chars */
 

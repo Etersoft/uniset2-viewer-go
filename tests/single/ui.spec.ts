@@ -5,7 +5,8 @@ test.describe('UniSet Panel UI', () => {
   test('should load main page with title', async ({ page }) => {
     await page.goto('/');
     await expect(page).toHaveTitle('UniSet Panel');
-    await expect(page.locator('h1')).toHaveText('UniSet Panel');
+    // H1 contains version suffix (e.g., "UniSet Panel v0.0.1")
+    await expect(page.locator('h1')).toContainText('UniSet Panel');
   });
 
   test('should display objects list (not empty)', async ({ page }) => {
