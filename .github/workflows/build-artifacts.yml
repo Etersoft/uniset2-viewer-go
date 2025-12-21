@@ -1,0 +1,76 @@
+name: Build Artifacts
+
+on:
+  # Ручной запуск с параметрами
+  workflow_dispatch:
+    inputs:
+      retention_days:
+        description: 'Days to keep artifacts (1-90)'
+        required: false
+        default: '3'
+        type: choice
+        options:
+          - '1'
+          - '2'
+          - '3'
+          - '5'
+          - '7'
+
+  # Автоматически при push в ветки (опционально)
+  # push:
+  #   branches:
+  #     - master
+  #     - 'story/*'
+
+jobs:
+  build:
+    name: Build ${{ matrix.goos }}-${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          go build -mod=vendor -ldflags="-s -w" -o uniset-panel-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/server
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: uniset-panel-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: uniset-panel-${{ matrix.goos }}-${{ matrix.goarch }}
+          retention-days: ${{ github.event.inputs.retention_days || '3' }}
+
+  summary:
+    name: Build Summary
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download info
+        run: |
+          echo "## Build Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Artifacts available for download:" >> $GITHUB_STEP_SUMMARY
+          echo "- \`uniset-panel-linux-amd64\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`uniset-panel-linux-arm64\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Retention: **${{ github.event.inputs.retention_days || '3' }} days**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Download from the **Artifacts** section below." >> $GITHUB_STEP_SUMMARY
