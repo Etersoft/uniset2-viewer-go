@@ -1207,6 +1207,34 @@ function closeSSE() {
     }
 }
 
+// Обработчик visibility change — обновить графики при возврате из hidden
+// Данные накапливаются в массивах Chart.js пока страница hidden,
+// но chart.update() может не отрисовывать canvas в hidden состоянии.
+// При возврате в visible принудительно перерисовываем все графики.
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+        console.log('SSE: Страница снова visible — обновляю графики');
+
+        // Обновляем все графики во всех вкладках
+        state.tabs.forEach((tabState, tabKey) => {
+            if (tabState.charts && tabState.charts.size > 0) {
+                tabState.charts.forEach((chartData, varName) => {
+                    if (chartData.chart) {
+                        try {
+                            // Синхронизируем временную шкалу
+                            syncAllChartsTimeRange(tabKey);
+                            // Принудительно перерисовываем график
+                            chartData.chart.update();
+                        } catch (err) {
+                            console.warn('SSE: Error обновления графика при visibility change:', varName, err);
+                        }
+                    }
+                });
+            }
+        });
+    }
+});
+
 // ============================================================================
 // Система рендереров для разных типов объектов
 // ============================================================================
