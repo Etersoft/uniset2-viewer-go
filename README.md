@@ -39,6 +39,8 @@
 |:---:|:---:|
 | ![Control](docs/images/control.png) | ![Read-only](docs/images/read_only_mode.png) |
 
+Подробнее: [docs/control.md](docs/control.md)
+
 ## Установка
 
 ```bash

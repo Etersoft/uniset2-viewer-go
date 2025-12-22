@@ -13,6 +13,7 @@ type ConfigFile struct {
 	UI              *UIConfig        `yaml:"ui,omitempty"`
 	LogStream       *LogStreamConfig `yaml:"logStream,omitempty"`
 	SensorBatchSize int              `yaml:"sensorBatchSize,omitempty"` // Макс. датчиков в одном запросе (default: 300)
+	Control         *ControlConfig   `yaml:"control,omitempty"`         // Настройки контроля доступа
 }
 
 // LoadFromYAML загружает полную конфигурацию из YAML файла

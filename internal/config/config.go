@@ -77,6 +77,12 @@ func (l *LogStreamConfig) GetBatchInterval() time.Duration {
 	return l.BatchInterval
 }
 
+// ControlConfig описывает настройки контроля доступа
+type ControlConfig struct {
+	Tokens  []string      `yaml:"tokens,omitempty"`  // токены доступа
+	Timeout time.Duration `yaml:"timeout,omitempty"` // таймаут неактивности (default: 60s)
+}
+
 // stringSlice реализует flag.Value для множественных строковых флагов
 type stringSlice []string
 
@@ -208,6 +214,13 @@ func Parse() *Config {
 			cfg.LogStream = yamlConfig.LogStream
 			if yamlConfig.SensorBatchSize > 0 {
 				cfg.SensorBatchSize = yamlConfig.SensorBatchSize
+			}
+			// Control settings from YAML
+			if yamlConfig.Control != nil {
+				cfg.ControlTokens = append(cfg.ControlTokens, yamlConfig.Control.Tokens...)
+				if yamlConfig.Control.Timeout > 0 {
+					cfg.ControlTimeout = yamlConfig.Control.Timeout
+				}
 			}
 		}
 	}

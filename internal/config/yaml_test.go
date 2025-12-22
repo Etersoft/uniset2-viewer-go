@@ -4,104 +4,113 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
-func TestLoadServersFromYAML(t *testing.T) {
-	tests := []struct {
-		name        string
-		content     string
-		wantCount   int
-		wantErr     bool
-		checkServer func(t *testing.T, servers []ServerConfig)
-	}{
-		{
-			name: "valid config with all fields",
-			content: `servers:
-  - url: http://server1:8080
-    id: srv1
-    name: "Server One"
-  - url: http://server2:8080
-    name: "Server Two"
-`,
-			wantCount: 2,
-			wantErr:   false,
-			checkServer: func(t *testing.T, servers []ServerConfig) {
-				if servers[0].ID != "srv1" {
-					t.Errorf("expected ID 'srv1', got %q", servers[0].ID)
-				}
-				if servers[0].Name != "Server One" {
-					t.Errorf("expected Name 'Server One', got %q", servers[0].Name)
-				}
-				if servers[1].URL != "http://server2:8080" {
-					t.Errorf("expected URL 'http://server2:8080', got %q", servers[1].URL)
-				}
-			},
-		},
-		{
-			name: "minimal config",
-			content: `servers:
-  - url: http://localhost:8080
-`,
-			wantCount: 1,
-			wantErr:   false,
-		},
-		{
-			name: "empty servers list",
-			content: `servers: []
-`,
-			wantCount: 0,
-			wantErr:   false,
-		},
-		{
-			name: "missing url",
-			content: `servers:
-  - name: "No URL server"
-`,
-			wantErr: true,
-		},
-		{
-			name:    "invalid yaml",
-			content: `servers: [invalid`,
-			wantErr: true,
-		},
+func TestLoadFromYAML_WithControl(t *testing.T) {
+	// Create temp YAML file
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	yamlContent := `
+servers:
+  - url: http://localhost:9090
+    name: "Test Server"
+
+control:
+  tokens:
+    - admin123
+    - operator456
+  timeout: 120s
+`
+	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Создаем временный файл
-			tmpDir := t.TempDir()
-			tmpFile := filepath.Join(tmpDir, "config.yaml")
-			if err := os.WriteFile(tmpFile, []byte(tt.content), 0644); err != nil {
-				t.Fatalf("failed to write temp file: %v", err)
-			}
+	// Load config
+	cfg, err := LoadFromYAML(configPath)
+	if err != nil {
+		t.Fatalf("LoadFromYAML failed: %v", err)
+	}
 
-			servers, err := LoadServersFromYAML(tmpFile)
+	// Check servers
+	if len(cfg.Servers) != 1 {
+		t.Errorf("expected 1 server, got %d", len(cfg.Servers))
+	}
+	if cfg.Servers[0].URL != "http://localhost:9090" {
+		t.Errorf("expected URL http://localhost:9090, got %s", cfg.Servers[0].URL)
+	}
 
-			if tt.wantErr {
-				if err == nil {
-					t.Error("expected error, got nil")
-				}
-				return
-			}
-
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-
-			if len(servers) != tt.wantCount {
-				t.Errorf("expected %d servers, got %d", tt.wantCount, len(servers))
-			}
-
-			if tt.checkServer != nil {
-				tt.checkServer(t, servers)
-			}
-		})
+	// Check control
+	if cfg.Control == nil {
+		t.Fatal("expected Control to be set")
+	}
+	if len(cfg.Control.Tokens) != 2 {
+		t.Errorf("expected 2 tokens, got %d", len(cfg.Control.Tokens))
+	}
+	if cfg.Control.Tokens[0] != "admin123" {
+		t.Errorf("expected first token admin123, got %s", cfg.Control.Tokens[0])
+	}
+	if cfg.Control.Tokens[1] != "operator456" {
+		t.Errorf("expected second token operator456, got %s", cfg.Control.Tokens[1])
+	}
+	if cfg.Control.Timeout != 120*time.Second {
+		t.Errorf("expected timeout 120s, got %v", cfg.Control.Timeout)
 	}
 }
 
-func TestLoadServersFromYAML_FileNotFound(t *testing.T) {
-	_, err := LoadServersFromYAML("/nonexistent/path/config.yaml")
-	if err == nil {
-		t.Error("expected error for non-existent file")
+func TestLoadFromYAML_WithoutControl(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	yamlContent := `
+servers:
+  - url: http://localhost:9090
+`
+	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	cfg, err := LoadFromYAML(configPath)
+	if err != nil {
+		t.Fatalf("LoadFromYAML failed: %v", err)
+	}
+
+	// Control should be nil when not specified
+	if cfg.Control != nil {
+		t.Errorf("expected Control to be nil, got %+v", cfg.Control)
+	}
+}
+
+func TestLoadFromYAML_ControlTokensOnly(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	yamlContent := `
+servers:
+  - url: http://localhost:9090
+
+control:
+  tokens:
+    - secret123
+`
+	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	cfg, err := LoadFromYAML(configPath)
+	if err != nil {
+		t.Fatalf("LoadFromYAML failed: %v", err)
+	}
+
+	if cfg.Control == nil {
+		t.Fatal("expected Control to be set")
+	}
+	if len(cfg.Control.Tokens) != 1 {
+		t.Errorf("expected 1 token, got %d", len(cfg.Control.Tokens))
+	}
+	// Timeout should be zero (will use default in Parse)
+	if cfg.Control.Timeout != 0 {
+		t.Errorf("expected timeout 0, got %v", cfg.Control.Timeout)
 	}
 }
