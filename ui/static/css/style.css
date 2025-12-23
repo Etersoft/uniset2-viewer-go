@@ -3626,42 +3626,26 @@ header h1 {
 }
 
 .ionc-value-updated {
-    background-color: var(--accent-green);
-    color: white;
-    border-radius: 3px;
-    padding: 0 4px;
+    animation: value-flash 0.4s ease 2;
 }
 
 /* Value change animation for Modbus/OPCUA tables */
 .value-changed {
-    animation: value-flash 0.5s ease;
+    animation: value-flash 0.4s ease 2;
 }
 
 @keyframes value-flash {
-    0% {
-        background-color: var(--accent-green);
-        color: white;
+    0%, 100% {
+        opacity: 1;
     }
-    100% {
-        background-color: transparent;
-        color: inherit;
+    50% {
+        opacity: 0.2;
     }
 }
 
 /* Value update animation for LogViewer */
 .value-updated {
-    animation: value-highlight 0.3s ease;
-}
-
-@keyframes value-highlight {
-    0% {
-        background-color: var(--accent-blue);
-        color: white;
-    }
-    100% {
-        background-color: transparent;
-        color: inherit;
-    }
+    animation: value-flash 0.4s ease 2;
 }
 
 .ionc-value-frozen {

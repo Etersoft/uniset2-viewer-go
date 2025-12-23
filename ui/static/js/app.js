@@ -7446,8 +7446,10 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
                 const valueCell = row.querySelector('.sensor-value');
                 if (valueCell) {
                     valueCell.textContent = formatValue(update.value);
+                    // CSS animation trigger via reflow
+                    valueCell.classList.remove('value-updated');
+                    void valueCell.offsetWidth;
                     valueCell.classList.add('value-updated');
-                    setTimeout(() => valueCell.classList.remove('value-updated'), 300);
                 }
             }
         });
@@ -8056,8 +8058,10 @@ class UWebSocketGateRenderer extends BaseObjectRenderer {
                     valueCell.textContent = sensor.value;
                     // Only highlight if enabled
                     if (this.highlightEnabled) {
+                        // CSS animation trigger via reflow
+                        valueCell.classList.remove('value-updated');
+                        void valueCell.offsetWidth;
                         valueCell.classList.add('value-updated');
-                        setTimeout(() => valueCell.classList.remove('value-updated'), 500);
                     }
                 }
 
