@@ -1,7 +1,11 @@
-.PHONY: build run test js-tests js-tests-multi coverage clean
+.PHONY: build run test js-tests js-tests-multi coverage clean app
 
-# Go build
-build:
+# Generate app.js from source modules
+app:
+	cd ui && go run concat.go
+
+# Go build (depends on app.js generation)
+build: app
 	go build -mod=vendor -o uniset-panel ./cmd/server
 
 # Run for development (connects to UniSet servers at 9090 and 9191)

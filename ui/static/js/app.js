@@ -1,3 +1,7 @@
+// Auto-generated from src/*.js - DO NOT EDIT
+// Run 'make app' or 'go generate ./ui' to rebuild
+
+// === 00-state.js ===
 // Идентификатор сервера для SharedMemory (SM) событий
 // Соответствует SharedMemoryServerID в backend (internal/api/sse.go)
 const SM_SERVER_ID = 'sm';
@@ -43,6 +47,8 @@ const state = window.state = {
     }
 };
 
+
+// === 01-sse-status.js ===
 // ============================================================================
 // SSE (Server-Sent Events) для realtime обновлений
 // ============================================================================
@@ -183,6 +189,8 @@ function updateServerStatus(serverId, connected) {
     });
 }
 
+
+// === 02-control.js ===
 // ============================================================================
 // Session Control - управление сессиями записи
 // ============================================================================
@@ -466,6 +474,8 @@ function showControlRequiredNotification() {
     showControlDialog();
 }
 
+
+// === 03-recording.js ===
 // ========== Recording Functions ==========
 
 // State for recording
@@ -642,6 +652,8 @@ function updateRecordingUI() {
     }
 }
 
+
+// === 04-sse.js ===
 function initSSE() {
     if (state.sse.eventSource) {
         state.sse.eventSource.close();
@@ -1235,6 +1247,8 @@ document.addEventListener('visibilitychange', () => {
     }
 });
 
+
+// === 10-base-renderer.js ===
 // ============================================================================
 // Система рендереров для разных типов объектов
 // ============================================================================
@@ -2325,6 +2339,9 @@ class BaseObjectRenderer {
 }
 
 // Рендерер для UniSetManager (полный функционал)
+
+
+// === 11-simple-renderers.js ===
 class UniSetManagerRenderer extends BaseObjectRenderer {
     static getTypeName() {
         return 'UniSetManager';
@@ -2502,6 +2519,13 @@ function resolveRenderer(objectInfo = {}) {
 // IONotifyControllerRenderer - рендерер для SharedMemory и подобных объектов
 // ============================================================================
 
+
+
+// === 20-ionc-renderer.js ===
+// ============================================================================
+// IONotifyControllerRenderer - рендерер для SharedMemory и подобных объектов
+// ============================================================================
+
 class IONotifyControllerRenderer extends BaseObjectRenderer {
     static getTypeName() {
         return 'IONotifyController';
@@ -2642,6 +2666,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
             `ionc-filter-${this.objectName}`,
             () => this.loadSensors()
         );
+
     }
 
     async loadSensors() {
@@ -4206,6 +4231,9 @@ applyMixin(IONotifyControllerRenderer, FilterMixin);
 applyMixin(IONotifyControllerRenderer, ItemCounterMixin);
 applyMixin(IONotifyControllerRenderer, SectionHeightMixin);
 
+
+
+// === 21-opcua-exchange.js ===
 // ============================================================================
 // OPCUAExchangeRenderer - рендерер для OPCUAExchange extensionType
 // ============================================================================
@@ -5349,6 +5377,9 @@ applyMixin(OPCUAExchangeRenderer, ItemCounterMixin);
 applyMixin(OPCUAExchangeRenderer, SectionHeightMixin);
 applyMixin(OPCUAExchangeRenderer, PinManagementMixin);
 
+
+
+// === 22-modbus-master.js ===
 // ============================================================================
 // ModbusMasterRenderer - рендерер для ModbusMaster объектов
 // ============================================================================
@@ -6053,6 +6084,9 @@ registerRenderer('MBRTUMaster', ModbusMasterRenderer);
 registerRenderer('ModbusTCPMaster', ModbusMasterRenderer);
 registerRenderer('ModbusRTUMaster', ModbusMasterRenderer);
 
+
+
+// === 23-modbus-slave.js ===
 // ============================================================================
 // ModbusSlaveRenderer - рендерер для ModbusSlave объектов
 // ============================================================================
@@ -6740,6 +6774,9 @@ registerRenderer('MBSlave1', ModbusSlaveRenderer);
 // OPCUAServerRenderer - рендерер для OPCUAServer extensionType
 // OPCUAServer - это OPC UA сервер, который предоставляет доступ к переменным через OPC UA протокол
 
+
+
+// === 24-opcua-server.js ===
 class OPCUAServerRenderer extends BaseObjectRenderer {
     static getTypeName() {
         return 'OPCUAServer';
@@ -7425,6 +7462,9 @@ applyMixin(OPCUAServerRenderer, PinManagementMixin);
 // OPCUAServer рендерер (по extensionType)
 registerRenderer('OPCUAServer', OPCUAServerRenderer);
 
+
+
+// === 25-uwsgate.js ===
 // ============================================================================
 // UWebSocketGateRenderer - рендерер для объектов UWebSocketGate
 // Работает через WebSocket для получения real-time обновлений датчиков
@@ -8170,6 +8210,9 @@ applyMixin(UWebSocketGateRenderer, SectionHeightMixin);
 // UWebSocketGate рендерер (по extensionType)
 registerRenderer('UWebSocketGate', UWebSocketGateRenderer);
 
+
+
+// === 30-log-viewer.js ===
 // ============================================================================
 // Конец системы рендереров
 // ============================================================================
@@ -9255,6 +9298,9 @@ class LogViewer {
     }
 }
 
+
+
+// === 40-charts.js ===
 // ============================================================================
 // Конец LogViewer
 // ============================================================================
@@ -9417,6 +9463,9 @@ function isDiscreteSignal(sensor) {
     return sensor.isDiscrete === true || sensor.iotype === 'DI' || sensor.iotype === 'DO';
 }
 
+
+
+// === 41-dialogs.js ===
 // === IONC Action Dialog ===
 
 const ioncDialogState = {
@@ -10317,6 +10366,9 @@ function restoreExternalSensors(tabKey, displayName) {
 }
 
 // UI функции
+
+
+// === 50-ui-tabs.js ===
 function renderObjectsList(data) {
     const list = document.getElementById('objects-list');
     list.innerHTML = '';
@@ -10708,6 +10760,9 @@ async function loadObjectData(name) {
     }
 }
 
+
+
+// === 51-ui-render.js ===
 // ============================================================================
 // Helper для безопасного поиска элементов внутри панели вкладки
 // Решает проблему конфликта ID при multi-server с одинаковыми displayName
@@ -11312,6 +11367,9 @@ const timerDataCache = {};
 let timerUpdateInterval = null;
 
 // Рендеринг таймеров
+
+
+// === 52-ui-sections.js ===
 function renderTimers(tabKey, timersData) {
     const tabState = state.tabs.get(tabKey);
     if (!tabState) return;
@@ -12087,6 +12145,9 @@ function saveIONCSensorsHeight(objectName, height) {
 }
 
 function loadIONCSensorsHeight(objectName) {
+
+
+// === 53-ui-settings.js ===
     try {
         const saved = JSON.parse(localStorage.getItem('uniset-panel-ionc-height') || '{}');
         if (saved[objectName]) {
@@ -12605,7 +12666,9 @@ async function loadAppConfig() {
     }
 }
 
-// Загрузка версии приложения
+
+
+// === 99-init.js ===
 async function loadAppVersion() {
     try {
         const response = await fetch('/api/version');
@@ -12741,3 +12804,5 @@ function restartAllStatusAutoRefresh() {
         }
     }
 }
+
+
