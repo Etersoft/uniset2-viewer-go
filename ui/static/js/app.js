@@ -1496,15 +1496,25 @@ const FilterMixin = {
     },
 
     // Применение локальных фильтров к списку
-    applyFilters(items, nameField = 'name', typeField = 'type', statusField = null) {
+    // extraFields - дополнительные поля для текстового поиска (например, ['mbreg'] для Modbus)
+    // fieldAccessor - функция для получения значения поля (для вложенных объектов)
+    applyFilters(items, nameField = 'name', typeField = 'type', statusField = null, extraFields = [], fieldAccessor = null) {
         let result = items;
 
         if (this.filter) {
             const filterLower = this.filter.toLowerCase();
-            result = result.filter(item =>
-                (item[nameField] || '').toLowerCase().includes(filterLower) ||
-                String(item.id).includes(filterLower)
-            );
+            result = result.filter(item => {
+                // Поиск по name
+                if ((item[nameField] || '').toLowerCase().includes(filterLower)) return true;
+                // Поиск по id
+                if (String(item.id || '').includes(filterLower)) return true;
+                // Поиск по дополнительным полям
+                for (const field of extraFields) {
+                    const value = fieldAccessor ? fieldAccessor(item, field) : item[field];
+                    if (String(value || '').toLowerCase().includes(filterLower)) return true;
+                }
+                return false;
+            });
         }
 
         if (this.typeFilter && this.typeFilter !== 'all') {
@@ -4414,7 +4424,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
     createOPCUASensorsSection() {
         return this.createCollapsibleSection('opcua-sensors', 'Sensors', `
             <div class="filter-bar opcua-actions">
-                <input type="text" class="filter-input" id="opcua-sensors-filter-${this.objectName}" placeholder="Filter by name...">
+                <input type="text" class="filter-input" id="opcua-sensors-filter-${this.objectName}" placeholder="Filter...">
                 <select class="type-filter" id="opcua-type-filter-${this.objectName}">
                     <option value="all">All types</option>
                     <option value="AI">AI</option>
@@ -5445,32 +5455,14 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
             saveParams.addEventListener('click', () => this.saveParams());
         }
 
-        // Checkbox для переключения режима поиска
-        const searchSensorCheckbox = document.getElementById(`mb-search-sensor-${this.objectName}`);
-        const filterInput = document.getElementById(`mb-registers-filter-${this.objectName}`);
-        if (searchSensorCheckbox && filterInput) {
-            searchSensorCheckbox.addEventListener('change', (e) => {
-                this.searchBySensor = e.target.checked;
-                filterInput.placeholder = this.searchBySensor ? 'Filter by sensor...' : 'Filter by mbreg...';
-                // При переключении режима и наличии фильтра - перезагружаем или перерисовываем
-                if (this.filter) {
-                    if (this.searchBySensor) {
-                        this.loadRegisters(); // Перезагрузка с серверным поиском
-                    } else {
-                        this.loadRegisters(); // Перезагрузка для получения всех регистров, затем локальная фильтрация
-                    }
-                }
-            });
-        }
-
-        // Используем методы из FilterMixin (переопределяем поведение)
+        // Используем методы из FilterMixin
         this.setupMBFilterListeners(
             `mb-registers-filter-${this.objectName}`,
             `mb-type-filter-${this.objectName}`
         );
     }
 
-    // Специальная настройка фильтров для Modbus с учётом режима поиска
+    // Настройка фильтров для Modbus
     setupMBFilterListeners(filterInputId, typeFilterId) {
         const filterInput = document.getElementById(filterInputId);
         const typeFilter = document.getElementById(typeFilterId);
@@ -5480,11 +5472,7 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
                 clearTimeout(this.filterDebounce);
                 this.filterDebounce = setTimeout(() => {
                     this.filter = e.target.value.trim();
-                    if (this.searchBySensor) {
-                        this.loadRegisters(); // Серверный поиск по датчику
-                    } else {
-                        this.renderRegisters(); // Локальная фильтрация по mbreg
-                    }
+                    this.renderRegisters(); // Локальная фильтрация по mbreg и имени
                 }, 300);
             });
 
@@ -5555,11 +5543,7 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
     createMBRegistersSection() {
         return this.createCollapsibleSection('mb-registers', 'Registers', `
             <div class="filter-bar mb-actions">
-                <input type="text" class="filter-input" id="mb-registers-filter-${this.objectName}" placeholder="Filter by mbreg...">
-                <label class="mb-search-mode" title="Search by sensor name instead of register number">
-                    <input type="checkbox" id="mb-search-sensor-${this.objectName}">
-                    <span>by sensor</span>
-                </label>
+                <input type="text" class="filter-input" id="mb-registers-filter-${this.objectName}" placeholder="Filter...">
                 <select class="type-filter" id="mb-type-filter-${this.objectName}">
                     <option value="all">All types</option>
                     <option value="AI">AI</option>
@@ -5784,10 +5768,6 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
 
         try {
             let url = `/api/objects/${encodeURIComponent(this.objectName)}/modbus/registers?offset=${offset}&limit=${this.chunkSize}`;
-            // search передаём только если поиск по датчикам (searchBySensor = true)
-            if (this.filter && this.searchBySensor) {
-                url += `&search=${encodeURIComponent(this.filter)}`;
-            }
             if (this.typeFilter && this.typeFilter !== 'all') {
                 url += `&iotype=${encodeURIComponent(this.typeFilter)}`;
             }
@@ -5837,18 +5817,9 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
             unpinBtn.style.display = hasPinned ? 'inline' : 'none';
         }
 
-        // Фильтруем регистры
-        let registersToShow = this.allRegisters;
-
-        // Локальная фильтрация по mbreg (если не поиск по датчику)
-        if (this.filter && !this.searchBySensor) {
-            const filterLower = this.filter.toLowerCase();
-            registersToShow = this.allRegisters.filter(r => {
-                const regInfo = r.register || {};
-                const mbreg = String(regInfo.mbreg || '');
-                return mbreg.includes(filterLower);
-            });
-        }
+        // Фильтруем регистры используя общий метод (по name, id, mbreg)
+        const mbregAccessor = (item, field) => (item.register || {})[field];
+        let registersToShow = this.applyFilters(this.allRegisters, 'name', 'iotype', null, ['mbreg'], mbregAccessor);
 
         // Если есть закрепленные и нет фильтра — показываем только их
         if (hasPinned && !this.filter) {
@@ -6184,31 +6155,14 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
             saveParams.addEventListener('click', () => this.saveParams());
         }
 
-        // Checkbox для переключения режима поиска
-        const searchSensorCheckbox = document.getElementById(`mbs-search-sensor-${this.objectName}`);
-        const filterInput = document.getElementById(`mbs-registers-filter-${this.objectName}`);
-        if (searchSensorCheckbox && filterInput) {
-            searchSensorCheckbox.addEventListener('change', (e) => {
-                this.searchBySensor = e.target.checked;
-                filterInput.placeholder = this.searchBySensor ? 'Filter by sensor...' : 'Filter by mbreg...';
-                if (this.filter) {
-                    if (this.searchBySensor) {
-                        this.loadRegisters();
-                    } else {
-                        this.loadRegisters();
-                    }
-                }
-            });
-        }
-
-        // Используем методы из FilterMixin (переопределяем поведение)
+        // Используем методы из FilterMixin
         this.setupMBSFilterListeners(
             `mbs-registers-filter-${this.objectName}`,
             `mbs-type-filter-${this.objectName}`
         );
     }
 
-    // Специальная настройка фильтров для ModbusSlave с учётом режима поиска
+    // Настройка фильтров для ModbusSlave
     setupMBSFilterListeners(filterInputId, typeFilterId) {
         const filterInput = document.getElementById(filterInputId);
         const typeFilter = document.getElementById(typeFilterId);
@@ -6218,11 +6172,7 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
                 clearTimeout(this.filterDebounce);
                 this.filterDebounce = setTimeout(() => {
                     this.filter = e.target.value.trim();
-                    if (this.searchBySensor) {
-                        this.loadRegisters();
-                    } else {
-                        this.renderRegisters();
-                    }
+                    this.renderRegisters(); // Локальная фильтрация по mbreg и имени
                 }, 300);
             });
 
@@ -6298,11 +6248,7 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
     createMBSRegistersSection() {
         return this.createCollapsibleSection('mbs-registers', 'Registers', `
             <div class="filter-bar mb-actions">
-                <input type="text" class="filter-input" id="mbs-registers-filter-${this.objectName}" placeholder="Filter by mbreg...">
-                <label class="mb-search-mode" title="Search by sensor name instead of register number">
-                    <input type="checkbox" id="mbs-search-sensor-${this.objectName}">
-                    <span>by sensor</span>
-                </label>
+                <input type="text" class="filter-input" id="mbs-registers-filter-${this.objectName}" placeholder="Filter...">
                 <select class="type-filter" id="mbs-type-filter-${this.objectName}">
                     <option value="all">All types</option>
                     <option value="AI">AI</option>
@@ -6510,10 +6456,6 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
 
         try {
             let url = `/api/objects/${encodeURIComponent(this.objectName)}/modbus/registers?offset=${offset}&limit=${this.chunkSize}`;
-            // search передаём только если поиск по датчикам (searchBySensor = true)
-            if (this.filter && this.searchBySensor) {
-                url += `&search=${encodeURIComponent(this.filter)}`;
-            }
             if (this.typeFilter && this.typeFilter !== 'all') {
                 url += `&iotype=${encodeURIComponent(this.typeFilter)}`;
             }
@@ -6563,18 +6505,13 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
             unpinBtn.style.display = hasPinned ? 'inline' : 'none';
         }
 
-        // Фильтруем регистры
-        let registersToShow = this.allRegisters;
-
-        // Локальная фильтрация по mbreg (если не поиск по датчику)
-        if (this.filter && !this.searchBySensor) {
-            const filterLower = this.filter.toLowerCase();
-            registersToShow = this.allRegisters.filter(r => {
-                const regInfo = r.register || {};
-                const mbreg = String(regInfo.mbreg !== undefined ? regInfo.mbreg : (r.mbreg || ''));
-                return mbreg.includes(filterLower);
-            });
-        }
+        // Фильтруем регистры используя общий метод (по name, id, mbreg)
+        // ModbusSlave: mbreg может быть в r.register.mbreg или r.mbreg
+        const mbregAccessor = (item, field) => {
+            const regInfo = item.register || {};
+            return regInfo[field] !== undefined ? regInfo[field] : item[field];
+        };
+        let registersToShow = this.applyFilters(this.allRegisters, 'name', 'iotype', null, ['mbreg'], mbregAccessor);
 
         // Если есть закрепленные и нет фильтра — показываем только их
         if (hasPinned && !this.filter) {
@@ -6941,7 +6878,7 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
     createOPCUAServerSensorsSection() {
         return this.createCollapsibleSection('opcuasrv-sensors', 'OPC UA Variables', `
             <div class="filter-bar opcua-actions">
-                <input type="text" class="filter-input" id="opcuasrv-sensors-filter-${this.objectName}" placeholder="Filter by name...">
+                <input type="text" class="filter-input" id="opcuasrv-sensors-filter-${this.objectName}" placeholder="Filter...">
                 <select class="type-filter" id="opcuasrv-type-filter-${this.objectName}">
                     <option value="all">All types</option>
                     <option value="AI">AI</option>
@@ -7279,8 +7216,10 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
             unpinBtn.style.display = hasPinned ? 'inline' : 'none';
         }
 
-        // Фильтруем датчики: если есть закрепленные — показываем только их (если нет фильтра)
-        let sensorsToShow = this.allSensors;
+        // Локальная фильтрация по name и id (серверный search ищет только по name)
+        let sensorsToShow = this.applyFilters(this.allSensors, 'name', 'iotype');
+
+        // Если есть закрепленные и нет фильтра — показываем только их
         if (hasPinned && !this.filter) {
             sensorsToShow = this.allSensors.filter(s => pinnedSensors.has(String(s.id)));
         }
@@ -7746,10 +7685,11 @@ class UWebSocketGateRenderer extends BaseObjectRenderer {
         const allSensors = await this.loadAllSensors();
         const queryLower = query.toLowerCase();
 
-        // Filter: name contains query, not already subscribed
+        // Filter: name or id contains query, not already subscribed
         const matches = allSensors
             .filter(s =>
-                s.name.toLowerCase().includes(queryLower) &&
+                (s.name.toLowerCase().includes(queryLower) ||
+                 String(s.id || '').includes(queryLower)) &&
                 !this.sensors.has(s.name)
             )
             .slice(0, 10);
