@@ -161,10 +161,7 @@ test.describe('ModbusMaster renderer', () => {
     // Wait for registers to load
     await page.waitForTimeout(1500);
 
-    // Enable "by sensor" search mode
-    const bySensorCheckbox = page.locator(`#mb-search-sensor-${MB_OBJECT}`);
-    await bySensorCheckbox.check();
-
+    // Filter now works on both mbreg AND sensor name (no checkbox needed)
     const filterInput = page.locator(`#mb-registers-filter-${MB_OBJECT}`);
     await filterInput.fill('AI');
 
