@@ -2721,6 +2721,11 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
             this.sensorMap.clear();
             sensors.forEach(s => this.sensorMap.set(s.id, s));
 
+            // Если нет фильтра и есть закреплённые датчики - загрузить их отдельно
+            if (!this.filter) {
+                await this.loadPinnedSensors();
+            }
+
             this.hasMore = (data.sensors?.length || 0) === this.chunkSize;
             this.updateVisibleRows();
             this.updateSensorCount();
@@ -2734,6 +2739,44 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
             }
         } finally {
             this.loading = false;
+        }
+    }
+
+    // Загружает закреплённые датчики, если они не в текущем списке
+    async loadPinnedSensors() {
+        const pinnedIds = this.getPinnedSensors();
+        if (pinnedIds.size === 0) return;
+
+        // Найти ID, которых нет в загруженных датчиках
+        const missingIds = [];
+        for (const idStr of pinnedIds) {
+            const id = parseInt(idStr);
+            if (!this.sensorMap.has(id)) {
+                missingIds.push(id);
+            }
+        }
+
+        if (missingIds.length === 0) return;
+
+        // Загрузить отсутствующие датчики по ID (используем /ionc/get с filter)
+        try {
+            const idsParam = missingIds.join(',');
+            const url = this.buildUrl(`/api/objects/${encodeURIComponent(this.objectName)}/ionc/get?filter=${idsParam}`);
+            const response = await fetch(url);
+            if (!response.ok) return;
+
+            const data = await response.json();
+            const pinnedSensors = data.sensors || [];
+
+            // Добавить закреплённые датчики в начало списка
+            for (const sensor of pinnedSensors) {
+                if (!this.sensorMap.has(sensor.id)) {
+                    this.allSensors.unshift(sensor);
+                    this.sensorMap.set(sensor.id, sensor);
+                }
+            }
+        } catch (err) {
+            console.warn('Failed to load pinned sensors:', err);
         }
     }
 
