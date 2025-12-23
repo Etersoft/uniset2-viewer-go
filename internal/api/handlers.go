@@ -1495,6 +1495,34 @@ func (h *Handlers) GetOPCUASensor(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, result)
 }
 
+// GetOPCUASensorValues получает значения конкретных датчиков по ID
+// GET /api/objects/{name}/opcua/get?filter=id1,id2,id3&server=...
+func (h *Handlers) GetOPCUASensorValues(w http.ResponseWriter, r *http.Request) {
+	name, ok := h.requireObjectName(w, r)
+	if !ok {
+		return
+	}
+
+	filter := r.URL.Query().Get("filter")
+	if filter == "" {
+		h.writeError(w, http.StatusBadRequest, "filter parameter required")
+		return
+	}
+
+	client, ok := h.requireClient(w, r)
+	if !ok {
+		return
+	}
+
+	result, err := client.GetOPCUASensorValues(name, filter)
+	if err != nil {
+		h.writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+
+	h.writeJSON(w, result)
+}
+
 // GetOPCUADiagnostics возвращает диагностику
 // GET /api/objects/{name}/opcua/diagnostics
 func (h *Handlers) GetOPCUADiagnostics(w http.ResponseWriter, r *http.Request) {
@@ -1889,6 +1917,34 @@ func (h *Handlers) GetMBRegisters(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := client.GetMBRegisters(name, search, iotype, limit, offset)
+	if err != nil {
+		h.writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+
+	h.writeJSON(w, result)
+}
+
+// GetMBRegisterValues получает значения конкретных регистров по ID
+// GET /api/objects/{name}/modbus/get?filter=id1,id2,id3&server=...
+func (h *Handlers) GetMBRegisterValues(w http.ResponseWriter, r *http.Request) {
+	name, ok := h.requireObjectName(w, r)
+	if !ok {
+		return
+	}
+
+	filter := r.URL.Query().Get("filter")
+	if filter == "" {
+		h.writeError(w, http.StatusBadRequest, "filter parameter required")
+		return
+	}
+
+	client, ok := h.requireClient(w, r)
+	if !ok {
+		return
+	}
+
+	result, err := client.GetMBRegisterValues(name, filter)
 	if err != nil {
 		h.writeError(w, http.StatusBadGateway, err.Error())
 		return

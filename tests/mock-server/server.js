@@ -622,6 +622,34 @@ const server = http.createServer((req, res) => {
     res.end(JSON.stringify({ result: 'OK', sensor }));
   } else if (url === '/api/v2/OPCUAClient1/diagnostics') {
     res.end(JSON.stringify(opcuaDiagnostics));
+  } else if (url.startsWith('/api/v2/OPCUAClient1/get')) {
+    // GET /api/v2/OPCUAClient1/get?id=1&id=2 or ?name=sensor1&name=sensor2
+    const urlObj = new URL(url, `http://localhost:${PORT}`);
+    const names = urlObj.searchParams.getAll('name');
+    const ids = urlObj.searchParams.getAll('id');
+    // Also support filter=id1,id2,id3 format
+    const filter = urlObj.searchParams.get('filter');
+    const sensors = [];
+
+    if (filter) {
+      filter.split(',').forEach(idStr => {
+        const id = parseInt(idStr.trim(), 10);
+        if (!isNaN(id)) {
+          const sensor = opcuaSensors.find(s => s.id === id);
+          if (sensor && !sensors.find(s => s.id === sensor.id)) sensors.push(sensor);
+        }
+      });
+    }
+    names.forEach(name => {
+      const sensor = opcuaSensors.find(s => s.name === name);
+      if (sensor && !sensors.find(s => s.id === sensor.id)) sensors.push(sensor);
+    });
+    ids.forEach(id => {
+      const sensor = opcuaSensors.find(s => s.id === parseInt(id, 10));
+      if (sensor && !sensors.find(s => s.id === sensor.id)) sensors.push(sensor);
+    });
+
+    res.end(JSON.stringify({ result: 'OK', sensors }));
   } else if (url === '/api/v2/OPCUAClient1/takeControl') {
     res.end(JSON.stringify({ result: 'OK', message: 'control taken', previousMode: 0, currentMode: 1 }));
   } else if (url === '/api/v2/OPCUAClient1/releaseControl') {
@@ -713,6 +741,23 @@ const server = http.createServer((req, res) => {
       }
     });
     res.end(JSON.stringify({ result: 'OK', updated }));
+  } else if (url.startsWith('/api/v2/MBTCPMaster1/get')) {
+    // GET /api/v2/MBTCPMaster1/get?filter=id1,id2,id3
+    const urlObj = new URL(url, `http://localhost:${PORT}`);
+    const filter = urlObj.searchParams.get('filter');
+    const registers = [];
+
+    if (filter) {
+      filter.split(',').forEach(idStr => {
+        const id = parseInt(idStr.trim(), 10);
+        if (!isNaN(id)) {
+          const reg = mbRegisters.find(r => r.id === id);
+          if (reg && !registers.find(r => r.id === reg.id)) registers.push(reg);
+        }
+      });
+    }
+
+    res.end(JSON.stringify({ result: 'OK', registers, devices: mbDevices }));
   } else if (url === '/api/v2/MBTCPMaster1/takeControl') {
     mbHttpControlActive = true;
     res.end(JSON.stringify({ result: 'OK', httpControlActive: 1, currentMode: 0 }));
@@ -804,6 +849,23 @@ const server = http.createServer((req, res) => {
       }
     });
     res.end(JSON.stringify({ result: 'OK', updated }));
+  } else if (url.startsWith('/api/v2/MBTCPSlave1/get')) {
+    // GET /api/v2/MBTCPSlave1/get?filter=id1,id2,id3
+    const urlObj = new URL(url, `http://localhost:${PORT}`);
+    const filter = urlObj.searchParams.get('filter');
+    const registers = [];
+
+    if (filter) {
+      filter.split(',').forEach(idStr => {
+        const id = parseInt(idStr.trim(), 10);
+        if (!isNaN(id)) {
+          const reg = mbsRegisters.find(r => r.id === id);
+          if (reg && !registers.find(r => r.id === reg.id)) registers.push(reg);
+        }
+      });
+    }
+
+    res.end(JSON.stringify({ result: 'OK', registers }));
   // OPCUAServer endpoints
   } else if (url === '/api/v2/OPCUAServer1') {
     res.end(JSON.stringify({

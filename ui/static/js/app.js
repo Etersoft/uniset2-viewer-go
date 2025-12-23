@@ -4903,6 +4903,14 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
             }
 
             this.allSensors = sensors;
+            this.sensorMap.clear();
+            sensors.forEach(s => this.sensorMap.set(s.id, s));
+
+            // Если нет фильтра и есть закреплённые датчики - загрузить их отдельно
+            if (!this.filter) {
+                await this.loadPinnedSensors();
+            }
+
             this.hasMore = (data.sensors?.length || 0) === this.chunkSize;
             this.updateVisibleRows();
             this.updateSensorCount();
@@ -4912,6 +4920,41 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
             this.subscribeToSSE();
         } catch (err) {
             this.setNote(`opcua-sensors-note-${this.objectName}`, err.message, true);
+        }
+    }
+
+    // Загружает закреплённые датчики, если они не в текущем списке
+    async loadPinnedSensors() {
+        const pinnedIds = this.getPinnedSensors();
+        if (pinnedIds.size === 0) return;
+
+        // Найти ID, которых нет в загруженных датчиках
+        const missingIds = [];
+        for (const idStr of pinnedIds) {
+            const id = parseInt(idStr);
+            if (!this.sensorMap.has(id)) {
+                missingIds.push(id);
+            }
+        }
+
+        if (missingIds.length === 0) return;
+
+        // Загрузить отсутствующие датчики по ID
+        try {
+            const idsParam = missingIds.join(',');
+            const url = `/api/objects/${encodeURIComponent(this.objectName)}/opcua/get?filter=${idsParam}`;
+            const response = await this.fetchJSON(url);
+            const pinnedSensors = response.sensors || [];
+
+            // Добавить закреплённые датчики в начало списка
+            for (const sensor of pinnedSensors) {
+                if (!this.sensorMap.has(sensor.id)) {
+                    this.allSensors.unshift(sensor);
+                    this.sensorMap.set(sensor.id, sensor);
+                }
+            }
+        } catch (err) {
+            console.warn('Failed to load pinned sensors:', err);
         }
     }
 
@@ -5857,8 +5900,16 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
 
             if (offset === 0) {
                 this.allRegisters = registers;
+                this.registerMap.clear();
+                registers.forEach(r => this.registerMap.set(r.id, r));
+
+                // Если нет фильтра и есть закреплённые регистры - загрузить их отдельно
+                if (!this.filter) {
+                    await this.loadPinnedRegisters();
+                }
             } else {
                 this.allRegisters = this.allRegisters.concat(registers);
+                registers.forEach(r => this.registerMap.set(r.id, r));
             }
 
             this.hasMore = this.allRegisters.length < this.registersTotal;
@@ -5874,6 +5925,41 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
         } finally {
             this.isLoadingChunk = false;
             if (loadingEl) loadingEl.style.display = 'none';
+        }
+    }
+
+    // Загружает закреплённые регистры, если они не в текущем списке
+    async loadPinnedRegisters() {
+        const pinnedIds = this.getPinnedRegisters();
+        if (pinnedIds.size === 0) return;
+
+        // Найти ID, которых нет в загруженных регистрах
+        const missingIds = [];
+        for (const idStr of pinnedIds) {
+            const id = parseInt(idStr);
+            if (!this.registerMap.has(id)) {
+                missingIds.push(id);
+            }
+        }
+
+        if (missingIds.length === 0) return;
+
+        // Загрузить отсутствующие регистры по ID
+        try {
+            const idsParam = missingIds.join(',');
+            const url = `/api/objects/${encodeURIComponent(this.objectName)}/modbus/get?filter=${idsParam}`;
+            const response = await this.fetchJSON(url);
+            const pinnedRegisters = response.registers || [];
+
+            // Добавить закреплённые регистры в начало списка
+            for (const reg of pinnedRegisters) {
+                if (!this.registerMap.has(reg.id)) {
+                    this.allRegisters.unshift(reg);
+                    this.registerMap.set(reg.id, reg);
+                }
+            }
+        } catch (err) {
+            console.warn('Failed to load pinned registers:', err);
         }
     }
 
@@ -6548,8 +6634,16 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
 
             if (offset === 0) {
                 this.allRegisters = registers;
+                this.registerMap.clear();
+                registers.forEach(r => this.registerMap.set(r.id, r));
+
+                // Если нет фильтра и есть закреплённые регистры - загрузить их отдельно
+                if (!this.filter) {
+                    await this.loadPinnedRegisters();
+                }
             } else {
                 this.allRegisters = this.allRegisters.concat(registers);
+                registers.forEach(r => this.registerMap.set(r.id, r));
             }
 
             this.hasMore = this.allRegisters.length < this.registersTotal;
@@ -6565,6 +6659,41 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
         } finally {
             this.isLoadingChunk = false;
             if (loadingEl) loadingEl.style.display = 'none';
+        }
+    }
+
+    // Загружает закреплённые регистры, если они не в текущем списке
+    async loadPinnedRegisters() {
+        const pinnedIds = this.getPinnedRegisters();
+        if (pinnedIds.size === 0) return;
+
+        // Найти ID, которых нет в загруженных регистрах
+        const missingIds = [];
+        for (const idStr of pinnedIds) {
+            const id = parseInt(idStr);
+            if (!this.registerMap.has(id)) {
+                missingIds.push(id);
+            }
+        }
+
+        if (missingIds.length === 0) return;
+
+        // Загрузить отсутствующие регистры по ID
+        try {
+            const idsParam = missingIds.join(',');
+            const url = `/api/objects/${encodeURIComponent(this.objectName)}/modbus/get?filter=${idsParam}`;
+            const response = await this.fetchJSON(url);
+            const pinnedRegisters = response.registers || [];
+
+            // Добавить закреплённые регистры в начало списка
+            for (const reg of pinnedRegisters) {
+                if (!this.registerMap.has(reg.id)) {
+                    this.allRegisters.unshift(reg);
+                    this.registerMap.set(reg.id, reg);
+                }
+            }
+        } catch (err) {
+            console.warn('Failed to load pinned registers:', err);
         }
     }
 
@@ -7201,6 +7330,14 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
             this.sensorsTotal = typeof data.total === 'number' ? data.total : sensors.length;
 
             this.allSensors = sensors;
+            this.sensorMap.clear();
+            sensors.forEach(s => this.sensorMap.set(s.id, s));
+
+            // Если нет фильтра и есть закреплённые датчики - загрузить их отдельно
+            if (!this.filter) {
+                await this.loadPinnedSensors();
+            }
+
             this.hasMore = (data.sensors?.length || 0) === this.chunkSize;
             this.updateVisibleRows();
             this.updateSensorCount();
@@ -7210,6 +7347,41 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
             this.subscribeToSSE();
         } catch (err) {
             this.setNote(`opcuasrv-sensors-note-${this.objectName}`, err.message, true);
+        }
+    }
+
+    // Загружает закреплённые датчики, если они не в текущем списке
+    async loadPinnedSensors() {
+        const pinnedIds = this.getPinnedSensors();
+        if (pinnedIds.size === 0) return;
+
+        // Найти ID, которых нет в загруженных датчиках
+        const missingIds = [];
+        for (const idStr of pinnedIds) {
+            const id = parseInt(idStr);
+            if (!this.sensorMap.has(id)) {
+                missingIds.push(id);
+            }
+        }
+
+        if (missingIds.length === 0) return;
+
+        // Загрузить отсутствующие датчики по ID
+        try {
+            const idsParam = missingIds.join(',');
+            const url = `/api/objects/${encodeURIComponent(this.objectName)}/opcua/get?filter=${idsParam}`;
+            const response = await this.fetchJSON(url);
+            const pinnedSensors = response.sensors || [];
+
+            // Добавить закреплённые датчики в начало списка
+            for (const sensor of pinnedSensors) {
+                if (!this.sensorMap.has(sensor.id)) {
+                    this.allSensors.unshift(sensor);
+                    this.sensorMap.set(sensor.id, sensor);
+                }
+            }
+        } catch (err) {
+            console.warn('Failed to load pinned sensors:', err);
         }
     }
 
