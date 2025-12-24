@@ -1101,7 +1101,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                 </div>
                 <div class="ionc-dialog-field" id="ionc-gen-step-field" style="display: none;">
                     <label for="ionc-gen-step"><span id="ionc-gen-step-label">Шаг</span>:</label>
-                    <input type="number" id="ionc-gen-step" value="${params.step || 20}" step="1" min="1">
+                    <input type="number" id="ionc-gen-step" value="${params.step || 20}" step="1">
                     <div class="ionc-dialog-hint" id="ionc-gen-step-hint">Размер одного шага изменения значения</div>
                 </div>
                 <div class="ionc-dialog-field" id="ionc-gen-calc-period" style="display: none;">
