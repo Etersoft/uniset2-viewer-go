@@ -12,6 +12,7 @@ import (
 
 	"github.com/pv/uniset-panel/internal/api"
 	"github.com/pv/uniset-panel/internal/config"
+	"github.com/pv/uniset-panel/internal/dashboard"
 	"github.com/pv/uniset-panel/internal/ionc"
 	"github.com/pv/uniset-panel/internal/logger"
 	"github.com/pv/uniset-panel/internal/logserver"
@@ -29,7 +30,7 @@ import (
 )
 
 // Version is set at build time via ldflags
-var Version = "0.0.1"
+var Version = "0.0.2"
 
 func main() {
 	cfg := config.Parse()
@@ -218,6 +219,17 @@ func main() {
 		handlers.SetRecordingManager(recordingMgr)
 	}
 
+	// Create dashboard manager if directory specified
+	if cfg.DashboardsDir != "" {
+		dashboardMgr := dashboard.NewManager(cfg.DashboardsDir)
+		if err := dashboardMgr.Load(); err != nil {
+			logger.Error("Failed to load dashboards", "dir", cfg.DashboardsDir, "error", err)
+		} else {
+			handlers.SetDashboardManager(dashboardMgr)
+			logger.Info("Loaded server dashboards", "dir", cfg.DashboardsDir, "count", dashboardMgr.Count())
+		}
+	}
+
 	// Set pollers if available
 	if ioncPollerInstance != nil {
 		handlers.SetIONCPoller(ioncPollerInstance)
@@ -244,7 +256,15 @@ func main() {
 		logger.Info("SM integration enabled", "url", cfg.SMURL, "poll_interval", smInterval)
 	}
 
-	apiServer := api.NewServer(handlers, ui.Content)
+	// Create API server with optional external files for hot reload
+	var serverOpts []api.ServerOption
+	if cfg.JSFile != "" {
+		serverOpts = append(serverOpts, api.WithJSFile(cfg.JSFile))
+	}
+	if cfg.CSSFile != "" {
+		serverOpts = append(serverOpts, api.WithCSSFile(cfg.CSSFile))
+	}
+	apiServer := api.NewServer(handlers, ui.Content, serverOpts...)
 
 	// Start SM poller if configured
 	if smPoller != nil {

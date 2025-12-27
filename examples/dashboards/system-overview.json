@@ -1,0 +1,208 @@
+{
+  "version": 1,
+  "meta": {
+    "name": "System Overview",
+    "description": "Overview of key system indicators"
+  },
+  "grid": {
+    "cols": 48,
+    "rowHeight": 30,
+    "gap": 4
+  },
+  "widgets": [
+    {
+      "id": "widget-temp",
+      "type": "gauge",
+      "position": {
+        "col": 0,
+        "row": 0,
+        "width": 12,
+        "height": 9
+      },
+      "config": {
+        "decimals": 1,
+        "label": "Temperature",
+        "max": 100,
+        "min": 0,
+        "sensor": "Sensor15099_S",
+        "style": "semicircle",
+        "transparent": true,
+        "unit": "°C",
+        "zones": []
+      }
+    },
+    {
+      "id": "widget-pressure",
+      "type": "gauge",
+      "position": {
+        "col": 12,
+        "row": 0,
+        "width": 14,
+        "height": 9
+      },
+      "config": {
+        "decimals": 2,
+        "label": "Pressure",
+        "max": 10,
+        "min": 0,
+        "sensor": "Sensor15099_S",
+        "style": "arc270",
+        "transparent": true,
+        "unit": "bar",
+        "zones": [
+          {
+            "color": "#ef4444",
+            "from": 8,
+            "to": 10
+          },
+          {
+            "color": "#f6d32d",
+            "from": 6,
+            "to": 8
+          }
+        ]
+      }
+    },
+    {
+      "id": "widget-pump",
+      "type": "led",
+      "position": {
+        "col": 0,
+        "row": 15,
+        "width": 5,
+        "height": 4
+      },
+      "config": {
+        "label": "Pump Status",
+        "offColor": "#6b7280",
+        "onColor": "#22c55e",
+        "sensor": "Sensor15099_S",
+        "threshold": 1
+      }
+    },
+    {
+      "id": "widget-counter",
+      "type": "digital",
+      "position": {
+        "col": 40,
+        "row": 0,
+        "width": 8,
+        "height": 5
+      },
+      "config": {
+        "color": "#22c55e",
+        "decimals": 0,
+        "digits": 6,
+        "label": "Counter",
+        "sensor": "Sensor15099_S"
+      }
+    },
+    {
+      "id": "widget-level",
+      "type": "level",
+      "position": {
+        "col": 1,
+        "row": 10,
+        "width": 4,
+        "height": 10
+      },
+      "config": {
+        "label": "Tank Level",
+        "max": 100,
+        "min": 0,
+        "orientation": "vertical",
+        "sensor": "Sensor15099_S",
+        "transparent": false,
+        "unit": "%",
+        "zones": [
+          {
+            "color": "#ef4444",
+            "from": 90,
+            "to": 100
+          },
+          {
+            "color": "#f5c211",
+            "from": 0,
+            "to": 10
+          }
+        ]
+      }
+    },
+    {
+      "id": "widget-tacho",
+      "type": "gauge",
+      "position": {
+        "col": 28,
+        "row": 0,
+        "width": 11,
+        "height": 9
+      },
+      "config": {
+        "decimals": 1,
+        "label": "Tachometer",
+        "max": 100,
+        "min": 0,
+        "sensor": "Sensor15099_S",
+        "style": "speedometer",
+        "transparent": true,
+        "unit": "rpm",
+        "zones": []
+      }
+    },
+    {
+      "id": "widget-dual",
+      "type": "gauge",
+      "position": {
+        "col": 35,
+        "row": 10,
+        "width": 13,
+        "height": 10
+      },
+      "config": {
+        "decimals": 1,
+        "label": "Dual Gauge",
+        "max": 100,
+        "min": 0,
+        "sensor": "Sensor15099_S",
+        "sensor2": "AI70_S",
+        "style": "dual",
+        "transparent": true,
+        "unit": "RPM",
+        "zones": []
+      }
+    },
+    {
+      "id": "widget-chart",
+      "type": "chart",
+      "position": {
+        "col": 5,
+        "row": 9,
+        "width": 29,
+        "height": 12
+      },
+      "config": {
+        "label": "RPM",
+        "showTable": true,
+        "tableHeight": 100,
+        "transparent": false,
+        "zones": [
+          {
+            "id": "zone-0",
+            "sensors": [
+              {
+                "color": "#3274d9",
+                "fill": true,
+                "name": "Sensor15099_S"
+              },
+              {
+                "color": "#73bf69",
+                "fill": true,
+                "name": "AI70_S"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

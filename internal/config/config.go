@@ -125,6 +125,13 @@ type Config struct {
 	RecordingPath    string // Путь к файлу записи SQLite (default: ./recording.db)
 	RecordingEnabled bool   // Запись включена по умолчанию (default: false)
 	MaxRecords       int64  // Макс. записей (циклический буфер, default: 1000000)
+
+	// Dashboard settings
+	DashboardsDir string // Директория с серверными dashboard'ами (опционально)
+
+	// Development settings
+	JSFile  string // Внешний файл app.js для разработки (вместо встроенного)
+	CSSFile string // Внешний файл style.css для разработки (вместо встроенного)
 }
 
 // IsControlEnabled возвращает true если контроль токенами включён
@@ -194,6 +201,13 @@ func Parse() *Config {
 	flag.StringVar(&cfg.RecordingPath, "recording-path", "./recording.db", "Recording SQLite database path")
 	flag.BoolVar(&cfg.RecordingEnabled, "recording-enabled", false, "Start recording on startup")
 	flag.Int64Var(&cfg.MaxRecords, "max-records", 1000000, "Max records in recording database (circular buffer)")
+
+	// Dashboard flags
+	flag.StringVar(&cfg.DashboardsDir, "dashboards-dir", "", "Directory with server dashboards (optional)")
+
+	// Development flags (hot reload without container rebuild)
+	flag.StringVar(&cfg.JSFile, "js", "", "External app.js file (hot reload)")
+	flag.StringVar(&cfg.CSSFile, "css", "", "External style.css file (hot reload)")
 
 	flag.Parse()
 	cfg.ControlTokens = controlTokens

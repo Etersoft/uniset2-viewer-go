@@ -131,8 +131,13 @@ uniset-panel/
 │   ├── sensorconfig/        # парсер XML конфигурации датчиков
 │   └── recording/           # система записи истории в SQLite
 ├── ui/
-│   ├── embed.go             # go:embed директивы
-│   ├── static/              # JS, CSS
+│   ├── embed.go             # go:embed + go:generate директивы
+│   ├── concat.go            # скрипт сборки app.js
+│   ├── static/
+│   │   ├── js/
+│   │   │   ├── app.js       # генерируется автоматически
+│   │   │   └── src/         # исходные модули (00-*.js ... 99-*.js)
+│   │   └── css/
 │   └── templates/           # HTML шаблоны
 ├── tests/                   # Playwright e2e тесты
 ├── go.mod
@@ -156,6 +161,46 @@ uniset-panel/
 Система записи истории позволяет сохранять все изменения переменных в SQLite базу данных для последующего анализа и экспорта.
 
 Подробная документация: **[docs/recording.md](docs/recording.md)**
+
+## Разработка
+
+### Сборка JavaScript
+
+Frontend код (`ui/static/js/app.js`) генерируется автоматически из модулей в `ui/static/js/src/`.
+
+```bash
+# Пересобрать app.js из модулей
+make app
+
+# Полная сборка (app.js + бинарник)
+make build
+
+# Или через go generate
+go generate ./ui
+```
+
+### Структура модулей
+
+Файлы нумеруются для контроля порядка конкатенации:
+
+| Диапазон | Категория | Содержимое |
+|----------|-----------|------------|
+| 00-09 | Core | state, SSE, control, recording |
+| 10-19 | Renderers base | BaseObjectRenderer, mixins, simple renderers |
+| 20-29 | Specific renderers | IONC, OPCUA, Modbus, UWSGate |
+| 30-39 | Components | LogViewer |
+| 40-49 | UI | Charts, dialogs |
+| 50-59 | UI | Tabs, render functions, sections, settings |
+| 60-69 | Dashboard | Widgets, manager, dialogs |
+| 99 | Init | DOMContentLoaded |
+
+### Добавление нового модуля
+
+1. Создать файл `ui/static/js/src/XX-name.js` с подходящим номером
+2. Запустить `make app` для регенерации app.js
+3. Проверить сборку: `make build`
+
+**Важно:** Не редактировать `ui/static/js/app.js` напрямую — он перезаписывается при сборке.
 
 ## Лицензия
 

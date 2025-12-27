@@ -1,3 +1,4 @@
+// Загрузка версии приложения
 async function loadAppVersion() {
     try {
         const response = await fetch('/api/version');
@@ -72,6 +73,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Loading сохранённых настроек
     loadSettings();
+
+    // Инициализация Dashboard Manager
+    dashboardManager = window.dashboardManager = new DashboardManager();
 });
 
 // Инициализация селектора интервала опроса

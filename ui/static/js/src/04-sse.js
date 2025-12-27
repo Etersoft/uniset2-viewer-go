@@ -185,6 +185,20 @@ function initSSE() {
             const { objectName, serverId } = event;
             const sensors = event.data; // массив датчиков
 
+            // Cache sensor values for dashboard initialization
+            const now = Date.now();
+            for (const sensor of sensors) {
+                state.sensorValuesCache.set(sensor.name, {
+                    value: sensor.value,
+                    error: sensor.error || null,
+                    timestamp: now
+                });
+            }
+
+            // Обновляем виджеты на dashboard (передаём timestamp для chart widgets)
+            const eventTimestamp = event.timestamp || null;
+            updateDashboardWidgets(sensors, eventTimestamp);
+
             // Формируем ключ вкладки: serverId:objectName
             const tabKey = `${serverId}:${objectName}`;
 
@@ -246,6 +260,9 @@ function initSSE() {
             const event = JSON.parse(e.data);
             const { objectName, serverId } = event;
             const registers = event.data; // массив регистров
+
+            // Обновляем виджеты на dashboard (передаём timestamp для chart widgets)
+            updateDashboardWidgets(registers, event.timestamp);
 
             // Формируем ключ вкладки: serverId:objectName
             const tabKey = `${serverId}:${objectName}`;
@@ -317,6 +334,9 @@ function initSSE() {
             const { objectName, serverId } = event;
             const sensors = event.data; // массив датчиков
 
+            // Обновляем виджеты на dashboard (передаём timestamp для chart widgets)
+            updateDashboardWidgets(sensors, event.timestamp);
+
             // Формируем ключ вкладки: serverId:objectName
             const tabKey = `${serverId}:${objectName}`;
 
@@ -384,6 +404,9 @@ function initSSE() {
             const event = JSON.parse(e.data);
             const { objectName, serverId } = event;
             const sensors = event.data; // массив датчиков
+
+            // Обновляем виджеты на dashboard (передаём timestamp для chart widgets)
+            updateDashboardWidgets(sensors, event.timestamp);
 
             // Формируем ключ вкладки: serverId:objectName
             const tabKey = `${serverId}:${objectName}`;
@@ -563,30 +586,3 @@ function closeSSE() {
     }
 }
 
-// Обработчик visibility change — обновить графики при возврате из hidden
-// Данные накапливаются в массивах Chart.js пока страница hidden,
-// но chart.update() может не отрисовывать canvas в hidden состоянии.
-// При возврате в visible принудительно перерисовываем все графики.
-document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-        console.log('SSE: Страница снова visible — обновляю графики');
-
-        // Обновляем все графики во всех вкладках
-        state.tabs.forEach((tabState, tabKey) => {
-            if (tabState.charts && tabState.charts.size > 0) {
-                tabState.charts.forEach((chartData, varName) => {
-                    if (chartData.chart) {
-                        try {
-                            // Синхронизируем временную шкалу
-                            syncAllChartsTimeRange(tabKey);
-                            // Принудительно перерисовываем график
-                            chartData.chart.update();
-                        } catch (err) {
-                            console.warn('SSE: Error обновления графика при visibility change:', varName, err);
-                        }
-                    }
-                });
-            }
-        });
-    }
-});

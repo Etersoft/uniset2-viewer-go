@@ -95,7 +95,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                                         <th class="ionc-col-pin">
                                             <span class="ionc-unpin-all" id="ionc-unpin-${this.objectName}" title="Unpin all" style="display:none">✕</span>
                                         </th>
-                                        <th class="ionc-col-chart"></th>
+                                        <th class="ionc-col-add-buttons"></th>
                                         <th class="ionc-col-id">ID</th>
                                         <th class="ionc-col-name">Name</th>
                                         <th class="ionc-col-type">Type</th>
@@ -143,6 +143,23 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
             () => this.loadSensors()
         );
 
+        // Делегирование событий для кнопки добавления на dashboard
+        // устанавливается в setupDashboardClickHandler после загрузки данных
+    }
+
+    // Устанавливает делегирование событий для кнопки добавления на dashboard
+    setupDashboardClickHandler() {
+        const tbody = getElementInTab(this.tabKey, `ionc-sensors-tbody-${this.objectName}`);
+        if (tbody && !tbody._dashboardClickHandlerAttached) {
+            tbody.addEventListener('click', (e) => {
+                const btn = e.target.closest('.dashboard-add-btn');
+                if (btn) {
+                    e.stopPropagation();
+                    showAddToDashboardDialog(btn.dataset.sensorName, btn.dataset.sensorLabel);
+                }
+            });
+            tbody._dashboardClickHandlerAttached = true;
+        }
     }
 
     async loadSensors() {
@@ -160,7 +177,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
 
         const tbody = document.getElementById(`ionc-sensors-tbody-${this.objectName}`);
         if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="10" class="ionc-loading">Loading...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="11" class="ionc-loading">Loading...</td></tr>';
         }
 
         // Проверяем режим фильтрации: false = серверная (default), true = UI
@@ -208,6 +225,9 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
 
             // Подписываемся на SSE обновления для загруженных датчиков
             this.subscribeToSSE();
+
+            // Устанавливаем делегирование для кнопки добавления на dashboard
+            this.setupDashboardClickHandler();
         } catch (err) {
             console.error('Error loading IONC sensors:', err);
             if (tbody) {
@@ -474,6 +494,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
         tbody.querySelectorAll('.ionc-chart-checkbox').forEach(cb => {
             cb.addEventListener('change', () => this.toggleSensorChartById(parseInt(cb.dataset.id)));
         });
+        // Кнопки добавления на dashboard обрабатываются через делегирование в setupDashboardClickHandler
     }
 
     // Legacy alias for compatibility
@@ -535,7 +556,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                         ${pinIcon}
                     </span>
                 </td>
-                <td class="ionc-col-chart">
+                <td class="ionc-col-add-buttons add-buttons-col">
                     <span class="chart-toggle">
                         <input type="checkbox"
                                class="ionc-chart-checkbox chart-toggle-input"
@@ -543,13 +564,24 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                                data-id="${sensor.id}"
                                data-name="${escapeHtml(sensor.name)}"
                                ${isOnChart ? 'checked' : ''}>
-                        <label class="chart-toggle-label" for="ionc-chart-${this.objectName}-${varName}">
+                        <label class="chart-toggle-label" for="ionc-chart-${this.objectName}-${varName}" title="Add to Chart">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M3 3v18h18"/>
                                 <path d="M18 9l-5 5-4-4-3 3"/>
                             </svg>
                         </label>
                     </span>
+                    <button class="dashboard-add-btn"
+                            data-sensor-name="${escapeHtml(sensor.name)}"
+                            data-sensor-label="${escapeHtml(textname || sensor.name)}"
+                            title="Add to Dashboard">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7" rx="1"/>
+                            <rect x="14" y="3" width="7" height="7" rx="1"/>
+                            <rect x="3" y="14" width="7" height="7" rx="1"/>
+                            <rect x="14" y="14" width="7" height="7" rx="1"/>
+                        </svg>
+                    </button>
                 </td>
                 <td class="ionc-col-id">${sensor.id}</td>
                 <td class="ionc-col-name" title="${escapeHtml(textname)}">${escapeHtml(sensor.name)}</td>
@@ -1547,6 +1579,15 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
 
         // Чекбокс графика
         row.querySelector('.ionc-chart-checkbox')?.addEventListener('change', () => this.toggleSensorChartById(sensorId));
+
+        // Кнопка добавления на dashboard
+        row.querySelector('.dashboard-add-btn')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const btn = e.currentTarget;
+            const sensorName = btn.dataset.sensorName;
+            const sensorLabel = btn.dataset.sensorLabel;
+            showAddToDashboardDialog(sensorName, sensorLabel);
+        });
     }
 
     async showConsumersDialog(sensorId) {

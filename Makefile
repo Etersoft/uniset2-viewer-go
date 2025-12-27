@@ -1,4 +1,4 @@
-.PHONY: build run test js-tests js-tests-multi coverage clean app
+.PHONY: build run test js-tests js-tests-multi coverage clean app demo
 
 # Generate app.js from source modules
 app:
@@ -44,3 +44,8 @@ clean:
 	rm -f uniset-panel
 	docker compose down -v --rmi local 2>/dev/null || true
 	docker compose -f docker-compose.multi.yml down -v --rmi local 2>/dev/null || true
+
+# Demo mode with diesel generator simulator
+# Starts demo-mock-server and demo-viewer on http://localhost:8001
+demo:
+	docker compose --profile demo up --build demo-mock-server demo-viewer

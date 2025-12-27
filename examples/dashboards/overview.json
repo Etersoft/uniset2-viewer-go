@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "meta": {
+    "name": "System Overview",
+    "description": "Overview of key system indicators"
+  },
+  "grid": {
+    "cols": 12,
+    "rowHeight": 120,
+    "gap": 12
+  },
+  "widgets": [
+    {
+      "id": "widget-temp",
+      "type": "gauge",
+      "position": {"col": 0, "row": 0, "width": 3, "height": 1},
+      "config": {
+        "sensor": "AI70_S",
+        "label": "Temperature",
+        "unit": "°C",
+        "min": 0,
+        "max": 100,
+        "decimals": 1
+      }
+    },
+    {
+      "id": "widget-pressure",
+      "type": "gauge",
+      "position": {"col": 3, "row": 0, "width": 3, "height": 1},
+      "config": {
+        "sensor": "AI71_S",
+        "label": "Pressure",
+        "unit": "bar",
+        "min": 0,
+        "max": 10,
+        "decimals": 2
+      }
+    },
+    {
+      "id": "widget-pump",
+      "type": "led",
+      "position": {"col": 6, "row": 0, "width": 2, "height": 1},
+      "config": {
+        "sensor": "DI1_S",
+        "label": "Pump Status",
+        "threshold": 1,
+        "onColor": "#22c55e",
+        "offColor": "#6b7280"
+      }
+    },
+    {
+      "id": "widget-counter",
+      "type": "digital",
+      "position": {"col": 8, "row": 0, "width": 2, "height": 1},
+      "config": {
+        "sensor": "AI72_S",
+        "label": "Counter",
+        "digits": 6,
+        "decimals": 0,
+        "color": "#22c55e"
+      }
+    },
+    {
+      "id": "widget-level",
+      "type": "level",
+      "position": {"col": 10, "row": 0, "width": 2, "height": 1},
+      "config": {
+        "sensor": "AI73_S",
+        "label": "Tank Level",
+        "unit": "%",
+        "min": 0,
+        "max": 100,
+        "vertical": true
+      }
+    }
+  ]
+}

@@ -16,6 +16,26 @@
         <header>
             <h1>UniSet Panel <span id="app-version" class="app-version"></span></h1>
             <div class="header-controls">
+                <div class="view-switcher">
+                    <button class="view-btn active" id="view-objects-btn" title="Objects view">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="5" height="5"/>
+                            <rect x="3" y="12" width="5" height="5"/>
+                            <line x1="12" y1="5.5" x2="21" y2="5.5"/>
+                            <line x1="12" y1="14.5" x2="21" y2="14.5"/>
+                        </svg>
+                        <span>Objects</span>
+                    </button>
+                    <button class="view-btn" id="view-dashboard-btn" title="Dashboard view">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7" rx="1"/>
+                            <rect x="14" y="3" width="7" height="7" rx="1"/>
+                            <rect x="3" y="14" width="7" height="7" rx="1"/>
+                            <rect x="14" y="14" width="7" height="7" rx="1"/>
+                        </svg>
+                        <span>Dashboard</span>
+                    </button>
+                </div>
                 <div class="poll-interval-selector" id="poll-interval-selector" title="Server polling interval">
                     <span class="poll-interval-label">Poll:</span>
                     <div class="poll-interval-buttons">
@@ -87,6 +107,17 @@
                 <div class="sidebar-content">
                     <ul id="objects-list" class="objects-list"></ul>
 
+                    <div class="dashboards-section" id="dashboards-section">
+                        <div class="dashboards-section-header" id="dashboards-section-header">
+                            <svg class="collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M6 9l6 6 6-6"/>
+                            </svg>
+                            <span class="dashboards-section-title">Dashboards</span>
+                            <span class="dashboards-count" id="dashboards-count">0</span>
+                        </div>
+                        <ul id="dashboards-list" class="dashboards-list"></ul>
+                    </div>
+
                     <div class="servers-section" id="servers-section">
                         <div class="servers-section-header" id="servers-section-header">
                             <svg class="collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -101,10 +132,80 @@
             </aside>
 
             <main class="content">
-                <div id="tabs-header" class="tabs-header"></div>
-                <div id="tabs-content" class="tabs-content">
-                    <div class="placeholder">
-                        Select an object from the list on the left
+                <!-- Objects View -->
+                <div id="objects-view" class="view-container active">
+                    <div id="tabs-header" class="tabs-header"></div>
+                    <div id="tabs-content" class="tabs-content">
+                        <div class="placeholder">
+                            Select an object from the list on the left
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dashboard View -->
+                <div id="dashboard-view" class="view-container">
+                    <div class="dashboard-header">
+                        <div class="dashboard-selector">
+                            <select id="dashboard-select" class="dashboard-select">
+                                <option value="">Select dashboard...</option>
+                            </select>
+                            <button id="dashboard-new-btn" class="dashboard-btn" title="Create new dashboard">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="12" y1="5" x2="12" y2="19"/>
+                                    <line x1="5" y1="12" x2="19" y2="12"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="dashboard-actions hidden" id="dashboard-actions">
+                            <button id="dashboard-add-widget-btn" class="dashboard-btn" title="Add widget">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                                    <line x1="12" y1="8" x2="12" y2="16"/>
+                                    <line x1="8" y1="12" x2="16" y2="12"/>
+                                </svg>
+                                <span>Add Widget</span>
+                            </button>
+                            <button id="dashboard-edit-btn" class="dashboard-btn" title="Move widgets">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M5 9l-3 3 3 3"/>
+                                    <path d="M9 5l3-3 3 3"/>
+                                    <path d="M15 19l-3 3-3-3"/>
+                                    <path d="M19 9l3 3-3 3"/>
+                                    <line x1="2" y1="12" x2="22" y2="12"/>
+                                    <line x1="12" y1="2" x2="12" y2="22"/>
+                                </svg>
+                                <span>Move</span>
+                            </button>
+                            <button id="dashboard-import-btn" class="dashboard-btn" title="Import dashboard">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="17 8 12 3 7 8"/>
+                                    <line x1="12" y1="3" x2="12" y2="15"/>
+                                </svg>
+                            </button>
+                            <button id="dashboard-export-btn" class="dashboard-btn" title="Export dashboard">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="7 10 12 15 17 10"/>
+                                    <line x1="12" y1="15" x2="12" y2="3"/>
+                                </svg>
+                            </button>
+                            <button id="dashboard-delete-btn" class="dashboard-btn dashboard-btn-danger" title="Delete dashboard">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="dashboard-grid" class="dashboard-grid">
+                        <div class="dashboard-placeholder">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M12 6v6l4 2"/>
+                            </svg>
+                            <p>Select a dashboard or create a new one</p>
+                        </div>
                     </div>
                 </div>
             </main>
@@ -166,6 +267,146 @@
             <div class="control-dialog-footer">
                 <button class="control-btn control-btn-primary" onclick="tryTakeControl()">Take Control</button>
                 <button class="control-btn control-btn-cancel" onclick="closeControlDialog()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Widget Picker Dialog -->
+    <div class="widget-dialog-overlay hidden" id="widget-picker-overlay" onclick="if(event.target === this) closeWidgetPicker()">
+        <div class="widget-dialog widget-picker-dialog">
+            <div class="widget-dialog-header">
+                <span class="widget-dialog-title">Add Widget</span>
+                <button class="widget-dialog-close" onclick="closeWidgetPicker()" title="Close">&times;</button>
+            </div>
+            <div class="widget-picker-content" id="widget-picker-content">
+                <!-- Widget types will be rendered here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Widget Config Dialog -->
+    <div class="widget-dialog-overlay hidden" id="widget-config-overlay" onclick="if(event.target === this) closeWidgetConfig()">
+        <div class="widget-dialog widget-config-dialog">
+            <div class="widget-dialog-header">
+                <span class="widget-dialog-title" id="widget-config-title">Configure Widget</span>
+                <button class="widget-dialog-close" onclick="closeWidgetConfig()" title="Close">&times;</button>
+            </div>
+            <div class="widget-config-content" id="widget-config-content">
+                <!-- Config form will be rendered here -->
+            </div>
+            <div class="widget-dialog-footer">
+                <button class="widget-btn widget-btn-secondary" onclick="closeWidgetConfig()">Cancel</button>
+                <button class="widget-btn widget-btn-primary" id="widget-config-apply">Apply</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard Name Dialog -->
+    <div class="widget-dialog-overlay hidden" id="dashboard-name-overlay" onclick="if(event.target === this) closeDashboardNameDialog()">
+        <div class="widget-dialog widget-name-dialog">
+            <div class="widget-dialog-header">
+                <span class="widget-dialog-title" id="dashboard-name-title">New Dashboard</span>
+                <button class="widget-dialog-close" onclick="closeDashboardNameDialog()" title="Close">&times;</button>
+            </div>
+            <div class="widget-dialog-body">
+                <label for="dashboard-name-input">Dashboard name:</label>
+                <input type="text" id="dashboard-name-input" class="widget-input" placeholder="My Dashboard" autocomplete="off">
+            </div>
+            <div class="widget-dialog-footer">
+                <button class="widget-btn widget-btn-secondary" onclick="closeDashboardNameDialog()">Cancel</button>
+                <button class="widget-btn widget-btn-primary" id="dashboard-name-confirm">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard Import Dialog -->
+    <div class="widget-dialog-overlay hidden" id="dashboard-import-overlay" onclick="if(event.target === this) closeDashboardImport()">
+        <div class="widget-dialog widget-import-dialog">
+            <div class="widget-dialog-header">
+                <span class="widget-dialog-title">Import Dashboard</span>
+                <button class="widget-dialog-close" onclick="closeDashboardImport()" title="Close">&times;</button>
+            </div>
+            <div class="widget-dialog-body">
+                <div class="import-dropzone" id="import-dropzone">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="17 8 12 3 7 8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    <p>Drop JSON file here or click to browse</p>
+                    <input type="file" id="import-file-input" accept=".json" hidden>
+                </div>
+                <div class="import-options">
+                    <label class="import-option">
+                        <input type="radio" name="import-mode" value="new" checked>
+                        <span>Create new dashboard</span>
+                    </label>
+                    <label class="import-option">
+                        <input type="radio" name="import-mode" value="replace">
+                        <span>Replace current dashboard</span>
+                    </label>
+                </div>
+                <div class="import-name-field" id="import-name-field">
+                    <label for="import-name-input">Dashboard name:</label>
+                    <input type="text" id="import-name-input" class="widget-input" placeholder="Imported Dashboard">
+                </div>
+            </div>
+            <div class="widget-dialog-error hidden" id="import-error"></div>
+            <div class="widget-dialog-footer">
+                <button class="widget-btn widget-btn-secondary" onclick="closeDashboardImport()">Cancel</button>
+                <button class="widget-btn widget-btn-primary" id="import-confirm" disabled>Import</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Dialog -->
+    <div class="widget-dialog-overlay hidden" id="confirm-dialog-overlay">
+        <div class="widget-dialog confirm-dialog">
+            <div class="widget-dialog-header">
+                <span class="widget-dialog-title" id="confirm-dialog-title">Confirm</span>
+            </div>
+            <div class="widget-dialog-body">
+                <p id="confirm-dialog-message">Are you sure?</p>
+            </div>
+            <div class="widget-dialog-footer">
+                <button class="widget-btn widget-btn-secondary" id="confirm-dialog-cancel">Cancel</button>
+                <button class="widget-btn widget-btn-danger" id="confirm-dialog-ok">Remove</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add to Dashboard Dialog -->
+    <div class="widget-dialog-overlay hidden" id="add-to-dashboard-overlay" onclick="if(event.target === this) closeAddToDashboard()">
+        <div class="widget-dialog add-to-dashboard-dialog">
+            <div class="widget-dialog-header">
+                <span class="widget-dialog-title">Add to Dashboard</span>
+                <button class="widget-dialog-close" onclick="closeAddToDashboard()">&times;</button>
+            </div>
+            <div class="widget-dialog-body">
+                <div class="add-to-dashboard-sensor">
+                    <label>Sensor:</label>
+                    <span id="add-to-dashboard-sensor-name">--</span>
+                </div>
+                <div class="widget-config-field">
+                    <label>Dashboard</label>
+                    <select class="widget-select" id="add-to-dashboard-select">
+                        <!-- Options filled dynamically -->
+                    </select>
+                </div>
+                <div class="widget-config-field" id="new-dashboard-name-field" style="display: none;">
+                    <label>New Dashboard Name</label>
+                    <input type="text" class="widget-input" id="add-to-dashboard-new-name" placeholder="My Dashboard">
+                </div>
+                <div class="widget-config-field">
+                    <label>Widget Type</label>
+                    <div class="add-to-dashboard-types" id="add-to-dashboard-types">
+                        <!-- Widget types filled dynamically -->
+                    </div>
+                </div>
+            </div>
+            <div class="widget-dialog-footer">
+                <button class="widget-btn widget-btn-secondary" onclick="closeAddToDashboard()">Cancel</button>
+                <button class="widget-btn widget-btn-primary" id="add-to-dashboard-ok">Add Widget</button>
             </div>
         </div>
     </div>

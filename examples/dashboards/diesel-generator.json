@@ -1,0 +1,522 @@
+{
+  "version": 1,
+  "meta": {
+    "name": "Diesel Generator Control",
+    "description": "Monitoring and control panel for two diesel generators"
+  },
+  "grid": {
+    "cols": 48,
+    "rowHeight": 30,
+    "gap": 4
+  },
+  "widgets": [
+    {
+      "id": "header-main",
+      "type": "label",
+      "position": { "col": 0, "row": 0, "width": 48, "height": 2 },
+      "config": {
+        "text": "Diesel Generator Control Panel",
+        "fontSize": "xlarge",
+        "align": "center",
+        "color": "#3b82f6",
+        "transparent": true
+      }
+    },
+    {
+      "id": "divider-main-top",
+      "type": "divider",
+      "position": { "col": 0, "row": 2, "width": 48, "height": 1 },
+      "config": {
+        "orientation": "horizontal",
+        "color": "#374151",
+        "thickness": 2,
+        "style": "solid",
+        "margin": 4
+      }
+    },
+    {
+      "id": "header-dg1",
+      "type": "label",
+      "position": { "col": 1, "row": 3, "width": 22, "height": 2 },
+      "config": {
+        "text": "DG1 - Main Generator",
+        "fontSize": "large",
+        "align": "center",
+        "color": "#22c55e",
+        "border": true,
+        "borderColor": "#22c55e",
+        "borderWidth": 2,
+        "borderRadius": 6,
+        "backgroundColor": "rgba(34, 197, 94, 0.1)"
+      }
+    },
+    {
+      "id": "divider-vertical",
+      "type": "divider",
+      "position": { "col": 23, "row": 3, "width": 2, "height": 21 },
+      "config": {
+        "orientation": "vertical",
+        "color": "#374151",
+        "thickness": 2,
+        "style": "solid",
+        "margin": 8
+      }
+    },
+    {
+      "id": "header-dg2",
+      "type": "label",
+      "position": { "col": 25, "row": 3, "width": 22, "height": 2 },
+      "config": {
+        "text": "DG2 - Backup Generator",
+        "fontSize": "large",
+        "align": "center",
+        "color": "#f59e0b",
+        "border": true,
+        "borderColor": "#f59e0b",
+        "borderWidth": 2,
+        "borderRadius": 6,
+        "backgroundColor": "rgba(245, 158, 11, 0.1)"
+      }
+    },
+    {
+      "id": "dg1-status",
+      "type": "statusbar",
+      "position": { "col": 0, "row": 5, "width": 23, "height": 2 },
+      "config": {
+        "layout": "horizontal",
+        "items": [
+          { "label": "Running", "sensor": "DG1_Running", "threshold": 0.5, "onColor": "#22c55e", "offColor": "#6b7280" },
+          { "label": "Ready", "sensor": "DG1_Ready", "threshold": 0.5, "onColor": "#3b82f6", "offColor": "#6b7280" },
+          { "label": "Alarm", "sensor": "DG1_Alarm", "threshold": 0.5, "onColor": "#ef4444", "offColor": "#6b7280" },
+          { "label": "Remote", "sensor": "DG1_Remote", "threshold": 0.5, "onColor": "#8b5cf6", "offColor": "#6b7280" }
+        ],
+        "transparent": true
+      }
+    },
+    {
+      "id": "dg2-status",
+      "type": "statusbar",
+      "position": { "col": 25, "row": 5, "width": 23, "height": 2 },
+      "config": {
+        "layout": "horizontal",
+        "items": [
+          { "label": "Running", "sensor": "DG2_Running", "threshold": 0.5, "onColor": "#22c55e", "offColor": "#6b7280" },
+          { "label": "Ready", "sensor": "DG2_Ready", "threshold": 0.5, "onColor": "#3b82f6", "offColor": "#6b7280" },
+          { "label": "Alarm", "sensor": "DG2_Alarm", "threshold": 0.5, "onColor": "#ef4444", "offColor": "#6b7280" },
+          { "label": "Remote", "sensor": "DG2_Remote", "threshold": 0.5, "onColor": "#8b5cf6", "offColor": "#6b7280" }
+        ],
+        "transparent": true
+      }
+    },
+    {
+      "id": "divider-dg1-section1",
+      "type": "divider",
+      "position": { "col": 0, "row": 7, "width": 23, "height": 1 },
+      "config": {
+        "orientation": "horizontal",
+        "color": "#374151",
+        "thickness": 1,
+        "style": "dashed",
+        "margin": 2
+      }
+    },
+    {
+      "id": "divider-dg2-section1",
+      "type": "divider",
+      "position": { "col": 25, "row": 7, "width": 23, "height": 1 },
+      "config": {
+        "orientation": "horizontal",
+        "color": "#374151",
+        "thickness": 1,
+        "style": "dashed",
+        "margin": 2
+      }
+    },
+    {
+      "id": "dg1-rpm",
+      "type": "gauge",
+      "position": { "col": 0, "row": 8, "width": 10, "height": 9 },
+      "config": {
+        "title": "Engine Speed",
+        "style": "speedometer",
+        "label": "RPM",
+        "sensor": "DG1_RPM",
+        "min": 0,
+        "max": 2000,
+        "unit": "rpm",
+        "decimals": 0,
+        "transparent": true,
+        "zones": [
+          { "from": 1400, "to": 1600, "color": "#22c55e" },
+          { "from": 1700, "to": 2000, "color": "#ef4444" }
+        ]
+      }
+    },
+    {
+      "id": "dg1-power",
+      "type": "gauge",
+      "position": { "col": 14, "row": 8, "width": 10, "height": 9 },
+      "config": {
+        "title": "Active Power",
+        "style": "dual",
+        "label": "Power",
+        "sensor": "DG1_Power",
+        "min": 0,
+        "max": 500,
+        "unit": "kW",
+        "decimals": 0,
+        "transparent": true,
+        "zones": [
+          { "from": 340, "to": 400, "color": "#f59e0b" },
+          { "from": 400, "to": 500, "color": "#ef4444" }
+        ]
+      }
+    },
+    {
+      "id": "dg2-rpm",
+      "type": "gauge",
+      "position": { "col": 25, "row": 8, "width": 10, "height": 9 },
+      "config": {
+        "title": "Engine Speed",
+        "style": "speedometer",
+        "label": "RPM",
+        "sensor": "DG2_RPM",
+        "min": 0,
+        "max": 2000,
+        "unit": "rpm",
+        "decimals": 0,
+        "transparent": true,
+        "zones": [
+          { "from": 1400, "to": 1600, "color": "#22c55e" },
+          { "from": 1700, "to": 2000, "color": "#ef4444" }
+        ]
+      }
+    },
+    {
+      "id": "dg2-power",
+      "type": "gauge",
+      "position": { "col": 39, "row": 8, "width": 10, "height": 9 },
+      "config": {
+        "title": "Active Power",
+        "style": "dual",
+        "label": "Power",
+        "sensor": "DG2_Power",
+        "min": 0,
+        "max": 500,
+        "unit": "kW",
+        "decimals": 0,
+        "transparent": true,
+        "zones": [
+          { "from": 340, "to": 400, "color": "#f59e0b" },
+          { "from": 400, "to": 500, "color": "#ef4444" }
+        ]
+      }
+    },
+    {
+      "id": "divider-dg1-section2",
+      "type": "divider",
+      "position": { "col": 0, "row": 17, "width": 23, "height": 1 },
+      "config": {
+        "orientation": "horizontal",
+        "color": "#374151",
+        "thickness": 1,
+        "style": "dashed",
+        "margin": 2
+      }
+    },
+    {
+      "id": "divider-dg2-section2",
+      "type": "divider",
+      "position": { "col": 25, "row": 17, "width": 23, "height": 1 },
+      "config": {
+        "orientation": "horizontal",
+        "color": "#374151",
+        "thickness": 1,
+        "style": "dashed",
+        "margin": 2
+      }
+    },
+    {
+      "id": "dg1-temp",
+      "type": "gauge",
+      "position": { "col": 1, "row": 18, "width": 9, "height": 6, "offset": { "x": -15, "y": 0 } },
+      "config": {
+        "title": "Coolant",
+        "style": "arc270",
+        "label": "Temperature",
+        "sensor": "DG1_CoolantTemp",
+        "min": 0,
+        "max": 120,
+        "unit": "°C",
+        "decimals": 0,
+        "transparent": true,
+        "zones": [
+          { "from": 80, "to": 95, "color": "#22c55e" },
+          { "from": 95, "to": 110, "color": "#f59e0b" },
+          { "from": 110, "to": 120, "color": "#ef4444" }
+        ]
+      }
+    },
+    {
+      "id": "dg1-oil",
+      "type": "gauge",
+      "position": { "col": 14, "row": 18, "width": 9, "height": 6, "offset": { "x": 21, "y": 0 } },
+      "config": {
+        "title": "Oil",
+        "style": "semicircle",
+        "label": "Pressure",
+        "sensor": "DG1_OilPressure",
+        "min": 0,
+        "max": 10,
+        "unit": "bar",
+        "decimals": 1,
+        "transparent": true,
+        "zones": [
+          { "from": 0, "to": 2, "color": "#ef4444" },
+          { "from": 2, "to": 6, "color": "#22c55e" },
+          { "from": 6, "to": 10, "color": "#f59e0b" }
+        ]
+      }
+    },
+    {
+      "id": "dg1-fuel",
+      "type": "level",
+      "position": { "col": 10, "row": 18, "width": 2, "height": 6, "offset": { "x": -6, "y": 0 } },
+      "config": {
+        "title": "Fuel",
+        "sensor": "DG1_FuelLevel",
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "orientation": "vertical",
+        "transparent": true,
+        "zones": [
+          { "from": 0, "to": 15, "color": "#ef4444" },
+          { "from": 15, "to": 30, "color": "#f59e0b" },
+          { "from": 30, "to": 100, "color": "#22c55e" }
+        ]
+      }
+    },
+    {
+      "id": "dg1-air",
+      "type": "level",
+      "position": { "col": 12, "row": 18, "width": 2, "height": 6, "offset": { "x": 6, "y": 0 } },
+      "config": {
+        "title": "Air",
+        "sensor": "DG1_AirPressure",
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "orientation": "vertical",
+        "transparent": true,
+        "zones": [
+          { "from": 0, "to": 20, "color": "#ef4444" },
+          { "from": 20, "to": 50, "color": "#f59e0b" },
+          { "from": 50, "to": 100, "color": "#22c55e" }
+        ]
+      }
+    },
+    {
+      "id": "dg1-voltage",
+      "type": "digital",
+      "position": { "col": 10, "row": 9, "width": 3, "height": 2, "offset": { "x": 11, "y": -5 } },
+      "config": {
+        "title": "Voltage",
+        "label": "V",
+        "sensor": "DG1_Voltage",
+        "digits": 3,
+        "decimals": 0,
+        "color": "#3b82f6"
+      }
+    },
+    {
+      "id": "dg1-frequency",
+      "type": "digital",
+      "position": { "col": 10, "row": 12, "width": 3, "height": 2, "offset": { "x": 11, "y": -8 } },
+      "config": {
+        "title": "Freq",
+        "label": "Hz",
+        "sensor": "DG1_Frequency",
+        "digits": 4,
+        "decimals": 1,
+        "color": "#22c55e"
+      }
+    },
+    {
+      "id": "dg1-load",
+      "type": "level",
+      "position": { "col": 10, "row": 14, "width": 4, "height": 2, "offset": { "x": -1, "y": 18 } },
+      "config": {
+        "title": "Load",
+        "sensor": "DG1_Load",
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "orientation": "horizontal",
+        "transparent": true,
+        "zones": [
+          { "from": 0, "to": 70, "color": "#22c55e" },
+          { "from": 70, "to": 85, "color": "#f59e0b" },
+          { "from": 85, "to": 100, "color": "#ef4444" }
+        ]
+      }
+    },
+    {
+      "id": "dg2-temp",
+      "type": "gauge",
+      "position": { "col": 26, "row": 18, "width": 9, "height": 6, "offset": { "x": -15, "y": 0 } },
+      "config": {
+        "title": "Coolant",
+        "style": "arc270",
+        "label": "Temperature",
+        "sensor": "DG2_CoolantTemp",
+        "min": 0,
+        "max": 120,
+        "unit": "°C",
+        "decimals": 0,
+        "transparent": true,
+        "zones": [
+          { "from": 80, "to": 95, "color": "#22c55e" },
+          { "from": 95, "to": 110, "color": "#f59e0b" },
+          { "from": 110, "to": 120, "color": "#ef4444" }
+        ]
+      }
+    },
+    {
+      "id": "dg2-oil",
+      "type": "gauge",
+      "position": { "col": 39, "row": 18, "width": 9, "height": 6, "offset": { "x": 21, "y": 0 } },
+      "config": {
+        "title": "Oil",
+        "style": "semicircle",
+        "label": "Pressure",
+        "sensor": "DG2_OilPressure",
+        "min": 0,
+        "max": 10,
+        "unit": "bar",
+        "decimals": 1,
+        "transparent": true,
+        "zones": [
+          { "from": 0, "to": 2, "color": "#ef4444" },
+          { "from": 2, "to": 6, "color": "#22c55e" },
+          { "from": 6, "to": 10, "color": "#f59e0b" }
+        ]
+      }
+    },
+    {
+      "id": "dg2-fuel",
+      "type": "level",
+      "position": { "col": 35, "row": 18, "width": 2, "height": 6, "offset": { "x": -6, "y": 0 } },
+      "config": {
+        "title": "Fuel",
+        "sensor": "DG2_FuelLevel",
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "orientation": "vertical",
+        "transparent": true,
+        "zones": [
+          { "from": 0, "to": 15, "color": "#ef4444" },
+          { "from": 15, "to": 30, "color": "#f59e0b" },
+          { "from": 30, "to": 100, "color": "#22c55e" }
+        ]
+      }
+    },
+    {
+      "id": "dg2-air",
+      "type": "level",
+      "position": { "col": 37, "row": 18, "width": 2, "height": 6, "offset": { "x": 6, "y": 0 } },
+      "config": {
+        "title": "Air",
+        "sensor": "DG2_AirPressure",
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "orientation": "vertical",
+        "transparent": true,
+        "zones": [
+          { "from": 0, "to": 20, "color": "#ef4444" },
+          { "from": 20, "to": 50, "color": "#f59e0b" },
+          { "from": 50, "to": 100, "color": "#22c55e" }
+        ]
+      }
+    },
+    {
+      "id": "dg2-voltage",
+      "type": "digital",
+      "position": { "col": 35, "row": 9, "width": 3, "height": 2, "offset": { "x": 11, "y": -5 } },
+      "config": {
+        "title": "Voltage",
+        "label": "V",
+        "sensor": "DG2_Voltage",
+        "digits": 3,
+        "decimals": 0,
+        "color": "#3b82f6"
+      }
+    },
+    {
+      "id": "dg2-frequency",
+      "type": "digital",
+      "position": { "col": 35, "row": 12, "width": 3, "height": 2, "offset": { "x": 11, "y": -8 } },
+      "config": {
+        "title": "Freq",
+        "label": "Hz",
+        "sensor": "DG2_Frequency",
+        "digits": 4,
+        "decimals": 1,
+        "color": "#22c55e"
+      }
+    },
+    {
+      "id": "dg2-load",
+      "type": "level",
+      "position": { "col": 35, "row": 14, "width": 4, "height": 2, "offset": { "x": -1, "y": 18 } },
+      "config": {
+        "title": "Load",
+        "sensor": "DG2_Load",
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "orientation": "horizontal",
+        "transparent": true,
+        "zones": [
+          { "from": 0, "to": 70, "color": "#22c55e" },
+          { "from": 70, "to": 85, "color": "#f59e0b" },
+          { "from": 85, "to": 100, "color": "#ef4444" }
+        ]
+      }
+    },
+    {
+      "id": "divider-chart-top",
+      "type": "divider",
+      "position": { "col": 0, "row": 24, "width": 48, "height": 1 },
+      "config": {
+        "orientation": "horizontal",
+        "color": "#374151",
+        "thickness": 2,
+        "style": "solid",
+        "margin": 4
+      }
+    },
+    {
+      "id": "trend-chart",
+      "type": "chart",
+      "position": { "col": 0, "row": 25, "width": 48, "height": 10 },
+      "config": {
+        "label": "Power Trends",
+        "showTable": true,
+        "tableHeight": 80,
+        "transparent": false,
+        "zones": [
+          {
+            "id": "power-zone",
+            "sensors": [
+              { "name": "DG1_Power", "color": "#22c55e", "fill": true },
+              { "name": "DG2_Power", "color": "#f59e0b", "fill": true }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

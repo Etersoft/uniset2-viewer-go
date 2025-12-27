@@ -156,7 +156,7 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
                                 <th class="col-pin">
                                     <span class="opcuasrv-unpin-all" id="opcuasrv-unpin-${this.objectName}" title="Unpin all" style="display:none">✕</span>
                                 </th>
-                                <th class="col-chart"></th>
+                                <th class="col-add-buttons"></th>
                                 <th class="col-id">ID</th>
                                 <th class="col-name">Name</th>
                                 <th class="col-type">Type</th>
@@ -531,7 +531,7 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
 
         // Show empty state if no sensors
         if (sensorsToShow.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="opcua-no-sensors">No variables</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="opcua-no-sensors">No variables</td></tr>';
             return;
         }
 
@@ -561,7 +561,7 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
                         ${pinIcon}
                     </span>
                 </td>
-                ${this.renderChartToggleCell(sensor.id, sensor.name, 'opcuasrv')}
+                ${this.renderAddButtonsCell(sensor.id, sensor.name, 'opcuasrv', sensor.textname || sensor.name)}
                 <td>${sensor.id || ''}</td>
                 <td class="sensor-name" title="${escapeHtml(sensor.textname || sensor.comment || '')}">${sensor.name || ''}</td>
                 <td><span class="${typeBadgeClass}">${iotype}</span></td>
@@ -574,6 +574,9 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
 
         // Bind chart toggle events
         this.attachChartToggleListeners(tbody, this.sensorMap);
+
+        // Bind dashboard toggle events
+        this.attachDashboardToggleListeners(tbody);
 
         // Bind pin toggle events
         tbody.querySelectorAll('.pin-toggle').forEach(toggle => {

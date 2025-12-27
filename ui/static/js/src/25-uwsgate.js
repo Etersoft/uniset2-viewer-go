@@ -125,7 +125,7 @@ class UWebSocketGateRenderer extends BaseObjectRenderer {
                             <th class="col-pin">
                                 <span class="uwsgate-unpin-all" id="uwsgate-unpin-${this.objectName}" title="Unpin all" style="display:none">✕</span>
                             </th>
-                            <th class="col-chart"></th>
+                            <th class="col-add-buttons"></th>
                             <th class="col-id">ID</th>
                             <th class="col-name">Name</th>
                             <th class="col-type">Type</th>
@@ -439,7 +439,7 @@ class UWebSocketGateRenderer extends BaseObjectRenderer {
         }
 
         if (this.sensors.size === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="uwsgate-empty">No sensors subscribed. Type sensor name above to add.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" class="uwsgate-empty">No sensors subscribed. Type sensor name above to add.</td></tr>';
             this.updateSensorCount();
             return;
         }
@@ -478,19 +478,30 @@ class UWebSocketGateRenderer extends BaseObjectRenderer {
                         ${pinIcon}
                     </span>
                 </td>
-                <td class="col-chart">
+                <td class="col-add-buttons add-buttons-col">
                     <span class="chart-toggle">
                         <input type="checkbox"
                                id="${escapeHtml(checkboxId)}"
                                class="uwsgate-chart-checkbox chart-toggle-input"
                                data-name="${escapeHtml(sensor.name)}"
                                ${isOnChart ? 'checked' : ''}>
-                        <label class="chart-toggle-label" for="${escapeHtml(checkboxId)}">
+                        <label class="chart-toggle-label" for="${escapeHtml(checkboxId)}" title="Add to Chart">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M3 3v18h18"/><path d="M18 9l-5 5-4-4-3 3"/>
                             </svg>
                         </label>
                     </span>
+                    <button class="dashboard-add-btn"
+                            data-sensor-name="${escapeHtml(sensor.name)}"
+                            data-sensor-label="${escapeHtml(sensor.textname || sensor.name)}"
+                            title="Add to Dashboard">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7" rx="1"/>
+                            <rect x="14" y="3" width="7" height="7" rx="1"/>
+                            <rect x="3" y="14" width="7" height="7" rx="1"/>
+                            <rect x="14" y="14" width="7" height="7" rx="1"/>
+                        </svg>
+                    </button>
                 </td>
                 <td class="col-id">${sensor.id}</td>
                 <td class="col-name" title="${escapeHtml(sensor.textname || sensor.name)}">${escapeHtml(sensor.name)}</td>
@@ -523,6 +534,16 @@ class UWebSocketGateRenderer extends BaseObjectRenderer {
                 if (sensor) {
                     this.toggleSensorChart(sensor);
                 }
+            });
+        });
+
+        // Dashboard buttons
+        tbody.querySelectorAll('.dashboard-add-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const sensorName = btn.dataset.sensorName;
+                const sensorLabel = btn.dataset.sensorLabel;
+                showAddToDashboardDialog(sensorName, sensorLabel);
             });
         });
     }

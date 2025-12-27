@@ -15,6 +15,7 @@ const state = window.state = {
     activeTab: null,
     sensors: new Map(), // sensorId -> sensorInfo
     sensorsByName: new Map(), // sensorName -> sensorInfo
+    sensorValuesCache: new Map(), // sensorName -> { value, error, timestamp } - cache for dashboard init
     timeRange: 900, // секунды (по умолчанию 15 минут)
     sidebarCollapsed: false, // свёрнутая боковая панель
     collapsedSections: {}, // состояние спойлеров
@@ -50,7 +51,7 @@ const state = window.state = {
 
 // === 01-sse-status.js ===
 // ============================================================================
-// SSE (Server-Sent Events) для realtime обновлений
+// SSE Status UI
 // ============================================================================
 
 // Обновление индикатора состояния SSE в header
@@ -841,6 +842,20 @@ function initSSE() {
             const { objectName, serverId } = event;
             const sensors = event.data; // массив датчиков
 
+            // Cache sensor values for dashboard initialization
+            const now = Date.now();
+            for (const sensor of sensors) {
+                state.sensorValuesCache.set(sensor.name, {
+                    value: sensor.value,
+                    error: sensor.error || null,
+                    timestamp: now
+                });
+            }
+
+            // Обновляем виджеты на dashboard (передаём timestamp для chart widgets)
+            const eventTimestamp = event.timestamp || null;
+            updateDashboardWidgets(sensors, eventTimestamp);
+
             // Формируем ключ вкладки: serverId:objectName
             const tabKey = `${serverId}:${objectName}`;
 
@@ -902,6 +917,9 @@ function initSSE() {
             const event = JSON.parse(e.data);
             const { objectName, serverId } = event;
             const registers = event.data; // массив регистров
+
+            // Обновляем виджеты на dashboard (передаём timestamp для chart widgets)
+            updateDashboardWidgets(registers, event.timestamp);
 
             // Формируем ключ вкладки: serverId:objectName
             const tabKey = `${serverId}:${objectName}`;
@@ -973,6 +991,9 @@ function initSSE() {
             const { objectName, serverId } = event;
             const sensors = event.data; // массив датчиков
 
+            // Обновляем виджеты на dashboard (передаём timestamp для chart widgets)
+            updateDashboardWidgets(sensors, event.timestamp);
+
             // Формируем ключ вкладки: serverId:objectName
             const tabKey = `${serverId}:${objectName}`;
 
@@ -1040,6 +1061,9 @@ function initSSE() {
             const event = JSON.parse(e.data);
             const { objectName, serverId } = event;
             const sensors = event.data; // массив датчиков
+
+            // Обновляем виджеты на dashboard (передаём timestamp для chart widgets)
+            updateDashboardWidgets(sensors, event.timestamp);
 
             // Формируем ключ вкладки: serverId:objectName
             const tabKey = `${serverId}:${objectName}`;
@@ -1219,33 +1243,6 @@ function closeSSE() {
     }
 }
 
-// Обработчик visibility change — обновить графики при возврате из hidden
-// Данные накапливаются в массивах Chart.js пока страница hidden,
-// но chart.update() может не отрисовывать canvas в hidden состоянии.
-// При возврате в visible принудительно перерисовываем все графики.
-document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-        console.log('SSE: Страница снова visible — обновляю графики');
-
-        // Обновляем все графики во всех вкладках
-        state.tabs.forEach((tabState, tabKey) => {
-            if (tabState.charts && tabState.charts.size > 0) {
-                tabState.charts.forEach((chartData, varName) => {
-                    if (chartData.chart) {
-                        try {
-                            // Синхронизируем временную шкалу
-                            syncAllChartsTimeRange(tabKey);
-                            // Принудительно перерисовываем график
-                            chartData.chart.update();
-                        } catch (err) {
-                            console.warn('SSE: Error обновления графика при visibility change:', varName, err);
-                        }
-                    }
-                });
-            }
-        });
-    }
-});
 
 
 // === 10-base-renderer.js ===
@@ -2198,7 +2195,44 @@ class BaseObjectRenderer {
         subscribeToIONCSensor(this.tabKey, sensorId);
     }
 
-    // Сгенерировать HTML для checkbox добавления на график
+    // Сгенерировать HTML для объединённой ячейки кнопок (Chart + Dashboard)
+    renderAddButtonsCell(sensorId, sensorName, prefix = 'sensor', sensorLabel = null) {
+        const isOnChart = this.isSensorOnChart(sensorName);
+        const varName = `${prefix}-${sensorId}`;
+        const checkboxId = `chart-${this.objectName}-${varName}`;
+        const label = sensorLabel || sensorName;
+        return `
+            <td class="add-buttons-col">
+                <span class="chart-toggle">
+                    <input type="checkbox"
+                           class="chart-checkbox chart-toggle-input"
+                           id="${checkboxId}"
+                           data-sensor-id="${sensorId}"
+                           data-sensor-name="${escapeHtml(sensorName)}"
+                           ${isOnChart ? 'checked' : ''}>
+                    <label class="chart-toggle-label" for="${checkboxId}" title="Add to Chart">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 3v18h18"/>
+                            <path d="M18 9l-5 5-4-4-3 3"/>
+                        </svg>
+                    </label>
+                </span>
+                <button class="dashboard-add-btn"
+                        data-sensor-name="${escapeHtml(sensorName)}"
+                        data-sensor-label="${escapeHtml(label)}"
+                        title="Add to Dashboard">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="7" rx="1"/>
+                        <rect x="14" y="3" width="7" height="7" rx="1"/>
+                        <rect x="3" y="14" width="7" height="7" rx="1"/>
+                        <rect x="14" y="14" width="7" height="7" rx="1"/>
+                    </svg>
+                </button>
+            </td>
+        `;
+    }
+
+    // Устаревшие методы - оставлены для обратной совместимости
     renderChartToggleCell(sensorId, sensorName, prefix = 'sensor') {
         const isOnChart = this.isSensorOnChart(sensorName);
         const varName = `${prefix}-${sensorId}`;
@@ -2212,13 +2246,31 @@ class BaseObjectRenderer {
                            data-sensor-id="${sensorId}"
                            data-sensor-name="${escapeHtml(sensorName)}"
                            ${isOnChart ? 'checked' : ''}>
-                    <label class="chart-toggle-label" for="${checkboxId}">
+                    <label class="chart-toggle-label" for="${checkboxId}" title="Add to Chart">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M3 3v18h18"/>
                             <path d="M18 9l-5 5-4-4-3 3"/>
                         </svg>
                     </label>
                 </span>
+            </td>
+        `;
+    }
+
+    renderDashboardToggleCell(sensorName, sensorLabel = null) {
+        return `
+            <td class="dashboard-col">
+                <button class="dashboard-add-btn"
+                        data-sensor-name="${escapeHtml(sensorName)}"
+                        data-sensor-label="${escapeHtml(sensorLabel || sensorName)}"
+                        title="Add to Dashboard">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="7" rx="1"/>
+                        <rect x="14" y="3" width="7" height="7" rx="1"/>
+                        <rect x="3" y="14" width="7" height="7" rx="1"/>
+                        <rect x="14" y="14" width="7" height="7" rx="1"/>
+                    </svg>
+                </button>
             </td>
         `;
     }
@@ -2234,6 +2286,19 @@ class BaseObjectRenderer {
                 if (sensor) {
                     this.toggleSensorChart(sensor);
                 }
+            });
+        });
+    }
+
+    // Привязать обработчики для кнопок добавления на dashboard
+    attachDashboardToggleListeners(container) {
+        if (!container) return;
+        container.querySelectorAll('.dashboard-add-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const sensorName = btn.dataset.sensorName;
+                const sensorLabel = btn.dataset.sensorLabel;
+                showAddToDashboardDialog(sensorName, sensorLabel);
             });
         });
     }
@@ -2619,7 +2684,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                                         <th class="ionc-col-pin">
                                             <span class="ionc-unpin-all" id="ionc-unpin-${this.objectName}" title="Unpin all" style="display:none">✕</span>
                                         </th>
-                                        <th class="ionc-col-chart"></th>
+                                        <th class="ionc-col-add-buttons"></th>
                                         <th class="ionc-col-id">ID</th>
                                         <th class="ionc-col-name">Name</th>
                                         <th class="ionc-col-type">Type</th>
@@ -2667,6 +2732,23 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
             () => this.loadSensors()
         );
 
+        // Делегирование событий для кнопки добавления на dashboard
+        // устанавливается в setupDashboardClickHandler после загрузки данных
+    }
+
+    // Устанавливает делегирование событий для кнопки добавления на dashboard
+    setupDashboardClickHandler() {
+        const tbody = getElementInTab(this.tabKey, `ionc-sensors-tbody-${this.objectName}`);
+        if (tbody && !tbody._dashboardClickHandlerAttached) {
+            tbody.addEventListener('click', (e) => {
+                const btn = e.target.closest('.dashboard-add-btn');
+                if (btn) {
+                    e.stopPropagation();
+                    showAddToDashboardDialog(btn.dataset.sensorName, btn.dataset.sensorLabel);
+                }
+            });
+            tbody._dashboardClickHandlerAttached = true;
+        }
     }
 
     async loadSensors() {
@@ -2684,7 +2766,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
 
         const tbody = document.getElementById(`ionc-sensors-tbody-${this.objectName}`);
         if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="10" class="ionc-loading">Loading...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="11" class="ionc-loading">Loading...</td></tr>';
         }
 
         // Проверяем режим фильтрации: false = серверная (default), true = UI
@@ -2732,6 +2814,9 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
 
             // Подписываемся на SSE обновления для загруженных датчиков
             this.subscribeToSSE();
+
+            // Устанавливаем делегирование для кнопки добавления на dashboard
+            this.setupDashboardClickHandler();
         } catch (err) {
             console.error('Error loading IONC sensors:', err);
             if (tbody) {
@@ -2998,6 +3083,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
         tbody.querySelectorAll('.ionc-chart-checkbox').forEach(cb => {
             cb.addEventListener('change', () => this.toggleSensorChartById(parseInt(cb.dataset.id)));
         });
+        // Кнопки добавления на dashboard обрабатываются через делегирование в setupDashboardClickHandler
     }
 
     // Legacy alias for compatibility
@@ -3059,7 +3145,7 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                         ${pinIcon}
                     </span>
                 </td>
-                <td class="ionc-col-chart">
+                <td class="ionc-col-add-buttons add-buttons-col">
                     <span class="chart-toggle">
                         <input type="checkbox"
                                class="ionc-chart-checkbox chart-toggle-input"
@@ -3067,13 +3153,24 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
                                data-id="${sensor.id}"
                                data-name="${escapeHtml(sensor.name)}"
                                ${isOnChart ? 'checked' : ''}>
-                        <label class="chart-toggle-label" for="ionc-chart-${this.objectName}-${varName}">
+                        <label class="chart-toggle-label" for="ionc-chart-${this.objectName}-${varName}" title="Add to Chart">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M3 3v18h18"/>
                                 <path d="M18 9l-5 5-4-4-3 3"/>
                             </svg>
                         </label>
                     </span>
+                    <button class="dashboard-add-btn"
+                            data-sensor-name="${escapeHtml(sensor.name)}"
+                            data-sensor-label="${escapeHtml(textname || sensor.name)}"
+                            title="Add to Dashboard">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7" rx="1"/>
+                            <rect x="14" y="3" width="7" height="7" rx="1"/>
+                            <rect x="3" y="14" width="7" height="7" rx="1"/>
+                            <rect x="14" y="14" width="7" height="7" rx="1"/>
+                        </svg>
+                    </button>
                 </td>
                 <td class="ionc-col-id">${sensor.id}</td>
                 <td class="ionc-col-name" title="${escapeHtml(textname)}">${escapeHtml(sensor.name)}</td>
@@ -4071,6 +4168,15 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
 
         // Чекбокс графика
         row.querySelector('.ionc-chart-checkbox')?.addEventListener('change', () => this.toggleSensorChartById(sensorId));
+
+        // Кнопка добавления на dashboard
+        row.querySelector('.dashboard-add-btn')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const btn = e.currentTarget;
+            const sensorName = btn.dataset.sensorName;
+            const sensorLabel = btn.dataset.sensorLabel;
+            showAddToDashboardDialog(sensorName, sensorLabel);
+        });
     }
 
     async showConsumersDialog(sensorId) {
@@ -4533,7 +4639,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
                                 <th class="col-pin">
                                     <span class="opcua-unpin-all" id="opcua-unpin-${this.objectName}" title="Unpin all" style="display:none">✕</span>
                                 </th>
-                                <th class="col-chart"></th>
+                                <th class="col-add-buttons"></th>
                                 <th class="col-id">ID</th>
                                 <th class="col-name">Name</th>
                                 <th class="col-type">Type</th>
@@ -5102,7 +5208,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
 
         // Show empty state if no sensors
         if (sensorsToShow.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="10" class="opcua-no-sensors">No sensors</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="11" class="opcua-no-sensors">No sensors</td></tr>';
             return;
         }
 
@@ -5132,7 +5238,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
                         ${pinIcon}
                     </span>
                 </td>
-                ${this.renderChartToggleCell(sensor.id, sensor.name, 'opcua')}
+                ${this.renderAddButtonsCell(sensor.id, sensor.name, 'opcua', sensor.textname || sensor.name)}
                 <td class="col-id">${sensor.id ?? '—'}</td>
                 <td class="col-name" title="${escapeHtml(sensor.textname || sensor.comment || '')}">${escapeHtml(sensor.name || '')}</td>
                 <td class="col-type"><span class="${typeBadgeClass}">${iotype || '—'}</span></td>
@@ -5146,6 +5252,9 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
 
         // Bind chart toggle events
         this.attachChartToggleListeners(tbody, this.sensorMap);
+
+        // Bind dashboard toggle events
+        this.attachDashboardToggleListeners(tbody);
 
         // Bind pin toggle events
         tbody.querySelectorAll('.pin-toggle').forEach(toggle => {
@@ -5693,7 +5802,7 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
                                 <th class="col-pin">
                                     <span class="mb-unpin-all" id="mb-unpin-${this.objectName}" title="Unpin all" style="display:none">✕</span>
                                 </th>
-                                <th class="col-chart"></th>
+                                <th class="col-add-buttons"></th>
                                 <th class="col-id">ID</th>
                                 <th class="col-name">Name</th>
                                 <th class="col-type">Type</th>
@@ -6026,7 +6135,7 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
                             ${pinIcon}
                         </span>
                     </td>
-                    ${this.renderChartToggleCell(reg.id, reg.name, 'mbreg')}
+                    ${this.renderAddButtonsCell(reg.id, reg.name, 'mbreg', reg.textname || reg.name)}
                     <td class="col-id">${reg.id}</td>
                     <td class="col-name" title="${escapeHtml(reg.textname || reg.comment || '')}">${escapeHtml(reg.name || '')}</td>
                     <td class="col-type">${reg.iotype ? `<span class="type-badge type-${reg.iotype}">${reg.iotype}</span>` : ''}</td>
@@ -6043,6 +6152,9 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
 
         // Bind chart toggle events
         this.attachChartToggleListeners(tbody, this.registerMap);
+
+        // Bind dashboard button events
+        this.attachDashboardToggleListeners(tbody);
 
         // Bind pin toggle events
         tbody.querySelectorAll('.pin-toggle').forEach(toggle => {
@@ -6444,7 +6556,7 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
                                 <th class="col-pin">
                                     <span class="mbs-unpin-all" id="mbs-unpin-${this.objectName}" title="Unpin all" style="display:none">✕</span>
                                 </th>
-                                <th class="col-chart"></th>
+                                <th class="col-add-buttons"></th>
                                 <th class="col-id">ID</th>
                                 <th class="col-name">Name</th>
                                 <th class="col-type">Type</th>
@@ -6765,7 +6877,7 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
                             ${pinIcon}
                         </span>
                     </td>
-                    ${this.renderChartToggleCell(reg.id, reg.name, 'mbsreg')}
+                    ${this.renderAddButtonsCell(reg.id, reg.name, 'mbsreg', reg.textname || reg.name)}
                     <td class="col-id">${reg.id}</td>
                     <td class="col-name" title="${escapeHtml(reg.textname || reg.comment || '')}">${escapeHtml(reg.name || '')}</td>
                     <td class="col-type">${reg.iotype ? `<span class="type-badge type-${reg.iotype}">${reg.iotype}</span>` : ''}</td>
@@ -6782,6 +6894,9 @@ class ModbusSlaveRenderer extends BaseObjectRenderer {
 
         // Bind chart toggle events
         this.attachChartToggleListeners(tbody, this.registerMap);
+
+        // Bind dashboard toggle events
+        this.attachDashboardToggleListeners(tbody);
 
         // Bind pin toggle events
         tbody.querySelectorAll('.pin-toggle').forEach(toggle => {
@@ -7120,7 +7235,7 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
                                 <th class="col-pin">
                                     <span class="opcuasrv-unpin-all" id="opcuasrv-unpin-${this.objectName}" title="Unpin all" style="display:none">✕</span>
                                 </th>
-                                <th class="col-chart"></th>
+                                <th class="col-add-buttons"></th>
                                 <th class="col-id">ID</th>
                                 <th class="col-name">Name</th>
                                 <th class="col-type">Type</th>
@@ -7495,7 +7610,7 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
 
         // Show empty state if no sensors
         if (sensorsToShow.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="opcua-no-sensors">No variables</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="opcua-no-sensors">No variables</td></tr>';
             return;
         }
 
@@ -7525,7 +7640,7 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
                         ${pinIcon}
                     </span>
                 </td>
-                ${this.renderChartToggleCell(sensor.id, sensor.name, 'opcuasrv')}
+                ${this.renderAddButtonsCell(sensor.id, sensor.name, 'opcuasrv', sensor.textname || sensor.name)}
                 <td>${sensor.id || ''}</td>
                 <td class="sensor-name" title="${escapeHtml(sensor.textname || sensor.comment || '')}">${sensor.name || ''}</td>
                 <td><span class="${typeBadgeClass}">${iotype}</span></td>
@@ -7538,6 +7653,9 @@ class OPCUAServerRenderer extends BaseObjectRenderer {
 
         // Bind chart toggle events
         this.attachChartToggleListeners(tbody, this.sensorMap);
+
+        // Bind dashboard toggle events
+        this.attachDashboardToggleListeners(tbody);
 
         // Bind pin toggle events
         tbody.querySelectorAll('.pin-toggle').forEach(toggle => {
@@ -7820,7 +7938,7 @@ class UWebSocketGateRenderer extends BaseObjectRenderer {
                             <th class="col-pin">
                                 <span class="uwsgate-unpin-all" id="uwsgate-unpin-${this.objectName}" title="Unpin all" style="display:none">✕</span>
                             </th>
-                            <th class="col-chart"></th>
+                            <th class="col-add-buttons"></th>
                             <th class="col-id">ID</th>
                             <th class="col-name">Name</th>
                             <th class="col-type">Type</th>
@@ -8134,7 +8252,7 @@ class UWebSocketGateRenderer extends BaseObjectRenderer {
         }
 
         if (this.sensors.size === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="uwsgate-empty">No sensors subscribed. Type sensor name above to add.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" class="uwsgate-empty">No sensors subscribed. Type sensor name above to add.</td></tr>';
             this.updateSensorCount();
             return;
         }
@@ -8173,19 +8291,30 @@ class UWebSocketGateRenderer extends BaseObjectRenderer {
                         ${pinIcon}
                     </span>
                 </td>
-                <td class="col-chart">
+                <td class="col-add-buttons add-buttons-col">
                     <span class="chart-toggle">
                         <input type="checkbox"
                                id="${escapeHtml(checkboxId)}"
                                class="uwsgate-chart-checkbox chart-toggle-input"
                                data-name="${escapeHtml(sensor.name)}"
                                ${isOnChart ? 'checked' : ''}>
-                        <label class="chart-toggle-label" for="${escapeHtml(checkboxId)}">
+                        <label class="chart-toggle-label" for="${escapeHtml(checkboxId)}" title="Add to Chart">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M3 3v18h18"/><path d="M18 9l-5 5-4-4-3 3"/>
                             </svg>
                         </label>
                     </span>
+                    <button class="dashboard-add-btn"
+                            data-sensor-name="${escapeHtml(sensor.name)}"
+                            data-sensor-label="${escapeHtml(sensor.textname || sensor.name)}"
+                            title="Add to Dashboard">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7" rx="1"/>
+                            <rect x="14" y="3" width="7" height="7" rx="1"/>
+                            <rect x="3" y="14" width="7" height="7" rx="1"/>
+                            <rect x="14" y="14" width="7" height="7" rx="1"/>
+                        </svg>
+                    </button>
                 </td>
                 <td class="col-id">${sensor.id}</td>
                 <td class="col-name" title="${escapeHtml(sensor.textname || sensor.name)}">${escapeHtml(sensor.name)}</td>
@@ -8218,6 +8347,16 @@ class UWebSocketGateRenderer extends BaseObjectRenderer {
                 if (sensor) {
                     this.toggleSensorChart(sensor);
                 }
+            });
+        });
+
+        // Dashboard buttons
+        tbody.querySelectorAll('.dashboard-add-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const sensorName = btn.dataset.sensorName;
+                const sensorLabel = btn.dataset.sensorLabel;
+                showAddToDashboardDialog(sensorName, sensorLabel);
             });
         });
     }
@@ -10816,6 +10955,11 @@ async function openObjectTab(name, serverId, serverName) {
     // Составной ключ для tabs: serverId:objectName
     const tabKey = `${serverId}:${name}`;
 
+    // Переключаемся на Objects view если сейчас на Dashboard
+    if (dashboardManager && dashboardState.currentView !== 'objects') {
+        dashboardManager.switchView('objects');
+    }
+
     if (state.tabs.has(tabKey)) {
         activateTab(tabKey);
         return;
@@ -10930,6 +11074,8 @@ function activateTab(name) {
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
     document.querySelectorAll('.objects-list li').forEach(li => li.classList.remove('active'));
+    // Снимаем выделение с dashboard items в sidebar
+    document.querySelectorAll('.dashboard-item').forEach(item => item.classList.remove('active'));
 
     document.querySelector(`.tab-btn[data-name="${name}"]`)?.classList.add('active');
     document.querySelector(`.tab-panel[data-name="${name}"]`)?.classList.add('active');
@@ -12896,7 +13042,5749 @@ async function loadAppConfig() {
 
 
 
+// === 60-dashboard-base.js ===
+// ============================================================================
+// Dashboard System
+// ============================================================================
+
+const DASHBOARD_VERSION = 1;
+
+// Dashboard state
+const dashboardState = window.dashboardState = {
+    currentView: 'objects', // 'objects' or 'dashboard'
+    currentDashboard: null, // current dashboard name
+    dashboards: new Map(),  // name -> dashboard config
+    serverDashboards: [],   // list of server-side dashboards
+    editMode: false,
+    selectedWidgetId: null, // selected widget for keyboard movement
+    widgets: new Map(),     // widgetId -> widget instance
+    sensorSubscriptions: new Map(), // sensorName -> Set of widgetIds
+    setpointSubscriptions: new Map(), // sensor2Name -> Set of widgetIds (for dual scale)
+    chartSubscriptions: new Map(), // sensorName -> Set of widgetIds (for chart widgets)
+    pendingImport: null     // pending import data
+};
+
+// ============================================================================
+// Base Widget Class
+// ============================================================================
+
+class DashboardWidget {
+    static type = 'base';
+    static displayName = 'Base Widget';
+    static description = 'Base widget class';
+    static icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>';
+    static defaultSize = { width: 2, height: 1 };
+    static minSize = { width: 1, height: 1 };
+    static maxSize = { width: 6, height: 2 };
+
+    constructor(id, config, container) {
+        this.id = id;
+        this.config = config;
+        this.container = container;
+        this.value = null;
+        this.error = null;
+        this.element = null;
+    }
+
+    // Override in subclasses
+    render() {
+        this.element = document.createElement('div');
+        this.element.className = 'widget-content';
+        this.element.innerHTML = '<span class="widget-value">--</span>';
+        this.container.appendChild(this.element);
+    }
+
+    // Override in subclasses
+    update(value, error = null) {
+        this.value = value;
+        this.error = error;
+    }
+
+    // Override in subclasses to return config form HTML
+    static getConfigForm(config = {}) {
+        return `
+            <div class="widget-config-field">
+                <label>Sensor</label>
+                <input type="text" class="widget-input" name="sensor"
+                       value="${config.sensor || ''}" placeholder="Type to search..." autocomplete="off">
+            </div>
+            <div class="widget-config-field">
+                <label>Label</label>
+                <input type="text" class="widget-input" name="label"
+                       value="${config.label || ''}" placeholder="Display label">
+            </div>
+        `;
+    }
+
+    // Override in subclasses to parse form data
+    static parseConfigForm(form) {
+        return {
+            sensor: form.querySelector('[name="sensor"]')?.value || '',
+            label: form.querySelector('[name="label"]')?.value || ''
+        };
+    }
+
+    destroy() {
+        if (this.element) {
+            this.element.remove();
+        }
+    }
+
+    getConfig() {
+        return { ...this.config };
+    }
+}
+
+// ============================================================================
+// Gauge Widget (SVG)
+// ============================================================================
+
+
+
+// === 61-dashboard-widgets.js ===
+class GaugeWidget extends DashboardWidget {
+    static type = 'gauge';
+    static displayName = 'Gauge';
+    static description = 'Circular gauge with needle';
+    static icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>';
+    static defaultSize = { width: 8, height: 4 };
+
+    render() {
+        const { style = 'default' } = this.config;
+
+        this.element = document.createElement('div');
+        this.element.className = 'widget-content';
+
+        switch (style) {
+            case 'semicircle':
+                this.renderClassic();
+                break;
+            case 'arc270':
+                this.renderModern();
+                break;
+            case 'speedometer':
+                this.renderSpeedometer();
+                break;
+            case 'dual':
+                this.renderDualScale();
+                break;
+            default:
+                this.renderDefault();
+        }
+
+        this.container.appendChild(this.element);
+    }
+
+    // === Default style (current design) ===
+    renderDefault() {
+        const { min = 0, max = 100, unit = '' } = this.config;
+
+        this.element.innerHTML = `
+            <svg class="gauge-svg" viewBox="0 0 100 60">
+                <!-- Background arc -->
+                <path class="gauge-background" d="M 10 50 A 40 40 0 0 1 90 50"/>
+                <!-- Sector fill (0 to value) -->
+                <path class="gauge-sector-fill" id="gauge-sector-${this.id}" style="display: none; opacity: 0.3;"/>
+                <!-- Value arc -->
+                <path class="gauge-value-arc" id="gauge-arc-${this.id}" d="M 10 50 A 40 40 0 0 1 90 50"/>
+                <!-- Needle -->
+                <g class="gauge-needle" id="gauge-needle-${this.id}" style="transform-origin: 50px 50px; transform: rotate(-90deg)">
+                    <polygon points="50,15 48,50 52,50"/>
+                </g>
+                <!-- Center -->
+                <circle class="gauge-center" cx="50" cy="50" r="6"/>
+                <!-- Value text -->
+                <text class="gauge-value-text" x="50" y="42" id="gauge-value-${this.id}">0</text>
+                <text class="gauge-unit-text" x="50" y="52">${escapeHtml(unit)}</text>
+                <!-- Min/Max labels -->
+                <text class="gauge-min-text" x="12" y="58">${min}</text>
+                <text class="gauge-max-text" x="88" y="58" text-anchor="end">${max}</text>
+            </svg>
+        `;
+
+        this.arcEl = this.element.querySelector(`#gauge-arc-${this.id}`);
+        this.needleEl = this.element.querySelector(`#gauge-needle-${this.id}`);
+        this.valueEl = this.element.querySelector(`#gauge-value-${this.id}`);
+        this.sectorEl = this.element.querySelector(`#gauge-sector-${this.id}`);
+        this.updateArcColor(0);
+    }
+
+    // === Classic style (chrome rim, trading style) ===
+    renderClassic() {
+        const { min = 0, max = 100, unit = '', zones = [] } = this.config;
+        const ticks = this.generateTicks(min, max, 5);
+
+        // Semicircular gauge with value below on dark background
+        const cx = 50, cy = 46, r = 41;
+
+        this.element.innerHTML = `
+            <svg class="gauge-svg gauge-semicircle" viewBox="0 0 100 72">
+                <defs>
+                    <!-- Chrome gradient for rim -->
+                    <linearGradient id="chrome-${this.id}" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" style="stop-color:#f5f5f5"/>
+                        <stop offset="30%" style="stop-color:#e0e0e0"/>
+                        <stop offset="50%" style="stop-color:#c8c8c8"/>
+                        <stop offset="70%" style="stop-color:#d5d5d5"/>
+                        <stop offset="100%" style="stop-color:#a0a0a0"/>
+                    </linearGradient>
+                    <!-- Face gradient -->
+                    <radialGradient id="face-${this.id}" cx="50%" cy="0%" r="100%">
+                        <stop offset="0%" style="stop-color:#fafafa"/>
+                        <stop offset="100%" style="stop-color:#e8e8e8"/>
+                    </radialGradient>
+                </defs>
+
+                <!-- Chrome rim (semicircle only) -->
+                <path d="M ${cx - r - 5} ${cy} A ${r + 5} ${r + 5} 0 0 1 ${cx + r + 5} ${cy}"
+                      fill="none" stroke="url(#chrome-${this.id})" stroke-width="5"/>
+                <path d="M ${cx - r - 5} ${cy} A ${r + 5} ${r + 5} 0 0 1 ${cx + r + 5} ${cy}"
+                      fill="none" stroke="#888" stroke-width="0.5"/>
+
+                <!-- Inner face (semicircle) -->
+                <path d="M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy} Z"
+                      fill="url(#face-${this.id})" stroke="#999" stroke-width="0.3"/>
+
+                <!-- Sector fill (0 to value) -->
+                <path class="gauge-sector-fill" id="gauge-sector-${this.id}" style="display: none; opacity: 0.3;"/>
+
+                <!-- Color zones arc -->
+                ${this.renderClassicZones(zones, min, max)}
+
+                <!-- Tick marks and labels -->
+                ${ticks.map(t => this.renderClassicTick(t.angle, t.value, t.major)).join('')}
+
+                <!-- Needle -->
+                <g class="gauge-needle-semicircle" id="gauge-needle-${this.id}" style="transform-origin: ${cx}px ${cy}px; transform: rotate(-90deg)">
+                    <polygon points="${cx},${cy - r + 6} ${cx - 2},${cy - 3} ${cx + 2},${cy - 3}" fill="#222"/>
+                    <polygon points="${cx},${cy - r + 8} ${cx - 1.5},${cy - 4} ${cx + 1.5},${cy - 4}" fill="#c00"/>
+                </g>
+
+                <!-- Center cap -->
+                <circle cx="${cx}" cy="${cy}" r="5" fill="url(#chrome-${this.id})" stroke="#666" stroke-width="0.5"/>
+                <circle cx="${cx}" cy="${cy}" r="3" fill="#333"/>
+
+                <!-- Unit inside gauge (center, below cap) -->
+                <text x="${cx}" y="${cy - 8}" fill="#555" text-anchor="middle" font-size="9">${escapeHtml(unit)}</text>
+
+                <!-- Value below gauge (white text on dark widget background) -->
+                <text class="gauge-semicircle-value" x="${cx}" y="${cy + 17}" id="gauge-value-${this.id}">0</text>
+            </svg>
+        `;
+
+        this.needleEl = this.element.querySelector(`#gauge-needle-${this.id}`);
+        this.valueEl = this.element.querySelector(`#gauge-value-${this.id}`);
+        this.sectorEl = this.element.querySelector(`#gauge-sector-${this.id}`);
+    }
+
+    renderClassicZones(zones, min, max) {
+        if (!zones || zones.length === 0) return '';
+
+        const cx = 50, cy = 46, r = 34;
+        let html = '';
+
+        for (const zone of zones) {
+            const startPercent = (zone.from - min) / (max - min);
+            const endPercent = (zone.to - min) / (max - min);
+            // Position angles for cos/sin: LEFT (180°) to RIGHT (360°) via TOP (270°)
+            const startAngle = 180 + (startPercent * 180);
+            const endAngle = 180 + (endPercent * 180);
+
+            const startRad = startAngle * Math.PI / 180;
+            const endRad = endAngle * Math.PI / 180;
+
+            const x1 = cx + r * Math.cos(startRad);
+            const y1 = cy + r * Math.sin(startRad);
+            const x2 = cx + r * Math.cos(endRad);
+            const y2 = cy + r * Math.sin(endRad);
+
+            // Arc spans from startAngle to endAngle (sweep=1 for upper arc in SVG Y-down)
+            const arcSpan = Math.abs(endAngle - startAngle);
+            const largeArc = arcSpan > 180 ? 1 : 0;
+
+            html += `<path d="M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}"
+                          fill="none" stroke="${zone.color}" stroke-width="4" opacity="0.8"/>`;
+        }
+
+        return html;
+    }
+
+    renderClassicTick(angle, value, major) {
+        const cx = 50, cy = 46;
+        const outerR = 36;
+        const innerR = major ? 30 : 33;
+        const textR = 23;
+
+        // Convert from lower semicircle angles (180→0) to upper semicircle (180→360)
+        const upperAngle = 360 - angle;
+        const rad = upperAngle * Math.PI / 180;
+        const x1 = cx + outerR * Math.cos(rad);
+        const y1 = cy + outerR * Math.sin(rad);
+        const x2 = cx + innerR * Math.cos(rad);
+        const y2 = cy + innerR * Math.sin(rad);
+        const tx = cx + textR * Math.cos(rad);
+        let ty = cy + textR * Math.sin(rad);
+
+        // Raise extreme labels (0 and max) by 3px so they don't extend beyond gauge background
+        if (angle === 180 || angle === 0) {
+            ty -= 3;
+        }
+
+        let html = `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"
+                         stroke="#444" stroke-width="${major ? 1 : 0.5}"/>`;
+
+        if (major) {
+            html += `<text x="${tx}" y="${ty}" class="gauge-semicircle-tick" text-anchor="middle" dominant-baseline="middle">${value}</text>`;
+        }
+
+        return html;
+    }
+
+    // === Modern style (Lada dashboard style) ===
+    renderModern() {
+        const { min = 0, max = 100, unit = '', zones = [] } = this.config;
+        const ticks = this.generateTicks(min, max, 5);
+
+        // Match speedometer outer diameter with thicker bezel
+        const cx = 60, cy = 55, r = 51;
+
+        this.element.innerHTML = `
+            <svg class="gauge-svg gauge-arc270" viewBox="0 0 120 115">
+                <defs>
+                    <!-- Chrome rim gradient (matching speedometer) -->
+                    <linearGradient id="arc270-chrome-${this.id}" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" style="stop-color:#505050"/>
+                        <stop offset="15%" style="stop-color:#404040"/>
+                        <stop offset="50%" style="stop-color:#303030"/>
+                        <stop offset="85%" style="stop-color:#404040"/>
+                        <stop offset="100%" style="stop-color:#353535"/>
+                    </linearGradient>
+                    <!-- Glow filter -->
+                    <filter id="glow-${this.id}" x="-50%" y="-50%" width="200%" height="200%">
+                        <feGaussianBlur stdDeviation="2" result="blur"/>
+                        <feMerge>
+                            <feMergeNode in="blur"/>
+                            <feMergeNode in="SourceGraphic"/>
+                        </feMerge>
+                    </filter>
+                    <!-- Needle gradient -->
+                    <linearGradient id="needle-grad-${this.id}" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" style="stop-color:#ff6b35"/>
+                        <stop offset="100%" style="stop-color:#f7931e"/>
+                    </linearGradient>
+                </defs>
+
+                <!-- Outer chrome bezel (thicker, matching speedometer) -->
+                <circle cx="${cx}" cy="${cy}" r="${r + 6}" fill="url(#arc270-chrome-${this.id})" stroke="#555" stroke-width="0.5"/>
+
+                <!-- Inner dark ring (matching speedometer) -->
+                <circle cx="${cx}" cy="${cy}" r="${r + 1}" fill="#252525"/>
+
+                <!-- Dark background -->
+                <circle cx="${cx}" cy="${cy}" r="${r}" fill="#1a1a1a"/>
+
+                <!-- Outer glow ring -->
+                <circle cx="${cx}" cy="${cy}" r="${r - 2}" fill="none" stroke="#2a4a5a" stroke-width="2" filter="url(#glow-${this.id})"/>
+
+                <!-- Inner ring -->
+                <circle cx="${cx}" cy="${cy}" r="${r - 4}" fill="none" stroke="#1e3a4a" stroke-width="1"/>
+
+                <!-- Sector fill (0 to value) -->
+                <path class="gauge-sector-fill" id="gauge-sector-${this.id}" style="display: none; opacity: 0.3;"/>
+
+                <!-- Red zone (if defined) -->
+                ${this.renderModernRedZone(zones, min, max)}
+
+                <!-- Tick marks and numbers -->
+                ${ticks.map(t => this.renderModernTick(t.angle, t.value, t.major)).join('')}
+
+                <!-- Needle -->
+                <g class="gauge-needle-arc270" id="gauge-needle-${this.id}" style="transform-origin: ${cx}px ${cy}px; transform: rotate(-135deg)">
+                    <line x1="${cx}" y1="${cy}" x2="${cx}" y2="${cy - r + 10}" stroke="#ff6b35" stroke-width="2" stroke-linecap="round"/>
+                    <circle cx="${cx}" cy="${cy}" r="4" fill="#333" stroke="#ff6b35" stroke-width="1"/>
+                </g>
+
+                <!-- Center cap -->
+                <circle cx="${cx}" cy="${cy}" r="6" fill="#222" stroke="#444" stroke-width="1"/>
+                <circle cx="${cx}" cy="${cy}" r="3" fill="#333"/>
+
+                <!-- Unit label (centered) -->
+                <text class="gauge-arc270-unit" x="${cx}" y="${cy + 22}">${escapeHtml(unit)}</text>
+
+                <!-- Value display (lower position, inside gauge) -->
+                <text class="gauge-arc270-value-small" x="${cx}" y="${cy + 35}" id="gauge-value-${this.id}">0</text>
+            </svg>
+        `;
+
+        this.needleEl = this.element.querySelector(`#gauge-needle-${this.id}`);
+        this.valueEl = this.element.querySelector(`#gauge-value-${this.id}`);
+        this.sectorEl = this.element.querySelector(`#gauge-sector-${this.id}`);
+    }
+
+    renderModernRedZone(zones, min, max) {
+        if (!zones || zones.length === 0) return '';
+
+        const cx = 60, cy = 55, r = 38;
+        let html = '';
+
+        // Find red/warning zones (typically high values)
+        for (const zone of zones) {
+            const startPercent = (zone.from - min) / (max - min);
+            const endPercent = (zone.to - min) / (max - min);
+            // Position angles for cos/sin: BOTTOM-LEFT (135°) to BOTTOM-RIGHT (45°) via TOP (270°)
+            const startAngle = 135 + (startPercent * 270);
+            const endAngle = 135 + (endPercent * 270);
+
+            const startRad = startAngle * Math.PI / 180;
+            const endRad = endAngle * Math.PI / 180;
+
+            const x1 = cx + r * Math.cos(startRad);
+            const y1 = cy + r * Math.sin(startRad);
+            const x2 = cx + r * Math.cos(endRad);
+            const y2 = cy + r * Math.sin(endRad);
+
+            // Arc spans from startAngle to endAngle (increasing angles with sweep=1)
+            const arcSpan = Math.abs(endAngle - startAngle);
+            const largeArc = arcSpan > 180 ? 1 : 0;
+
+            html += `<path d="M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}"
+                          fill="none" stroke="${zone.color}" stroke-width="4" opacity="0.8"/>`;
+        }
+
+        return html;
+    }
+
+    renderModernTick(angle, value, major) {
+        const cx = 60, cy = 55;
+        const outerR = 42;
+        const innerR = major ? 34 : 38;
+        const textR = 26;
+
+        // Convert from semicircle position angles (180° to 0°) to arc270 (135° to 405°)
+        const adjustedAngle = 135 + (180 - angle) / 180 * 270;
+        const rad = adjustedAngle * Math.PI / 180;
+
+        const x1 = cx + outerR * Math.cos(rad);
+        const y1 = cy + outerR * Math.sin(rad);
+        const x2 = cx + innerR * Math.cos(rad);
+        const y2 = cy + innerR * Math.sin(rad);
+        const tx = cx + textR * Math.cos(rad);
+        const ty = cy + textR * Math.sin(rad);
+
+        let html = `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"
+                         stroke="${major ? '#888' : '#555'}" stroke-width="${major ? 1.5 : 0.5}"/>`;
+
+        if (major) {
+            html += `<text x="${tx}" y="${ty}" class="gauge-arc270-tick" text-anchor="middle" dominant-baseline="middle">${value}</text>`;
+        }
+
+        return html;
+    }
+
+    // === Speedometer style (realistic automotive gauge) ===
+    renderSpeedometer() {
+        const { min = 0, max = 4000, unit = 'RPM', zones = [] } = this.config;
+        const majorStep = this.calculateMajorStep(min, max);
+        const ticks = this.generateSpeedoTicks(min, max, majorStep);
+
+        const cx = 60, cy = 55, r = 48;
+
+        this.element.innerHTML = `
+            <svg class="gauge-svg gauge-speedometer" viewBox="0 0 120 115">
+                <defs>
+                    <!-- Chrome rim gradient -->
+                    <linearGradient id="speedo-chrome-${this.id}" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" style="stop-color:#ffffff"/>
+                        <stop offset="15%" style="stop-color:#e8e8e8"/>
+                        <stop offset="30%" style="stop-color:#c0c0c0"/>
+                        <stop offset="50%" style="stop-color:#a8a8a8"/>
+                        <stop offset="70%" style="stop-color:#c0c0c0"/>
+                        <stop offset="85%" style="stop-color:#d8d8d8"/>
+                        <stop offset="100%" style="stop-color:#909090"/>
+                    </linearGradient>
+
+                    <!-- Inner chrome ring -->
+                    <linearGradient id="speedo-chrome-inner-${this.id}" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" style="stop-color:#606060"/>
+                        <stop offset="50%" style="stop-color:#404040"/>
+                        <stop offset="100%" style="stop-color:#606060"/>
+                    </linearGradient>
+
+                    <!-- Face gradient (off-white) -->
+                    <radialGradient id="speedo-face-${this.id}" cx="50%" cy="30%" r="70%">
+                        <stop offset="0%" style="stop-color:#f8f8f8"/>
+                        <stop offset="100%" style="stop-color:#e0e0e0"/>
+                    </radialGradient>
+
+                    <!-- Shadow filter -->
+                    <filter id="speedo-shadow-${this.id}" x="-20%" y="-20%" width="140%" height="140%">
+                        <feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity="0.3"/>
+                    </filter>
+
+                    <!-- Needle gradient -->
+                    <linearGradient id="speedo-needle-${this.id}" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" style="stop-color:#cc0000"/>
+                        <stop offset="50%" style="stop-color:#ff0000"/>
+                        <stop offset="100%" style="stop-color:#cc0000"/>
+                    </linearGradient>
+                </defs>
+
+                <!-- Outer chrome bezel -->
+                <circle cx="${cx}" cy="${cy}" r="${r + 6}" fill="url(#speedo-chrome-${this.id})"
+                        stroke="#707070" stroke-width="0.5"/>
+
+                <!-- Inner dark ring -->
+                <circle cx="${cx}" cy="${cy}" r="${r + 1}" fill="url(#speedo-chrome-inner-${this.id})"/>
+
+                <!-- Main face -->
+                <circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#speedo-face-${this.id})"
+                        filter="url(#speedo-shadow-${this.id})"/>
+
+                <!-- Sector fill (0 to value) -->
+                <path class="gauge-sector-fill" id="gauge-sector-${this.id}" style="display: none; opacity: 0.3;"/>
+
+                <!-- Color zones (danger zone etc) -->
+                ${this.renderSpeedoZones(zones, min, max, cx, cy, r - 6)}
+
+                <!-- Tick marks and numbers -->
+                ${ticks.map(t => this.renderSpeedoTick(t, cx, cy, r)).join('')}
+
+                <!-- Needle assembly -->
+                <g class="gauge-needle-tacho" id="gauge-needle-${this.id}" style="transform-origin: ${cx}px ${cy}px; transform: rotate(-135deg)">
+                    <!-- Needle shadow -->
+                    <polygon points="${cx},${cy - r + 14} ${cx - 3},${cy + 8} ${cx + 3},${cy + 8}"
+                             fill="rgba(0,0,0,0.2)" transform="translate(1, 1)"/>
+                    <!-- Needle body -->
+                    <polygon points="${cx},${cy - r + 14} ${cx - 2.5},${cy + 6} ${cx + 2.5},${cy + 6}"
+                             fill="url(#speedo-needle-${this.id})" stroke="#800000" stroke-width="0.3"/>
+                    <!-- Needle highlight -->
+                    <line x1="${cx}" y1="${cy - r + 16}" x2="${cx}" y2="${cy - 4}"
+                          stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+                </g>
+
+                <!-- Center cap (layered for 3D effect) -->
+                <circle cx="${cx}" cy="${cy}" r="10" fill="url(#speedo-chrome-${this.id})"
+                        stroke="#505050" stroke-width="0.5"/>
+                <circle cx="${cx}" cy="${cy}" r="7" fill="#2a2a2a"/>
+                <circle cx="${cx}" cy="${cy}" r="5" fill="#1a1a1a" stroke="#333" stroke-width="0.5"/>
+                <circle cx="${cx}" cy="${cy}" r="2" fill="#444"/>
+
+                <!-- Unit label (above digital display) -->
+                <text class="speedo-unit" x="${cx}" y="${cy + 21}">${escapeHtml(unit)}</text>
+
+                <!-- Digital display -->
+                <rect x="${cx - 21}" y="${cy + 27}" width="42" height="11" rx="2"
+                      fill="#2a2a2a" stroke="#1a1a1a" stroke-width="0.5"/>
+                <rect x="${cx - 20}" y="${cy + 28}" width="40" height="9" rx="1.5"
+                      fill="#1e1e1e"/>
+                <text class="speedo-digital" x="${cx}" y="${cy + 35}" id="gauge-digital-${this.id}">0</text>
+            </svg>
+        `;
+
+        this.needleEl = this.element.querySelector(`#gauge-needle-${this.id}`);
+        this.digitalEl = this.element.querySelector(`#gauge-digital-${this.id}`);
+        this.sectorEl = this.element.querySelector(`#gauge-sector-${this.id}`);
+        // valueEl not used in speedometer - digital display shows the value
+    }
+
+    // === Dual Scale style (main value + target indicator) ===
+    renderDualScale() {
+        const { min = 0, max = 100, unit = '', zones = [], sensor2 = '' } = this.config;
+        const hasSensor2 = sensor2 && sensor2.trim() !== '';
+
+        const cx = 60, cy = 62, r = 55;
+        const majorStep = this.calculateMajorStep(min, max);
+        const ticks = this.generateSpeedoTicks(min, max, majorStep);
+
+        this.element.innerHTML = `
+            <svg class="gauge-svg gauge-dual" viewBox="0 0 120 125">
+                <defs>
+                    <!-- Dark background gradient -->
+                    <radialGradient id="dual-bg-${this.id}" cx="50%" cy="30%" r="70%">
+                        <stop offset="0%" style="stop-color:#3a3a3a"/>
+                        <stop offset="100%" style="stop-color:#1a1a1a"/>
+                    </radialGradient>
+
+                    <!-- Chrome bezel gradient -->
+                    <linearGradient id="dual-chrome-${this.id}" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" style="stop-color:#606060"/>
+                        <stop offset="15%" style="stop-color:#505050"/>
+                        <stop offset="50%" style="stop-color:#404040"/>
+                        <stop offset="85%" style="stop-color:#505050"/>
+                        <stop offset="100%" style="stop-color:#454545"/>
+                    </linearGradient>
+
+                    <!-- Cyan glow filter -->
+                    <filter id="dual-glow-${this.id}" x="-50%" y="-50%" width="200%" height="200%">
+                        <feGaussianBlur stdDeviation="1.5" result="blur"/>
+                        <feMerge>
+                            <feMergeNode in="blur"/>
+                            <feMergeNode in="SourceGraphic"/>
+                        </feMerge>
+                    </filter>
+
+                    <!-- Orange glow filter for target -->
+                    <filter id="dual-target-glow-${this.id}" x="-50%" y="-50%" width="200%" height="200%">
+                        <feGaussianBlur stdDeviation="1" result="blur"/>
+                        <feMerge>
+                            <feMergeNode in="blur"/>
+                            <feMergeNode in="SourceGraphic"/>
+                        </feMerge>
+                    </filter>
+
+                    <!-- Needle gradient (cyan) -->
+                    <linearGradient id="dual-needle-${this.id}" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" style="stop-color:#00a8cc"/>
+                        <stop offset="50%" style="stop-color:#00d4ff"/>
+                        <stop offset="100%" style="stop-color:#00a8cc"/>
+                    </linearGradient>
+                </defs>
+
+                <!-- Outer chrome bezel -->
+                <circle cx="${cx}" cy="${cy}" r="${r + 6}" fill="url(#dual-chrome-${this.id})"
+                        stroke="#303030" stroke-width="0.5"/>
+
+                <!-- Inner ring -->
+                <circle cx="${cx}" cy="${cy}" r="${r + 1}" fill="#2a2a2a"/>
+
+                <!-- Main face (dark) -->
+                <circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#dual-bg-${this.id})"/>
+
+                <!-- Sector fill (0 to value) -->
+                <path class="gauge-sector-fill" id="gauge-sector-${this.id}" style="display: none; opacity: 0.3;"/>
+
+                <!-- Color zones -->
+                ${this.renderSpeedoZones(zones, min, max, cx, cy, r - 6)}
+
+                <!-- Scale: tick marks -->
+                ${ticks.map(t => this.renderDualOuterTick(t, cx, cy, r)).join('')}
+
+                <!-- Target arc (cyan, from 0 to target value) - updated via JS -->
+                <path id="gauge-target-arc-${this.id}" class="dual-target-arc"
+                      d="" fill="none" stroke="#00d4ff" stroke-width="2.5" opacity="0.6"
+                      filter="url(#dual-target-glow-${this.id})" style="display: none;"/>
+
+                <!-- Target indicator (invisible, used only for angle calculation) -->
+                <g class="dual-target-marker" id="gauge-target-${this.id}" style="transform-origin: ${cx}px ${cy}px; transform: rotate(-135deg); display: none;"></g>
+
+                <!-- Needle assembly (cyan) -->
+                <g class="gauge-needle-dual" id="gauge-needle-${this.id}" style="transform-origin: ${cx}px ${cy}px; transform: rotate(-135deg)">
+                    <!-- Needle glow -->
+                    <polygon points="${cx},${cy - r + 14} ${cx - 2.5},${cy + 6} ${cx + 2.5},${cy + 6}"
+                             fill="#00d4ff" filter="url(#dual-glow-${this.id})" opacity="0.5"/>
+                    <!-- Needle body -->
+                    <polygon points="${cx},${cy - r + 14} ${cx - 2},${cy + 5} ${cx + 2},${cy + 5}"
+                             fill="url(#dual-needle-${this.id})" stroke="#008899" stroke-width="0.3"/>
+                    <!-- Needle highlight -->
+                    <line x1="${cx}" y1="${cy - r + 16}" x2="${cx}" y2="${cy - 4}"
+                          stroke="rgba(255,255,255,0.4)" stroke-width="0.8"/>
+                </g>
+
+                <!-- Center cap (cyan glow) -->
+                <circle cx="${cx}" cy="${cy}" r="10" fill="#2a2a2a" stroke="#00d4ff" stroke-width="1"/>
+                <circle cx="${cx}" cy="${cy}" r="7" fill="#00d4ff" filter="url(#dual-glow-${this.id})"/>
+                <circle cx="${cx}" cy="${cy}" r="5" fill="#1a1a1a"/>
+                <circle cx="${cx}" cy="${cy}" r="2" fill="#00d4ff"/>
+
+                <!-- Unit label -->
+                <text class="dual-unit" x="${cx}" y="${cy + 21}">${escapeHtml(unit)}</text>
+
+                <!-- Digital display for main value (white digits) -->
+                <rect x="${cx - 21}" y="${cy + 27}" width="42" height="11" rx="2"
+                      fill="#1a1a1a" stroke="#333" stroke-width="0.5"/>
+                <rect x="${cx - 20}" y="${cy + 28}" width="40" height="9" rx="1.5"
+                      fill="#0a0a0a"/>
+                <text class="dual-digital-white" x="${cx}" y="${cy + 35}" id="gauge-digital-${this.id}">--</text>
+
+                <!-- Target value (small, below digital display) - hidden if no sensor2 -->
+                <text class="dual-target-small" x="${cx}" y="${cy + 44}" id="gauge-target-digital-${this.id}"
+                      style="${hasSensor2 ? '' : 'display: none;'}">${hasSensor2 ? '--' : ''}</text>
+            </svg>
+        `;
+
+        this.needleEl = this.element.querySelector(`#gauge-needle-${this.id}`);
+        this.digitalEl = this.element.querySelector(`#gauge-digital-${this.id}`);
+        this.targetEl = this.element.querySelector(`#gauge-target-${this.id}`);
+        this.targetArcEl = this.element.querySelector(`#gauge-target-arc-${this.id}`);
+        this.targetDigitalEl = this.element.querySelector(`#gauge-target-digital-${this.id}`);
+        this.sectorEl = this.element.querySelector(`#gauge-sector-${this.id}`);
+        // Store dimensions for arc calculation
+        this.dualParams = { cx, cy, r, arcR: r - 2 };
+    }
+
+    renderDualOuterTick(tick, cx, cy, r) {
+        const { angle, value, major } = tick;
+        const rad = angle * Math.PI / 180;
+
+        // Outer scale: ticks at edge, numbers between ticks and inner dots
+        const outerR = r - 4;      // tick outer edge
+        const innerR = major ? r - 11 : r - 7;  // tick inner edge
+        const textR = r - 19;      // numbers position (between ticks and dots)
+
+        const x1 = cx + outerR * Math.cos(rad);
+        const y1 = cy + outerR * Math.sin(rad);
+        const x2 = cx + innerR * Math.cos(rad);
+        const y2 = cy + innerR * Math.sin(rad);
+
+        let html = `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"
+                         stroke="#ccc" stroke-width="${major ? 1.8 : 0.8}"/>`;
+
+        if (major) {
+            const tx = cx + textR * Math.cos(rad);
+            const ty = cy + textR * Math.sin(rad);
+            html += `<text x="${tx}" y="${ty}" class="dual-outer-label"
+                          text-anchor="middle" dominant-baseline="middle">${value}</text>`;
+        }
+
+        return html;
+    }
+
+    calculateMajorStep(min, max) {
+        const range = max - min;
+        if (range <= 100) return 10;
+        if (range <= 500) return 50;
+        if (range <= 1000) return 100;
+        if (range <= 5000) return 500;
+        if (range <= 10000) return 1000;
+        return 2000;
+    }
+
+    generateSpeedoTicks(min, max, majorStep) {
+        const ticks = [];
+        const minorStep = majorStep / 5;
+
+        for (let v = min; v <= max; v += minorStep) {
+            const isMajor = Math.abs(v % majorStep) < 0.001 || Math.abs(v % majorStep - majorStep) < 0.001;
+            const percent = (v - min) / (max - min);
+            // 270° arc for positioning with cos/sin (135° to 405°/45°)
+            const angle = 135 + (percent * 270);
+            ticks.push({ value: Math.round(v), angle, major: isMajor });
+        }
+
+        return ticks;
+    }
+
+    renderSpeedoTick(tick, cx, cy, r) {
+        const { angle, value, major } = tick;
+        const rad = angle * Math.PI / 180;
+
+        const outerR = r - 4;
+        const innerR = major ? r - 12 : r - 8;
+        const textR = r - 24;
+
+        const x1 = cx + outerR * Math.cos(rad);
+        const y1 = cy + outerR * Math.sin(rad);
+        const x2 = cx + innerR * Math.cos(rad);
+        const y2 = cy + innerR * Math.sin(rad);
+
+        let html = `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"
+                         stroke="#333" stroke-width="${major ? 1.5 : 0.7}"/>`;
+
+        if (major) {
+            const tx = cx + textR * Math.cos(rad);
+            const ty = cy + textR * Math.sin(rad);
+            html += `<text x="${tx}" y="${ty}" class="speedo-tick-label"
+                          text-anchor="middle" dominant-baseline="middle">${value}</text>`;
+        }
+
+        return html;
+    }
+
+    renderSpeedoZones(zones, min, max, cx, cy, r) {
+        if (!zones || zones.length === 0) return '';
+
+        let html = '';
+        for (const zone of zones) {
+            const startPercent = (zone.from - min) / (max - min);
+            const endPercent = (zone.to - min) / (max - min);
+            // Position angles for cos/sin (135° to 405°/45°)
+            const startAngle = 135 + (startPercent * 270);
+            const endAngle = 135 + (endPercent * 270);
+
+            const startRad = startAngle * Math.PI / 180;
+            const endRad = endAngle * Math.PI / 180;
+
+            const x1 = cx + r * Math.cos(startRad);
+            const y1 = cy + r * Math.sin(startRad);
+            const x2 = cx + r * Math.cos(endRad);
+            const y2 = cy + r * Math.sin(endRad);
+
+            // Arc spans from startAngle to endAngle (increasing angles with sweep=1)
+            const arcSpan = Math.abs(endAngle - startAngle);
+            const largeArc = arcSpan > 180 ? 1 : 0;
+
+            html += `<path d="M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}"
+                          fill="none" stroke="${zone.color}" stroke-width="6" opacity="0.7"/>`;
+        }
+
+        return html;
+    }
+
+    // === Shared helpers ===
+    generateTicks(min, max, majorCount) {
+        const ticks = [];
+        const range = max - min;
+        const majorStep = range / majorCount;
+        const minorPerMajor = 4;
+
+        for (let i = 0; i <= majorCount; i++) {
+            const value = min + (i * majorStep);
+            const percent = i / majorCount;
+            // Position angle for cos/sin: 180° (left) to 0° (right) via 90° (bottom)
+            const angle = 180 - (percent * 180);
+            ticks.push({ angle, value: Math.round(value), major: true });
+
+            // Minor ticks
+            if (i < majorCount) {
+                for (let j = 1; j <= minorPerMajor; j++) {
+                    const minorPercent = (i + j / (minorPerMajor + 1)) / majorCount;
+                    const minorAngle = 180 - (minorPercent * 180);
+                    const minorValue = min + (minorPercent * range);
+                    ticks.push({ angle: minorAngle, value: Math.round(minorValue), major: false });
+                }
+            }
+        }
+
+        return ticks;
+    }
+
+    getColorForValue(value) {
+        const { zones = [] } = this.config;
+
+        if (zones.length === 0) {
+            return 'var(--accent-blue)';
+        }
+
+        for (const zone of zones) {
+            if (value >= zone.from && value <= zone.to) {
+                return zone.color;
+            }
+        }
+
+        return 'var(--accent-blue)';
+    }
+
+    updateArcColor(value) {
+        if (this.arcEl) {
+            this.arcEl.style.stroke = this.getColorForValue(value);
+        }
+    }
+
+    update(value, error = null) {
+        super.update(value, error);
+
+        const { min = 0, max = 100, decimals = 1, style = 'default' } = this.config;
+
+        // For speedometer/dual, check digitalEl; for others, check valueEl
+        const hasDisplay = (style === 'speedometer' || style === 'dual') ? this.digitalEl : this.valueEl;
+        if (!hasDisplay && !this.needleEl) return;
+
+        if (error) {
+            if (this.valueEl) this.valueEl.textContent = 'ERR';
+            if (this.digitalEl) this.digitalEl.textContent = 'ERR';
+            if (this.needleEl) this.needleEl.classList.remove('overrange');
+            return;
+        }
+
+        const numValue = parseFloat(value) || 0;
+        const clampedValue = Math.max(min, Math.min(max, numValue));
+        const percent = (clampedValue - min) / (max - min);
+
+        // Detect overrange condition
+        const isOverrange = numValue < min || numValue > max;
+
+        // Update value text (always show actual value, not clamped)
+        if (this.valueEl) this.valueEl.textContent = numValue.toFixed(decimals);
+
+        // Update needle rotation based on style
+        // CSS rotate: 0 = UP, positive = clockwise
+        // Position angle (math): 0 = RIGHT, positive = counter-clockwise in SVG (Y down)
+        // To point at position P: CSS angle = P - 270
+        let angle;
+        switch (style) {
+            case 'semicircle':
+                // 180° arc: LEFT (180°) to RIGHT (360°) via TOP (270°) - UPPER semicircle
+                // Position = 180 + percent*180, so CSS = (180 + p*180) - 270 = -90 + p*180
+                angle = -90 + (percent * 180);
+                break;
+            case 'arc270':
+                // 270° arc: -135 to +135
+                angle = -135 + (percent * 270);
+                break;
+            case 'speedometer':
+                // 270° arc: -135 to +135 (same as arc270)
+                angle = -135 + (percent * 270);
+                // Update digital display (use decimals config)
+                if (this.digitalEl) {
+                    this.digitalEl.textContent = numValue.toFixed(decimals);
+                }
+                break;
+            case 'dual':
+                // 270° arc: -135 to +135 (same as speedometer)
+                angle = -135 + (percent * 270);
+                // Update digital display
+                if (this.digitalEl) {
+                    this.digitalEl.textContent = numValue.toFixed(decimals);
+                }
+                break;
+            default:
+                // 180° arc: LEFT (180°) to RIGHT (360°) via TOP (270°) - UPPER semicircle
+                // Position = 180 + percent*180, so CSS = (180 + p*180) - 270 = -90 + p*180
+                angle = -90 + (percent * 180);
+        }
+
+        // Apply needle rotation with CSS variable for animation
+        this.needleEl.style.setProperty('--needle-angle', `${angle}deg`);
+        this.needleEl.style.transform = `rotate(${angle}deg)`;
+
+        // Toggle overrange shake animation
+        if (isOverrange) {
+            this.needleEl.classList.add('overrange');
+        } else {
+            this.needleEl.classList.remove('overrange');
+        }
+
+        // Update arc color for default style
+        if (style === 'default') {
+            this.updateArcColor(numValue);
+            if (this.arcEl) {
+                const arcLength = Math.PI * 40;
+                const dashLength = percent * arcLength;
+                this.arcEl.style.strokeDasharray = `${dashLength} ${arcLength}`;
+            }
+        }
+
+        // Update sector fill
+        this.lastValue = numValue;
+        this.updateSectorFill(percent);
+    }
+
+    // Update target indicator for dual scale gauge (instant, no animation)
+    updateSetpoint(value, error = null) {
+        if (!this.targetEl) return;
+
+        const { min = 0, max = 100, style = 'default', decimals = 1 } = this.config;
+
+        // Only for dual style
+        if (style !== 'dual') return;
+
+        if (error) {
+            this.targetEl.style.display = 'none';
+            if (this.targetArcEl) this.targetArcEl.style.display = 'none';
+            if (this.targetDigitalEl) this.targetDigitalEl.textContent = 'ERR';
+            return;
+        }
+
+        const numValue = parseFloat(value) || 0;
+        const clampedValue = Math.max(min, Math.min(max, numValue));
+        const percent = (clampedValue - min) / (max - min);
+
+        // Calculate rotation angle (270° arc: -135° to +135°)
+        const angle = -135 + (percent * 270);
+
+        // Set rotation directly without transition (instant move)
+        this.targetEl.style.transform = `rotate(${angle}deg)`;
+        this.targetEl.style.display = 'block';
+
+        // Update target digital display
+        if (this.targetDigitalEl) {
+            this.targetDigitalEl.textContent = numValue.toFixed(decimals);
+        }
+
+        // Update target arc (from 0/min to target value)
+        if (this.targetArcEl && this.dualParams) {
+            const { cx, cy, arcR } = this.dualParams;
+            const startAngle = -135; // Start at min (0)
+            const endAngle = angle;  // End at target
+
+            if (percent > 0.01) {
+                const arcPath = this.describeArc(cx, cy, arcR, startAngle, endAngle);
+                this.targetArcEl.setAttribute('d', arcPath);
+                this.targetArcEl.style.display = 'block';
+            } else {
+                this.targetArcEl.style.display = 'none';
+            }
+        }
+    }
+
+    // Helper to create SVG arc path
+    describeArc(cx, cy, r, startAngle, endAngle) {
+        const start = this.polarToCartesian(cx, cy, r, endAngle);
+        const end = this.polarToCartesian(cx, cy, r, startAngle);
+        const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+        return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArcFlag} 0 ${end.x} ${end.y}`;
+    }
+
+    polarToCartesian(cx, cy, r, angleDeg) {
+        const angleRad = (angleDeg - 90) * Math.PI / 180;
+        return {
+            x: cx + r * Math.cos(angleRad),
+            y: cy + r * Math.sin(angleRad)
+        };
+    }
+
+    // Helper to create SVG sector (pie slice) path
+    describeSector(cx, cy, r, startAngle, endAngle) {
+        const start = this.polarToCartesian(cx, cy, r, startAngle);
+        const end = this.polarToCartesian(cx, cy, r, endAngle);
+        const largeArcFlag = Math.abs(endAngle - startAngle) > 180 ? 1 : 0;
+        const sweepFlag = endAngle > startAngle ? 1 : 0;
+        return `M ${cx} ${cy} L ${start.x} ${start.y} A ${r} ${r} 0 ${largeArcFlag} ${sweepFlag} ${end.x} ${end.y} Z`;
+    }
+
+    // Animate sector fill by reading actual needle position from CSS computed style
+    // This ensures perfect sync with CSS transition animation
+    animateSectorTo(targetPercent) {
+        const { fillSector = false, style = 'default' } = this.config;
+        if (!fillSector || !this.sectorEl || !this.needleEl) return;
+
+        // Cancel any running animation
+        if (this.sectorAnimationId) {
+            cancelAnimationFrame(this.sectorAnimationId);
+        }
+
+        // Store target for comparison
+        this.targetPercent = targetPercent;
+        const startTime = performance.now();
+        const maxDuration = 1500; // Safety timeout slightly longer than CSS transition (1.2s)
+
+        const animate = () => {
+            // Read actual needle angle from computed transform
+            const computedStyle = window.getComputedStyle(this.needleEl);
+            const transform = computedStyle.transform;
+
+            let currentPercent = targetPercent;
+
+            if (transform && transform !== 'none') {
+                // Parse matrix: matrix(a, b, c, d, e, f)
+                const match = transform.match(/matrix\(([^)]+)\)/);
+                if (match) {
+                    const values = match[1].split(', ').map(parseFloat);
+                    const a = values[0];
+                    const b = values[1];
+                    // Calculate rotation angle in radians, then convert to degrees
+                    const angleRad = Math.atan2(b, a);
+                    const angleDeg = angleRad * (180 / Math.PI);
+
+                    // Convert angle to percent based on gauge style
+                    switch (style) {
+                        case 'semicircle':
+                            // Range: -90° to +90°, so 180° total
+                            currentPercent = (angleDeg + 90) / 180;
+                            break;
+                        case 'arc270':
+                        case 'speedometer':
+                        case 'dual':
+                            // Range: -135° to +135°, so 270° total
+                            currentPercent = (angleDeg + 135) / 270;
+                            break;
+                        default:
+                            // Default: -90° to +90°, so 180° total
+                            currentPercent = (angleDeg + 90) / 180;
+                            break;
+                    }
+                }
+            }
+
+            currentPercent = Math.max(0, Math.min(1, currentPercent));
+            this.updateSectorPath(currentPercent);
+            this.displayedPercent = currentPercent;
+
+            // Continue animating until needle stops (close to target or timeout)
+            const elapsed = performance.now() - startTime;
+            if (Math.abs(currentPercent - this.targetPercent) > 0.002 && elapsed < maxDuration) {
+                this.sectorAnimationId = requestAnimationFrame(animate);
+            }
+        };
+
+        this.sectorAnimationId = requestAnimationFrame(animate);
+    }
+
+    // Update sector path for given percent (called during animation)
+    updateSectorPath(percent) {
+        if (!this.sectorEl) return;
+
+        if (percent <= 0.001) {
+            this.sectorEl.style.display = 'none';
+            return;
+        }
+
+        this.sectorEl.style.display = 'block';
+
+        const { style = 'default' } = this.config;
+        let path = '';
+
+        switch (style) {
+            case 'semicircle': {
+                const cx = 50, cy = 46, r = 34;
+                const startAngle = -90;
+                const endAngle = -90 + (percent * 180);
+                path = this.describeSector(cx, cy, r, startAngle, endAngle);
+                break;
+            }
+            case 'arc270':
+            case 'speedometer': {
+                const cx = 60, cy = 55, r = 44;
+                const startAngle = -135;
+                const endAngle = -135 + (percent * 270);
+                path = this.describeSector(cx, cy, r, startAngle, endAngle);
+                break;
+            }
+            case 'dual': {
+                const cx = 60, cy = 62, r = 44;
+                const startAngle = -135;
+                const endAngle = -135 + (percent * 270);
+                path = this.describeSector(cx, cy, r, startAngle, endAngle);
+                break;
+            }
+            default: {
+                const cx = 50, cy = 50, r = 35;
+                const startAngle = -90;
+                const endAngle = -90 + (percent * 180);
+                path = this.describeSector(cx, cy, r, startAngle, endAngle);
+                break;
+            }
+        }
+
+        this.sectorEl.setAttribute('d', path);
+        this.sectorEl.style.fill = this.getColorForValue(this.lastValue || 0);
+    }
+
+    // Update sector fill (starts animation to target percent)
+    updateSectorFill(percent) {
+        const { fillSector = false } = this.config;
+        if (!fillSector) {
+            if (this.sectorEl) this.sectorEl.style.display = 'none';
+            return;
+        }
+
+        // Start animated transition to new value
+        this.animateSectorTo(percent);
+    }
+
+    static getConfigForm(config = {}) {
+        const zones = config.zones || [];
+        return `
+            <div class="widget-config-field">
+                <label>Sensor</label>
+                <input type="text" class="widget-input" name="sensor"
+                       value="${escapeHtml(config.sensor || '')}" placeholder="Type to search..." autocomplete="off">
+            </div>
+            <div class="dual-scale-fields" style="display: ${config.style === 'dual' ? 'block' : 'none'};">
+                <div class="widget-config-field">
+                    <label>Target Sensor</label>
+                    <input type="text" class="widget-input" name="sensor2"
+                           value="${escapeHtml(config.sensor2 || '')}" placeholder="Target/setpoint sensor..." autocomplete="off">
+                </div>
+            </div>
+            <div class="widget-config-field">
+                <label>Label</label>
+                <input type="text" class="widget-input" name="label"
+                       value="${escapeHtml(config.label || '')}" placeholder="Display label">
+            </div>
+            <div class="widget-config-field">
+                <label>Style</label>
+                <select class="widget-select" name="style" onchange="toggleDualScaleFields(this)">
+                    <option value="default" ${!config.style || config.style === 'default' ? 'selected' : ''}>Default</option>
+                    <option value="semicircle" ${config.style === 'semicircle' ? 'selected' : ''}>Semicircle White</option>
+                    <option value="arc270" ${config.style === 'arc270' ? 'selected' : ''}>Arc 270° Black</option>
+                    <option value="speedometer" ${config.style === 'speedometer' ? 'selected' : ''}>Speedometer White</option>
+                    <option value="dual" ${config.style === 'dual' ? 'selected' : ''}>Dual Scale</option>
+                </select>
+            </div>
+            <div class="widget-config-row">
+                <div class="widget-config-field">
+                    <label>Min</label>
+                    <input type="number" class="widget-input" name="min"
+                           value="${config.min ?? 0}">
+                </div>
+                <div class="widget-config-field">
+                    <label>Max</label>
+                    <input type="number" class="widget-input" name="max"
+                           value="${config.max ?? 100}">
+                </div>
+            </div>
+            <div class="widget-config-row">
+                <div class="widget-config-field">
+                    <label>Unit</label>
+                    <input type="text" class="widget-input" name="unit"
+                           value="${escapeHtml(config.unit || '')}" placeholder="°C, %, etc.">
+                </div>
+                <div class="widget-config-field">
+                    <label>Decimals</label>
+                    <input type="number" class="widget-input" name="decimals"
+                           value="${config.decimals ?? 1}" min="0" max="4">
+                </div>
+            </div>
+            <div class="widget-config-row">
+                <div class="widget-config-field">
+                    <label class="widget-toggle">
+                        <input type="checkbox" name="fillSector" ${config.fillSector ? 'checked' : ''}>
+                        <span class="widget-toggle-track"><span class="widget-toggle-thumb"></span></span>
+                        <span class="widget-toggle-label">Fill sector (0 to value)</span>
+                    </label>
+                </div>
+            </div>
+            <div class="widget-config-field">
+                <div class="zones-editor">
+                    <div class="zones-header">
+                        <label>Color Zones</label>
+                        <button type="button" class="zones-add-btn" onclick="addZoneField(this)">+ Add Zone</button>
+                    </div>
+                    <div class="zones-list" id="zones-list">
+                        ${zones.map((z, i) => `
+                            <div class="zone-item">
+                                <input type="color" class="zone-color" name="zone-color-${i}" value="${z.color || '#22c55e'}">
+                                <div class="zone-inputs">
+                                    <input type="number" class="zone-input" name="zone-from-${i}" value="${z.from ?? 0}" placeholder="From">
+                                    <span class="zone-separator">→</span>
+                                    <input type="number" class="zone-input" name="zone-to-${i}" value="${z.to ?? 100}" placeholder="To">
+                                </div>
+                                <button type="button" class="zone-remove-btn" onclick="removeZoneField(this)">×</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    static parseConfigForm(form) {
+        const zones = [];
+        const zoneItems = form.querySelectorAll('.zone-item');
+        zoneItems.forEach((item) => {
+            // Find elements by class/type inside item (index-independent)
+            const color = item.querySelector('.zone-color')?.value;
+            const inputs = item.querySelectorAll('.zone-input');
+            const from = parseFloat(inputs[0]?.value);
+            const to = parseFloat(inputs[1]?.value);
+            if (color && !isNaN(from) && !isNaN(to)) {
+                zones.push({ from, to, color });
+            }
+        });
+
+        const style = form.querySelector('[name="style"]')?.value || 'default';
+        const result = {
+            sensor: form.querySelector('[name="sensor"]')?.value || '',
+            label: form.querySelector('[name="label"]')?.value || '',
+            style,
+            min: parseFloat(form.querySelector('[name="min"]')?.value) || 0,
+            max: parseFloat(form.querySelector('[name="max"]')?.value) || 100,
+            unit: form.querySelector('[name="unit"]')?.value || '',
+            decimals: parseInt(form.querySelector('[name="decimals"]')?.value) || 1,
+            fillSector: form.querySelector('[name="fillSector"]')?.checked || false,
+            zones
+        };
+
+        // Dual scale fields (target sensor uses same min/max as main)
+        if (style === 'dual') {
+            result.sensor2 = form.querySelector('[name="sensor2"]')?.value || '';
+        }
+
+        return result;
+    }
+}
+
+// ============================================================================
+// Level Widget (CSS + SVG)
+// ============================================================================
+
+class LevelWidget extends DashboardWidget {
+    static type = 'level';
+    static displayName = 'Level';
+    static description = 'Tank level indicator';
+    static icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="2" width="12" height="20" rx="2"/><rect x="8" y="10" width="8" height="10" fill="currentColor" opacity="0.3"/></svg>';
+    static defaultSize = { width: 8, height: 8 };
+
+    render() {
+        const { orientation = 'vertical', unit = '%' } = this.config;
+        const isVertical = orientation === 'vertical';
+
+        this.element = document.createElement('div');
+        this.element.className = 'widget-content';
+        this.element.innerHTML = `
+            <div class="level-container">
+                <div class="level-bar-${isVertical ? 'vertical' : 'horizontal'}">
+                    <div class="level-fill-${isVertical ? 'vertical' : 'horizontal'}" id="level-fill-${this.id}"></div>
+                    <span class="level-text" id="level-text-${this.id}">--%</span>
+                </div>
+            </div>
+        `;
+        this.container.appendChild(this.element);
+
+        this.fillEl = this.element.querySelector(`#level-fill-${this.id}`);
+        this.textEl = this.element.querySelector(`#level-text-${this.id}`);
+    }
+
+    getColorForValue(value) {
+        const { zones = [] } = this.config;
+
+        if (zones.length === 0) {
+            return 'var(--accent-blue)';
+        }
+
+        for (const zone of zones) {
+            if (value >= zone.from && value <= zone.to) {
+                return zone.color;
+            }
+        }
+
+        return 'var(--accent-blue)';
+    }
+
+    update(value, error = null) {
+        super.update(value, error);
+
+        if (!this.fillEl || !this.textEl) return;
+
+        if (error) {
+            this.textEl.textContent = 'ERR';
+            return;
+        }
+
+        const { min = 0, max = 100, orientation = 'vertical', unit = '%', decimals = 0 } = this.config;
+        const numValue = parseFloat(value) || 0;
+        const percent = Math.max(0, Math.min(100, ((numValue - min) / (max - min)) * 100));
+
+        const isVertical = orientation === 'vertical';
+        if (isVertical) {
+            this.fillEl.style.height = `${percent}%`;
+        } else {
+            this.fillEl.style.width = `${percent}%`;
+        }
+
+        this.fillEl.style.backgroundColor = this.getColorForValue(numValue);
+        this.textEl.textContent = `${numValue.toFixed(decimals)}${unit}`;
+    }
+
+    static getConfigForm(config = {}) {
+        const zones = config.zones || [];
+        return `
+            <div class="widget-config-field">
+                <label>Sensor</label>
+                <input type="text" class="widget-input" name="sensor"
+                       value="${escapeHtml(config.sensor || '')}" placeholder="Type to search..." autocomplete="off">
+            </div>
+            <div class="widget-config-field">
+                <label>Label</label>
+                <input type="text" class="widget-input" name="label"
+                       value="${escapeHtml(config.label || '')}" placeholder="Display label">
+            </div>
+            <div class="widget-config-row">
+                <div class="widget-config-field">
+                    <label>Min</label>
+                    <input type="number" class="widget-input" name="min"
+                           value="${config.min ?? 0}">
+                </div>
+                <div class="widget-config-field">
+                    <label>Max</label>
+                    <input type="number" class="widget-input" name="max"
+                           value="${config.max ?? 100}">
+                </div>
+            </div>
+            <div class="widget-config-row">
+                <div class="widget-config-field">
+                    <label>Orientation</label>
+                    <select class="widget-select" name="orientation">
+                        <option value="vertical" ${config.orientation !== 'horizontal' ? 'selected' : ''}>Vertical</option>
+                        <option value="horizontal" ${config.orientation === 'horizontal' ? 'selected' : ''}>Horizontal</option>
+                    </select>
+                </div>
+                <div class="widget-config-field">
+                    <label>Unit</label>
+                    <input type="text" class="widget-input" name="unit"
+                           value="${escapeHtml(config.unit || '%')}" placeholder="%">
+                </div>
+            </div>
+            <div class="widget-config-field">
+                <div class="zones-editor">
+                    <div class="zones-header">
+                        <label>Color Zones</label>
+                        <button type="button" class="zones-add-btn" onclick="addZoneField(this)">+ Add Zone</button>
+                    </div>
+                    <div class="zones-list" id="zones-list">
+                        ${zones.map((z, i) => `
+                            <div class="zone-item">
+                                <input type="color" class="zone-color" name="zone-color-${i}" value="${z.color || '#3b82f6'}">
+                                <div class="zone-inputs">
+                                    <input type="number" class="zone-input" name="zone-from-${i}" value="${z.from ?? 0}" placeholder="From">
+                                    <span class="zone-separator">→</span>
+                                    <input type="number" class="zone-input" name="zone-to-${i}" value="${z.to ?? 100}" placeholder="To">
+                                </div>
+                                <button type="button" class="zone-remove-btn" onclick="removeZoneField(this)">×</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    static parseConfigForm(form) {
+        const zones = [];
+        const zoneItems = form.querySelectorAll('.zone-item');
+        zoneItems.forEach((item) => {
+            // Find elements by class/type inside item (index-independent)
+            const color = item.querySelector('.zone-color')?.value;
+            const inputs = item.querySelectorAll('.zone-input');
+            const from = parseFloat(inputs[0]?.value);
+            const to = parseFloat(inputs[1]?.value);
+            if (color && !isNaN(from) && !isNaN(to)) {
+                zones.push({ from, to, color });
+            }
+        });
+
+        return {
+            sensor: form.querySelector('[name="sensor"]')?.value || '',
+            label: form.querySelector('[name="label"]')?.value || '',
+            min: parseFloat(form.querySelector('[name="min"]')?.value) || 0,
+            max: parseFloat(form.querySelector('[name="max"]')?.value) || 100,
+            orientation: form.querySelector('[name="orientation"]')?.value || 'vertical',
+            unit: form.querySelector('[name="unit"]')?.value || '%',
+            zones
+        };
+    }
+}
+
+// ============================================================================
+// LED Widget (CSS)
+// ============================================================================
+
+class LedWidget extends DashboardWidget {
+    static type = 'led';
+    static displayName = 'LED';
+    static description = 'On/Off indicator';
+    static icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>';
+    static defaultSize = { width: 4, height: 4 };
+
+    render() {
+        this.element = document.createElement('div');
+        this.element.className = 'widget-content';
+        this.element.innerHTML = `
+            <div class="led-indicator" id="led-${this.id}"></div>
+        `;
+        this.container.appendChild(this.element);
+
+        this.ledEl = this.element.querySelector(`#led-${this.id}`);
+        this.updateLed(false, false);
+    }
+
+    updateLed(isOn, isError) {
+        if (!this.ledEl) return;
+
+        const { onColor = '#22c55e', offColor = '#6b7280', errorColor = '#ef4444', blinkOnError = true } = this.config;
+
+        this.ledEl.classList.remove('led-on', 'led-blink');
+
+        if (isError) {
+            this.ledEl.style.backgroundColor = errorColor;
+            this.ledEl.classList.add('led-on');
+            if (blinkOnError) {
+                this.ledEl.classList.add('led-blink');
+            }
+        } else if (isOn) {
+            this.ledEl.style.backgroundColor = onColor;
+            this.ledEl.style.color = onColor;
+            this.ledEl.classList.add('led-on');
+        } else {
+            this.ledEl.style.backgroundColor = offColor;
+            this.ledEl.style.color = offColor;
+        }
+    }
+
+    update(value, error = null) {
+        super.update(value, error);
+
+        const { threshold = 0 } = this.config;
+        const numValue = parseFloat(value) || 0;
+        const isOn = numValue > threshold;
+
+        this.updateLed(isOn, !!error);
+    }
+
+    static getConfigForm(config = {}) {
+        return `
+            <div class="widget-config-field">
+                <label>Sensor</label>
+                <input type="text" class="widget-input" name="sensor"
+                       value="${escapeHtml(config.sensor || '')}" placeholder="Type to search..." autocomplete="off">
+            </div>
+            <div class="widget-config-field">
+                <label>Label</label>
+                <input type="text" class="widget-input" name="label"
+                       value="${escapeHtml(config.label || '')}" placeholder="Display label">
+            </div>
+            <div class="widget-config-field">
+                <label>Threshold (value > threshold = ON)</label>
+                <input type="number" class="widget-input" name="threshold"
+                       value="${config.threshold ?? 0}">
+            </div>
+            <div class="widget-config-row">
+                <div class="widget-config-field">
+                    <label>ON Color</label>
+                    <input type="color" class="widget-input" name="onColor"
+                           value="${config.onColor || '#22c55e'}" style="height: 38px; padding: 4px;">
+                </div>
+                <div class="widget-config-field">
+                    <label>OFF Color</label>
+                    <input type="color" class="widget-input" name="offColor"
+                           value="${config.offColor || '#6b7280'}" style="height: 38px; padding: 4px;">
+                </div>
+            </div>
+            <div class="widget-config-row">
+                <div class="widget-config-field">
+                    <label>Error Color</label>
+                    <input type="color" class="widget-input" name="errorColor"
+                           value="${config.errorColor || '#ef4444'}" style="height: 38px; padding: 4px;">
+                </div>
+                <div class="widget-config-field">
+                    <label style="display: flex; align-items: center; gap: 8px; margin-top: 24px;">
+                        <input type="checkbox" name="blinkOnError" ${config.blinkOnError !== false ? 'checked' : ''}>
+                        Blink on error
+                    </label>
+                </div>
+            </div>
+        `;
+    }
+
+    static parseConfigForm(form) {
+        return {
+            sensor: form.querySelector('[name="sensor"]')?.value || '',
+            label: form.querySelector('[name="label"]')?.value || '',
+            threshold: parseFloat(form.querySelector('[name="threshold"]')?.value) || 0,
+            onColor: form.querySelector('[name="onColor"]')?.value || '#22c55e',
+            offColor: form.querySelector('[name="offColor"]')?.value || '#6b7280',
+            errorColor: form.querySelector('[name="errorColor"]')?.value || '#ef4444',
+            blinkOnError: form.querySelector('[name="blinkOnError"]')?.checked !== false
+        };
+    }
+}
+
+// ============================================================================
+// Label Widget (static text)
+// ============================================================================
+
+class LabelWidget {
+    static type = 'label';
+    static displayName = 'Label';
+    static description = 'Static text label or header';
+    static icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><text x="12" y="16" text-anchor="middle" font-size="14" fill="currentColor">Aa</text></svg>';
+    static defaultSize = { width: 8, height: 2 };
+
+    constructor(id, config, container) {
+        this.id = id;
+        this.config = config || {};
+        this.container = container;
+    }
+
+    render() {
+        const {
+            text = 'Label',
+            fontSize = 'medium',
+            color = '#d8dce2',
+            align = 'center',
+            border = false,
+            borderColor = '#4b5563',
+            borderWidth = 1,
+            borderRadius = 4,
+            backgroundColor = 'transparent'
+        } = this.config;
+
+        // Font size map
+        const fontSizeMap = {
+            'small': '14px',
+            'medium': '18px',
+            'large': '24px',
+            'xlarge': '32px'
+        };
+
+        // Border styles
+        const borderStyle = border
+            ? `border: ${borderWidth}px solid ${borderColor}; border-radius: ${borderRadius}px; background: ${backgroundColor};`
+            : '';
+
+        this.element = document.createElement('div');
+        this.element.className = 'widget-content label-widget';
+        this.element.innerHTML = `
+            <div class="label-text" id="label-${this.id}"
+                 style="font-size: ${fontSizeMap[fontSize] || fontSize};
+                        color: ${color};
+                        text-align: ${align};
+                        font-weight: 600;
+                        display: flex;
+                        align-items: center;
+                        justify-content: ${align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center'};
+                        height: 100%;
+                        padding: ${border ? '4px 12px' : '0 8px'};
+                        ${borderStyle}">
+                ${escapeHtml(text)}
+            </div>
+        `;
+        this.container.appendChild(this.element);
+        this.labelEl = this.element.querySelector(`#label-${this.id}`);
+    }
+
+    // Label doesn't need sensor updates, but we need the method for compatibility
+    update(value, error = null) {
+        // No-op - label is static
+    }
+
+    // Update text dynamically if needed
+    setText(text) {
+        if (this.labelEl) {
+            this.labelEl.textContent = text;
+        }
+    }
+
+    static getConfigForm(config = {}) {
+        return `
+            <div class="widget-config-field">
+                <label>Text</label>
+                <input type="text" class="widget-input" name="text"
+                       value="${escapeHtml(config.text || '')}" placeholder="Label text">
+            </div>
+            <div class="widget-config-row">
+                <div class="widget-config-field">
+                    <label>Font Size</label>
+                    <select class="widget-select" name="fontSize">
+                        <option value="small" ${config.fontSize === 'small' ? 'selected' : ''}>Small (14px)</option>
+                        <option value="medium" ${config.fontSize === 'medium' || !config.fontSize ? 'selected' : ''}>Medium (18px)</option>
+                        <option value="large" ${config.fontSize === 'large' ? 'selected' : ''}>Large (24px)</option>
+                        <option value="xlarge" ${config.fontSize === 'xlarge' ? 'selected' : ''}>X-Large (32px)</option>
+                    </select>
+                </div>
+                <div class="widget-config-field">
+                    <label>Alignment</label>
+                    <select class="widget-select" name="align">
+                        <option value="left" ${config.align === 'left' ? 'selected' : ''}>Left</option>
+                        <option value="center" ${config.align === 'center' || !config.align ? 'selected' : ''}>Center</option>
+                        <option value="right" ${config.align === 'right' ? 'selected' : ''}>Right</option>
+                    </select>
+                </div>
+                <div class="widget-config-field">
+                    <label>Text Color</label>
+                    <input type="color" class="widget-input" name="color"
+                           value="${config.color || '#d8dce2'}">
+                </div>
+            </div>
+            <div class="widget-config-row">
+                <div class="widget-config-field">
+                    <label class="widget-checkbox-label">
+                        <input type="checkbox" name="border" ${config.border ? 'checked' : ''}>
+                        <span>Show border (nameplate)</span>
+                    </label>
+                </div>
+            </div>
+            <div class="widget-config-row label-border-options" style="${config.border ? '' : 'display: none;'}">
+                <div class="widget-config-field">
+                    <label>Border Color</label>
+                    <input type="color" class="widget-input" name="borderColor"
+                           value="${config.borderColor || '#4b5563'}">
+                </div>
+                <div class="widget-config-field">
+                    <label>Border Width</label>
+                    <input type="number" class="widget-input" name="borderWidth"
+                           value="${config.borderWidth || 1}" min="1" max="5">
+                </div>
+                <div class="widget-config-field">
+                    <label>Border Radius</label>
+                    <input type="number" class="widget-input" name="borderRadius"
+                           value="${config.borderRadius || 4}" min="0" max="20">
+                </div>
+                <div class="widget-config-field">
+                    <label>Background</label>
+                    <input type="color" class="widget-input" name="backgroundColor"
+                           value="${config.backgroundColor || '#1f2937'}">
+                </div>
+            </div>
+        `;
+    }
+
+    static initConfigHandlers(form, config = {}) {
+        const borderCheckbox = form.querySelector('[name="border"]');
+        const borderOptions = form.querySelector('.label-border-options');
+
+        borderCheckbox?.addEventListener('change', () => {
+            if (borderOptions) {
+                borderOptions.style.display = borderCheckbox.checked ? '' : 'none';
+            }
+        });
+    }
+
+    static parseConfigForm(form) {
+        return {
+            text: form.querySelector('[name="text"]')?.value || 'Label',
+            fontSize: form.querySelector('[name="fontSize"]')?.value || 'medium',
+            align: form.querySelector('[name="align"]')?.value || 'center',
+            color: form.querySelector('[name="color"]')?.value || '#d8dce2',
+            border: form.querySelector('[name="border"]')?.checked || false,
+            borderColor: form.querySelector('[name="borderColor"]')?.value || '#4b5563',
+            borderWidth: parseInt(form.querySelector('[name="borderWidth"]')?.value) || 1,
+            borderRadius: parseInt(form.querySelector('[name="borderRadius"]')?.value) || 4,
+            backgroundColor: form.querySelector('[name="backgroundColor"]')?.value || '#1f2937'
+        };
+    }
+}
+
+// ============================================================================
+// Divider Widget (visual separator)
+// ============================================================================
+
+class DividerWidget {
+    static type = 'divider';
+    static displayName = 'Divider';
+    static description = 'Horizontal or vertical separator line';
+    static icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="12" x2="20" y2="12"/></svg>';
+    static defaultSize = { width: 12, height: 1 };
+
+    constructor(id, config, container) {
+        this.id = id;
+        this.config = config || {};
+        this.container = container;
+    }
+
+    render() {
+        const {
+            orientation = 'horizontal',
+            color = '#4b5563',
+            thickness = 1,
+            style = 'solid',
+            margin = 8
+        } = this.config;
+
+        const isHorizontal = orientation === 'horizontal';
+
+        this.element = document.createElement('div');
+        this.element.className = 'widget-content divider-widget';
+        this.element.style.cssText = `
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            padding: ${isHorizontal ? `${margin}px 0` : `0 ${margin}px`};
+        `;
+
+        const line = document.createElement('div');
+        line.className = 'divider-line';
+        line.style.cssText = isHorizontal
+            ? `width: 100%; height: ${thickness}px; border-top: ${thickness}px ${style} ${color};`
+            : `height: 100%; width: ${thickness}px; border-left: ${thickness}px ${style} ${color};`;
+
+        this.element.appendChild(line);
+        this.container.appendChild(this.element);
+    }
+
+    // Divider doesn't need updates
+    update(value, error = null) {}
+
+    static getConfigForm(config = {}) {
+        return `
+            <div class="widget-config-row">
+                <div class="widget-config-field">
+                    <label>Orientation</label>
+                    <select class="widget-select" name="orientation">
+                        <option value="horizontal" ${config.orientation !== 'vertical' ? 'selected' : ''}>Horizontal</option>
+                        <option value="vertical" ${config.orientation === 'vertical' ? 'selected' : ''}>Vertical</option>
+                    </select>
+                </div>
+                <div class="widget-config-field">
+                    <label>Style</label>
+                    <select class="widget-select" name="style">
+                        <option value="solid" ${config.style !== 'dashed' && config.style !== 'dotted' ? 'selected' : ''}>Solid</option>
+                        <option value="dashed" ${config.style === 'dashed' ? 'selected' : ''}>Dashed</option>
+                        <option value="dotted" ${config.style === 'dotted' ? 'selected' : ''}>Dotted</option>
+                    </select>
+                </div>
+            </div>
+            <div class="widget-config-row">
+                <div class="widget-config-field">
+                    <label>Thickness (px)</label>
+                    <input type="number" class="widget-input" name="thickness"
+                           value="${config.thickness || 1}" min="1" max="10">
+                </div>
+                <div class="widget-config-field">
+                    <label>Margin (px)</label>
+                    <input type="number" class="widget-input" name="margin"
+                           value="${config.margin || 8}" min="0" max="50">
+                </div>
+                <div class="widget-config-field">
+                    <label>Color</label>
+                    <input type="color" class="widget-input" name="color"
+                           value="${config.color || '#4b5563'}">
+                </div>
+            </div>
+        `;
+    }
+
+    static parseConfigForm(form) {
+        return {
+            orientation: form.querySelector('[name="orientation"]')?.value || 'horizontal',
+            style: form.querySelector('[name="style"]')?.value || 'solid',
+            thickness: parseInt(form.querySelector('[name="thickness"]')?.value) || 1,
+            margin: parseInt(form.querySelector('[name="margin"]')?.value) || 8,
+            color: form.querySelector('[name="color"]')?.value || '#4b5563'
+        };
+    }
+}
+
+// ============================================================================
+// StatusBar Widget (multiple status indicators)
+// ============================================================================
+
+class StatusBarWidget {
+    static type = 'statusbar';
+    static displayName = 'Status Bar';
+    static description = 'Multiple status indicators in a row';
+    static icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="3" fill="#22c55e"/><circle cx="12" cy="12" r="3" fill="#ef4444"/><circle cx="19" cy="12" r="3" fill="#6b7280"/></svg>';
+    static defaultSize = { width: 12, height: 3 };
+
+    constructor(id, config, container) {
+        this.id = id;
+        this.config = config || {};
+        this.container = container;
+        this.indicators = new Map();
+    }
+
+    render() {
+        const { items = [], layout = 'horizontal' } = this.config;
+
+        this.element = document.createElement('div');
+        this.element.className = 'widget-content statusbar-widget';
+        this.element.style.cssText = `
+            display: flex;
+            flex-direction: ${layout === 'vertical' ? 'column' : 'row'};
+            align-items: center;
+            justify-content: space-around;
+            gap: 12px;
+            padding: 8px 16px;
+            height: 100%;
+        `;
+
+        items.forEach((item, idx) => {
+            const indicator = this.createIndicator(item, idx);
+            this.element.appendChild(indicator);
+        });
+
+        this.container.appendChild(this.element);
+    }
+
+    createIndicator(item, idx) {
+        const { label = `Status ${idx + 1}`, onColor = '#22c55e', offColor = '#6b7280' } = item;
+
+        const el = document.createElement('div');
+        el.className = 'statusbar-indicator';
+        el.style.cssText = `
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        `;
+
+        const led = document.createElement('div');
+        led.className = 'statusbar-led';
+        led.style.cssText = `
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: ${offColor};
+            box-shadow: 0 0 4px ${offColor};
+            transition: all 0.3s ease;
+        `;
+
+        const labelEl = document.createElement('div');
+        labelEl.className = 'statusbar-label';
+        labelEl.style.cssText = `
+            font-size: 11px;
+            color: #9ca3af;
+            text-align: center;
+            white-space: nowrap;
+        `;
+        labelEl.textContent = label;
+
+        el.appendChild(led);
+        el.appendChild(labelEl);
+
+        this.indicators.set(idx, { element: el, led, item });
+
+        return el;
+    }
+
+    // Update specific indicator by index
+    updateIndicator(idx, value, error = null) {
+        const indicator = this.indicators.get(idx);
+        if (!indicator) return;
+
+        const { item, led } = indicator;
+        const { threshold = 0.5, onColor = '#22c55e', offColor = '#6b7280', errorColor = '#ef4444' } = item;
+
+        if (error) {
+            led.style.background = errorColor;
+            led.style.boxShadow = `0 0 8px ${errorColor}`;
+        } else {
+            const isOn = value > threshold;
+            const color = isOn ? onColor : offColor;
+            led.style.background = color;
+            led.style.boxShadow = isOn ? `0 0 8px ${color}` : `0 0 4px ${color}`;
+        }
+    }
+
+    // Main update - expects object with sensor values by name
+    update(values, error = null) {
+        if (typeof values === 'object' && values !== null) {
+            const { items = [] } = this.config;
+            items.forEach((item, idx) => {
+                if (item.sensor && values[item.sensor] !== undefined) {
+                    this.updateIndicator(idx, values[item.sensor], error);
+                }
+            });
+        }
+    }
+
+    // Update by sensor name (called from SSE handler)
+    updateBySensor(sensorName, value, error = null) {
+        const { items = [] } = this.config;
+        items.forEach((item, idx) => {
+            if (item.sensor === sensorName) {
+                this.updateIndicator(idx, value, error);
+            }
+        });
+    }
+
+    static getConfigForm(config = {}) {
+        const items = config.items || [{ label: 'Status 1', sensor: '', threshold: 0.5, onColor: '#22c55e', offColor: '#6b7280' }];
+
+        const itemsHtml = items.map((item, idx) => `
+            <div class="statusbar-item-config" data-idx="${idx}">
+                <div class="widget-config-row">
+                    <div class="widget-config-field" style="flex: 1;">
+                        <label>Label</label>
+                        <input type="text" class="widget-input" name="item-label-${idx}"
+                               value="${escapeHtml(item.label || '')}" placeholder="Status name">
+                    </div>
+                    <div class="widget-config-field" style="flex: 2;">
+                        <label>Sensor</label>
+                        <input type="text" class="widget-input sensor-autocomplete" name="item-sensor-${idx}"
+                               value="${escapeHtml(item.sensor || '')}" placeholder="Sensor name">
+                    </div>
+                </div>
+                <div class="widget-config-row">
+                    <div class="widget-config-field">
+                        <label>Threshold</label>
+                        <input type="number" class="widget-input" name="item-threshold-${idx}"
+                               value="${item.threshold ?? 0.5}" step="0.1">
+                    </div>
+                    <div class="widget-config-field">
+                        <label>On Color</label>
+                        <input type="color" class="widget-input" name="item-onColor-${idx}"
+                               value="${item.onColor || '#22c55e'}">
+                    </div>
+                    <div class="widget-config-field">
+                        <label>Off Color</label>
+                        <input type="color" class="widget-input" name="item-offColor-${idx}"
+                               value="${item.offColor || '#6b7280'}">
+                    </div>
+                    <button type="button" class="widget-btn-small remove-statusbar-item" data-idx="${idx}" style="align-self: flex-end;">×</button>
+                </div>
+            </div>
+        `).join('');
+
+        return `
+            <div class="widget-config-field">
+                <label>Layout</label>
+                <select class="widget-select" name="layout">
+                    <option value="horizontal" ${config.layout !== 'vertical' ? 'selected' : ''}>Horizontal</option>
+                    <option value="vertical" ${config.layout === 'vertical' ? 'selected' : ''}>Vertical</option>
+                </select>
+            </div>
+            <div class="widget-config-field">
+                <label>Indicators</label>
+                <div id="statusbar-items-container">
+                    ${itemsHtml}
+                </div>
+                <button type="button" class="widget-btn" id="add-statusbar-item" style="margin-top: 8px;">
+                    + Add Indicator
+                </button>
+            </div>
+        `;
+    }
+
+    static initConfigHandlers(form, config = {}) {
+        const container = form.querySelector('#statusbar-items-container');
+        const addBtn = form.querySelector('#add-statusbar-item');
+        let itemCount = (config.items || []).length || 1;
+
+        // Add new indicator
+        addBtn?.addEventListener('click', () => {
+            const idx = itemCount++;
+            const itemHtml = `
+                <div class="statusbar-item-config" data-idx="${idx}">
+                    <div class="widget-config-row">
+                        <div class="widget-config-field" style="flex: 1;">
+                            <label>Label</label>
+                            <input type="text" class="widget-input" name="item-label-${idx}"
+                                   value="" placeholder="Status name">
+                        </div>
+                        <div class="widget-config-field" style="flex: 2;">
+                            <label>Sensor</label>
+                            <input type="text" class="widget-input sensor-autocomplete" name="item-sensor-${idx}"
+                                   value="" placeholder="Sensor name">
+                        </div>
+                    </div>
+                    <div class="widget-config-row">
+                        <div class="widget-config-field">
+                            <label>Threshold</label>
+                            <input type="number" class="widget-input" name="item-threshold-${idx}"
+                                   value="0.5" step="0.1">
+                        </div>
+                        <div class="widget-config-field">
+                            <label>On Color</label>
+                            <input type="color" class="widget-input" name="item-onColor-${idx}"
+                                   value="#22c55e">
+                        </div>
+                        <div class="widget-config-field">
+                            <label>Off Color</label>
+                            <input type="color" class="widget-input" name="item-offColor-${idx}"
+                                   value="#6b7280">
+                        </div>
+                        <button type="button" class="widget-btn-small remove-statusbar-item" data-idx="${idx}" style="align-self: flex-end;">×</button>
+                    </div>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', itemHtml);
+
+            // Setup autocomplete for new sensor input
+            const newInput = container.querySelector(`[name="item-sensor-${idx}"]`);
+            if (newInput && typeof setupSensorAutocomplete === 'function') {
+                setupSensorAutocomplete(newInput);
+            }
+        });
+
+        // Remove indicator
+        container?.addEventListener('click', (e) => {
+            if (e.target.classList.contains('remove-statusbar-item')) {
+                const item = e.target.closest('.statusbar-item-config');
+                if (item && container.querySelectorAll('.statusbar-item-config').length > 1) {
+                    item.remove();
+                }
+            }
+        });
+
+        // Setup autocomplete for existing sensor inputs
+        form.querySelectorAll('.sensor-autocomplete').forEach(input => {
+            if (typeof setupSensorAutocomplete === 'function') {
+                setupSensorAutocomplete(input);
+            }
+        });
+    }
+
+    static parseConfigForm(form) {
+        const items = [];
+        const itemElements = form.querySelectorAll('.statusbar-item-config');
+
+        itemElements.forEach(el => {
+            const idx = el.dataset.idx;
+            items.push({
+                label: form.querySelector(`[name="item-label-${idx}"]`)?.value || '',
+                sensor: form.querySelector(`[name="item-sensor-${idx}"]`)?.value || '',
+                threshold: parseFloat(form.querySelector(`[name="item-threshold-${idx}"]`)?.value) || 0.5,
+                onColor: form.querySelector(`[name="item-onColor-${idx}"]`)?.value || '#22c55e',
+                offColor: form.querySelector(`[name="item-offColor-${idx}"]`)?.value || '#6b7280'
+            });
+        });
+
+        return {
+            layout: form.querySelector('[name="layout"]')?.value || 'horizontal',
+            items
+        };
+    }
+
+    // Get list of sensors this widget uses (for SSE subscription)
+    getSensors() {
+        const { items = [] } = this.config;
+        return items.map(item => item.sensor).filter(s => s);
+    }
+}
+
+// ============================================================================
+// BarGraph Widget (compare multiple values)
+// ============================================================================
+
+class BarGraphWidget {
+    static type = 'bargraph';
+    static displayName = 'Bar Graph';
+    static description = 'Compare multiple sensor values';
+    static icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="14" width="4" height="6" fill="currentColor" opacity="0.7"/><rect x="10" y="8" width="4" height="12" fill="currentColor" opacity="0.5"/><rect x="16" y="4" width="4" height="16" fill="currentColor" opacity="0.3"/></svg>';
+    static defaultSize = { width: 10, height: 6 };
+
+    constructor(id, config, container) {
+        this.id = id;
+        this.config = config || {};
+        this.container = container;
+        this.bars = new Map();
+    }
+
+    render() {
+        const { orientation = 'vertical', showValues = true, showLabels = true } = this.config;
+        const items = this.config.items || [];
+
+        this.element = document.createElement('div');
+        this.element.className = 'widget-content bargraph-widget';
+        this.element.style.cssText = `
+            display: flex;
+            flex-direction: ${orientation === 'horizontal' ? 'column' : 'row'};
+            align-items: stretch;
+            justify-content: space-around;
+            gap: 8px;
+            padding: 12px;
+            height: 100%;
+        `;
+
+        items.forEach((item, idx) => {
+            const bar = this.createBar(item, idx, orientation, showValues, showLabels);
+            this.element.appendChild(bar);
+        });
+
+        this.container.appendChild(this.element);
+    }
+
+    createBar(item, idx, orientation, showValues, showLabels) {
+        const { label = `Bar ${idx + 1}`, color = '#3b82f6', min = 0, max = 100 } = item;
+        const isVertical = orientation === 'vertical';
+
+        const barContainer = document.createElement('div');
+        barContainer.className = 'bargraph-bar-container';
+        barContainer.style.cssText = `
+            display: flex;
+            flex-direction: ${isVertical ? 'column' : 'row'};
+            align-items: center;
+            flex: 1;
+            gap: 4px;
+        `;
+
+        // Label at top/left
+        if (showLabels) {
+            const labelEl = document.createElement('div');
+            labelEl.className = 'bargraph-label';
+            labelEl.style.cssText = `
+                font-size: 11px;
+                color: #9ca3af;
+                text-align: center;
+                white-space: nowrap;
+                ${isVertical ? '' : 'min-width: 50px;'}
+            `;
+            labelEl.textContent = label;
+            barContainer.appendChild(labelEl);
+        }
+
+        // Bar track
+        const track = document.createElement('div');
+        track.className = 'bargraph-track';
+        track.style.cssText = `
+            ${isVertical ? 'width: 100%; height: 100%;' : 'flex: 1; height: 24px;'}
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+            position: relative;
+            overflow: hidden;
+            ${isVertical ? 'display: flex; flex-direction: column-reverse;' : ''}
+        `;
+
+        // Bar fill
+        const fill = document.createElement('div');
+        fill.className = 'bargraph-fill';
+        fill.style.cssText = `
+            background: ${color};
+            border-radius: 4px;
+            transition: all 0.3s ease;
+            ${isVertical ? 'width: 100%; height: 0%;' : 'height: 100%; width: 0%;'}
+        `;
+        track.appendChild(fill);
+
+        barContainer.appendChild(track);
+
+        // Value at bottom/right
+        if (showValues) {
+            const valueEl = document.createElement('div');
+            valueEl.className = 'bargraph-value';
+            valueEl.style.cssText = `
+                font-size: 12px;
+                font-weight: 500;
+                color: #d8dce2;
+                text-align: center;
+                min-width: 40px;
+            `;
+            valueEl.textContent = '—';
+            barContainer.appendChild(valueEl);
+        }
+
+        this.bars.set(idx, { container: barContainer, fill, valueEl: barContainer.querySelector('.bargraph-value'), item });
+
+        return barContainer;
+    }
+
+    // Update specific bar by index
+    updateBar(idx, value) {
+        const bar = this.bars.get(idx);
+        if (!bar) return;
+
+        const { item, fill, valueEl } = bar;
+        const { min = 0, max = 100, unit = '', decimals = 0 } = item;
+        const orientation = this.config.orientation || 'vertical';
+        const isVertical = orientation === 'vertical';
+
+        // Calculate percentage
+        const range = max - min;
+        const percent = range > 0 ? Math.max(0, Math.min(100, ((value - min) / range) * 100)) : 0;
+
+        // Update fill
+        if (isVertical) {
+            fill.style.height = `${percent}%`;
+        } else {
+            fill.style.width = `${percent}%`;
+        }
+
+        // Update value text
+        if (valueEl) {
+            const displayValue = typeof decimals === 'number' ? value.toFixed(decimals) : value;
+            valueEl.textContent = unit ? `${displayValue} ${unit}` : displayValue;
+        }
+    }
+
+    // Main update - expects object with sensor values by name
+    update(values, error = null) {
+        if (typeof values === 'object' && values !== null) {
+            const { items = [] } = this.config;
+            items.forEach((item, idx) => {
+                if (item.sensor && values[item.sensor] !== undefined) {
+                    this.updateBar(idx, values[item.sensor]);
+                }
+            });
+        }
+    }
+
+    // Update by sensor name (called from SSE handler)
+    updateBySensor(sensorName, value, error = null) {
+        const { items = [] } = this.config;
+        items.forEach((item, idx) => {
+            if (item.sensor === sensorName) {
+                this.updateBar(idx, value);
+            }
+        });
+    }
+
+    static getConfigForm(config = {}) {
+        const items = config.items || [{ label: 'Bar 1', sensor: '', min: 0, max: 100, color: '#3b82f6' }];
+
+        const itemsHtml = items.map((item, idx) => `
+            <div class="bargraph-item-config" data-idx="${idx}">
+                <div class="widget-config-row">
+                    <div class="widget-config-field" style="flex: 1;">
+                        <label>Label</label>
+                        <input type="text" class="widget-input" name="bar-label-${idx}"
+                               value="${escapeHtml(item.label || '')}" placeholder="Bar name">
+                    </div>
+                    <div class="widget-config-field" style="flex: 2;">
+                        <label>Sensor</label>
+                        <input type="text" class="widget-input sensor-autocomplete" name="bar-sensor-${idx}"
+                               value="${escapeHtml(item.sensor || '')}" placeholder="Sensor name">
+                    </div>
+                </div>
+                <div class="widget-config-row">
+                    <div class="widget-config-field">
+                        <label>Min</label>
+                        <input type="number" class="widget-input" name="bar-min-${idx}"
+                               value="${item.min ?? 0}">
+                    </div>
+                    <div class="widget-config-field">
+                        <label>Max</label>
+                        <input type="number" class="widget-input" name="bar-max-${idx}"
+                               value="${item.max ?? 100}">
+                    </div>
+                    <div class="widget-config-field">
+                        <label>Unit</label>
+                        <input type="text" class="widget-input" name="bar-unit-${idx}"
+                               value="${escapeHtml(item.unit || '')}" placeholder="kW">
+                    </div>
+                    <div class="widget-config-field">
+                        <label>Color</label>
+                        <input type="color" class="widget-input" name="bar-color-${idx}"
+                               value="${item.color || '#3b82f6'}">
+                    </div>
+                    <button type="button" class="widget-btn-small remove-bargraph-item" data-idx="${idx}" style="align-self: flex-end;">×</button>
+                </div>
+            </div>
+        `).join('');
+
+        return `
+            <div class="widget-config-row">
+                <div class="widget-config-field">
+                    <label>Orientation</label>
+                    <select class="widget-select" name="orientation">
+                        <option value="vertical" ${config.orientation !== 'horizontal' ? 'selected' : ''}>Vertical</option>
+                        <option value="horizontal" ${config.orientation === 'horizontal' ? 'selected' : ''}>Horizontal</option>
+                    </select>
+                </div>
+                <div class="widget-config-field">
+                    <label class="widget-checkbox-label">
+                        <input type="checkbox" name="showValues" ${config.showValues !== false ? 'checked' : ''}>
+                        <span>Show values</span>
+                    </label>
+                </div>
+                <div class="widget-config-field">
+                    <label class="widget-checkbox-label">
+                        <input type="checkbox" name="showLabels" ${config.showLabels !== false ? 'checked' : ''}>
+                        <span>Show labels</span>
+                    </label>
+                </div>
+            </div>
+            <div class="widget-config-field">
+                <label>Bars</label>
+                <div id="bargraph-items-container">
+                    ${itemsHtml}
+                </div>
+                <button type="button" class="widget-btn" id="add-bargraph-item" style="margin-top: 8px;">
+                    + Add Bar
+                </button>
+            </div>
+        `;
+    }
+
+    static initConfigHandlers(form, config = {}) {
+        const container = form.querySelector('#bargraph-items-container');
+        const addBtn = form.querySelector('#add-bargraph-item');
+        let itemCount = (config.items || []).length || 1;
+
+        // Add new bar
+        addBtn?.addEventListener('click', () => {
+            const idx = itemCount++;
+            const colors = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6'];
+            const color = colors[idx % colors.length];
+
+            const itemHtml = `
+                <div class="bargraph-item-config" data-idx="${idx}">
+                    <div class="widget-config-row">
+                        <div class="widget-config-field" style="flex: 1;">
+                            <label>Label</label>
+                            <input type="text" class="widget-input" name="bar-label-${idx}"
+                                   value="" placeholder="Bar name">
+                        </div>
+                        <div class="widget-config-field" style="flex: 2;">
+                            <label>Sensor</label>
+                            <input type="text" class="widget-input sensor-autocomplete" name="bar-sensor-${idx}"
+                                   value="" placeholder="Sensor name">
+                        </div>
+                    </div>
+                    <div class="widget-config-row">
+                        <div class="widget-config-field">
+                            <label>Min</label>
+                            <input type="number" class="widget-input" name="bar-min-${idx}" value="0">
+                        </div>
+                        <div class="widget-config-field">
+                            <label>Max</label>
+                            <input type="number" class="widget-input" name="bar-max-${idx}" value="100">
+                        </div>
+                        <div class="widget-config-field">
+                            <label>Unit</label>
+                            <input type="text" class="widget-input" name="bar-unit-${idx}" placeholder="kW">
+                        </div>
+                        <div class="widget-config-field">
+                            <label>Color</label>
+                            <input type="color" class="widget-input" name="bar-color-${idx}" value="${color}">
+                        </div>
+                        <button type="button" class="widget-btn-small remove-bargraph-item" data-idx="${idx}" style="align-self: flex-end;">×</button>
+                    </div>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', itemHtml);
+
+            // Setup autocomplete for new sensor input
+            const newInput = container.querySelector(`[name="bar-sensor-${idx}"]`);
+            if (newInput && typeof setupSensorAutocomplete === 'function') {
+                setupSensorAutocomplete(newInput);
+            }
+        });
+
+        // Remove bar
+        container?.addEventListener('click', (e) => {
+            if (e.target.classList.contains('remove-bargraph-item')) {
+                const item = e.target.closest('.bargraph-item-config');
+                if (item && container.querySelectorAll('.bargraph-item-config').length > 1) {
+                    item.remove();
+                }
+            }
+        });
+
+        // Setup autocomplete for existing sensor inputs
+        form.querySelectorAll('.sensor-autocomplete').forEach(input => {
+            if (typeof setupSensorAutocomplete === 'function') {
+                setupSensorAutocomplete(input);
+            }
+        });
+    }
+
+    static parseConfigForm(form) {
+        const items = [];
+        const itemElements = form.querySelectorAll('.bargraph-item-config');
+
+        itemElements.forEach(el => {
+            const idx = el.dataset.idx;
+            items.push({
+                label: form.querySelector(`[name="bar-label-${idx}"]`)?.value || '',
+                sensor: form.querySelector(`[name="bar-sensor-${idx}"]`)?.value || '',
+                min: parseFloat(form.querySelector(`[name="bar-min-${idx}"]`)?.value) || 0,
+                max: parseFloat(form.querySelector(`[name="bar-max-${idx}"]`)?.value) || 100,
+                unit: form.querySelector(`[name="bar-unit-${idx}"]`)?.value || '',
+                color: form.querySelector(`[name="bar-color-${idx}"]`)?.value || '#3b82f6'
+            });
+        });
+
+        return {
+            orientation: form.querySelector('[name="orientation"]')?.value || 'vertical',
+            showValues: form.querySelector('[name="showValues"]')?.checked !== false,
+            showLabels: form.querySelector('[name="showLabels"]')?.checked !== false,
+            items
+        };
+    }
+
+    // Get list of sensors this widget uses (for SSE subscription)
+    getSensors() {
+        const { items = [] } = this.config;
+        return items.map(item => item.sensor).filter(s => s);
+    }
+}
+
+// ============================================================================
+// Digital Widget (CSS)
+// ============================================================================
+
+class DigitalWidget extends DashboardWidget {
+    static type = 'digital';
+    static displayName = 'Digital';
+    static description = 'Digital numeric display';
+    static icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><text x="12" y="15" text-anchor="middle" font-size="8" fill="currentColor">123</text></svg>';
+    static defaultSize = { width: 8, height: 4 };
+
+    // 7-segment digit patterns: segments a,b,c,d,e,f,g (top, top-right, bottom-right, bottom, bottom-left, top-left, middle)
+    static SEGMENT_PATTERNS = {
+        '0': [1,1,1,1,1,1,0],
+        '1': [0,1,1,0,0,0,0],
+        '2': [1,1,0,1,1,0,1],
+        '3': [1,1,1,1,0,0,1],
+        '4': [0,1,1,0,0,1,1],
+        '5': [1,0,1,1,0,1,1],
+        '6': [1,0,1,1,1,1,1],
+        '7': [1,1,1,0,0,0,0],
+        '8': [1,1,1,1,1,1,1],
+        '9': [1,1,1,1,0,1,1],
+        '-': [0,0,0,0,0,0,1],
+        ' ': [0,0,0,0,0,0,0],
+        'E': [1,0,0,1,1,1,1],
+        'R': [0,0,0,0,1,0,1],
+        '.': 'dot',
+        ':': 'colon'
+    };
+
+    render() {
+        const { style = 'default' } = this.config;
+
+        this.element = document.createElement('div');
+        this.element.className = 'widget-content';
+
+        switch (style) {
+            case 'lcd':
+                this.renderLCD();
+                break;
+            case 'led':
+                this.renderLED();
+                break;
+            default:
+                this.renderDefault();
+        }
+
+        this.container.appendChild(this.element);
+    }
+
+    renderDefault() {
+        this.element.innerHTML = `
+            <div class="digital-display" id="digital-${this.id}">----</div>
+        `;
+        this.displayEl = this.element.querySelector(`#digital-${this.id}`);
+        const { color = '#22c55e' } = this.config;
+        this.displayEl.style.color = color;
+    }
+
+    renderLCD() {
+        const { digits = 6, decimals = 0, unit = '' } = this.config;
+        const totalDigits = digits + (unit ? 2 : 0); // Extra space for unit
+
+        this.element.innerHTML = `
+            <div class="digital-lcd-display" id="digital-lcd-${this.id}">
+                <div class="digital-lcd-screen">
+                    <svg class="digital-lcd-svg" id="digital-svg-${this.id}" viewBox="0 0 ${totalDigits * 24 + 10} 48">
+                        <defs>
+                            <linearGradient id="lcd-bg-${this.id}" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" style="stop-color:#c8d4c0"/>
+                                <stop offset="50%" style="stop-color:#b8c4b0"/>
+                                <stop offset="100%" style="stop-color:#a8b4a0"/>
+                            </linearGradient>
+                        </defs>
+                        <rect x="0" y="0" width="100%" height="100%" fill="url(#lcd-bg-${this.id})" rx="4"/>
+                        <g id="digital-digits-${this.id}" transform="translate(5, 6)"></g>
+                    </svg>
+                </div>
+            </div>
+        `;
+        this.svgEl = this.element.querySelector(`#digital-svg-${this.id}`);
+        this.digitsGroup = this.element.querySelector(`#digital-digits-${this.id}`);
+        this.updateSegmentDisplay('----');
+    }
+
+    renderLED() {
+        const { digits = 6, decimals = 0, unit = '', color = '#ff0000' } = this.config;
+        const totalDigits = digits + (unit ? 2 : 0);
+
+        this.element.innerHTML = `
+            <div class="digital-led-display" id="digital-led-${this.id}">
+                <div class="digital-led-screen">
+                    <svg class="digital-led-svg" id="digital-svg-${this.id}" viewBox="0 0 ${totalDigits * 24 + 10} 48">
+                        <defs>
+                            <filter id="led-glow-${this.id}" x="-50%" y="-50%" width="200%" height="200%">
+                                <feGaussianBlur stdDeviation="1.5" result="blur"/>
+                                <feMerge>
+                                    <feMergeNode in="blur"/>
+                                    <feMergeNode in="blur"/>
+                                    <feMergeNode in="SourceGraphic"/>
+                                </feMerge>
+                            </filter>
+                            <linearGradient id="led-bg-${this.id}" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" style="stop-color:#2a2a2a"/>
+                                <stop offset="50%" style="stop-color:#1a1a1a"/>
+                                <stop offset="100%" style="stop-color:#0a0a0a"/>
+                            </linearGradient>
+                        </defs>
+                        <rect x="0" y="0" width="100%" height="100%" fill="url(#led-bg-${this.id})" rx="4"/>
+                        <g id="digital-digits-${this.id}" transform="translate(5, 6)"></g>
+                    </svg>
+                </div>
+            </div>
+        `;
+        this.svgEl = this.element.querySelector(`#digital-svg-${this.id}`);
+        this.digitsGroup = this.element.querySelector(`#digital-digits-${this.id}`);
+        this.updateSegmentDisplay('----');
+    }
+
+    // Render a single 7-segment digit at position x
+    renderDigit(char, x, isLCD = true) {
+        const pattern = DigitalWidget.SEGMENT_PATTERNS[char];
+        if (!pattern) return '';
+
+        const { color = '#22c55e' } = this.config;
+
+        // Handle special characters
+        if (pattern === 'dot') {
+            const onColor = isLCD ? '#3a4a3a' : color;
+            const glowFilter = isLCD ? '' : `filter="url(#led-glow-${this.id})"`;
+            return `<circle cx="${x + 4}" cy="33" r="2.5" fill="${onColor}" ${glowFilter}/>`;
+        }
+        if (pattern === 'colon') {
+            const onColor = isLCD ? '#3a4a3a' : color;
+            const glowFilter = isLCD ? '' : `filter="url(#led-glow-${this.id})"`;
+            return `
+                <circle cx="${x + 4}" cy="14" r="2" fill="${onColor}" ${glowFilter}/>
+                <circle cx="${x + 4}" cy="26" r="2" fill="${onColor}" ${glowFilter}/>
+            `;
+        }
+
+        // Segment colors
+        const onColor = isLCD ? '#3a4a3a' : color;
+        const offColor = isLCD ? 'rgba(58, 74, 58, 0.15)' : 'rgba(255, 255, 255, 0.03)';
+        const glowFilter = isLCD ? '' : `filter="url(#led-glow-${this.id})"`;
+
+        // Segment paths (relative to digit position)
+        // Each digit is 20px wide, 36px tall
+        const w = 16, h = 32, t = 3; // width, height, thickness
+        const segments = [
+            // a - top horizontal
+            `<polygon points="${x+2},0 ${x+w-2},0 ${x+w-4},${t} ${x+4},${t}" fill="${pattern[0] ? onColor : offColor}" ${pattern[0] ? glowFilter : ''}/>`,
+            // b - top right vertical
+            `<polygon points="${x+w},${2} ${x+w},${h/2-2} ${x+w-t},${h/2-4} ${x+w-t},${4}" fill="${pattern[1] ? onColor : offColor}" ${pattern[1] ? glowFilter : ''}/>`,
+            // c - bottom right vertical
+            `<polygon points="${x+w},${h/2+2} ${x+w},${h-2} ${x+w-t},${h-4} ${x+w-t},${h/2+4}" fill="${pattern[2] ? onColor : offColor}" ${pattern[2] ? glowFilter : ''}/>`,
+            // d - bottom horizontal
+            `<polygon points="${x+4},${h-t} ${x+w-4},${h-t} ${x+w-2},${h} ${x+2},${h}" fill="${pattern[3] ? onColor : offColor}" ${pattern[3] ? glowFilter : ''}/>`,
+            // e - bottom left vertical
+            `<polygon points="${x},${h/2+2} ${x+t},${h/2+4} ${x+t},${h-4} ${x},${h-2}" fill="${pattern[4] ? onColor : offColor}" ${pattern[4] ? glowFilter : ''}/>`,
+            // f - top left vertical
+            `<polygon points="${x},${2} ${x+t},${4} ${x+t},${h/2-4} ${x},${h/2-2}" fill="${pattern[5] ? onColor : offColor}" ${pattern[5] ? glowFilter : ''}/>`,
+            // g - middle horizontal
+            `<polygon points="${x+3},${h/2-t/2} ${x+w-3},${h/2-t/2} ${x+w-4},${h/2} ${x+w-3},${h/2+t/2} ${x+3},${h/2+t/2} ${x+4},${h/2}" fill="${pattern[6] ? onColor : offColor}" ${pattern[6] ? glowFilter : ''}/>`,
+        ];
+
+        return segments.join('');
+    }
+
+    updateSegmentDisplay(text) {
+        if (!this.digitsGroup) return;
+
+        const { style = 'default' } = this.config;
+        const isLCD = style === 'lcd';
+
+        let html = '';
+        let x = 0;
+        for (const char of text) {
+            if (char === '.' || char === ':') {
+                html += this.renderDigit(char, x, isLCD);
+                x += 8; // Smaller width for dot/colon
+            } else {
+                html += this.renderDigit(char, x, isLCD);
+                x += 22; // Full digit width + spacing
+            }
+        }
+
+        this.digitsGroup.innerHTML = html;
+
+        // Update SVG viewBox to fit content
+        if (this.svgEl) {
+            this.svgEl.setAttribute('viewBox', `0 0 ${x + 10} 48`);
+        }
+    }
+
+    update(value, error = null) {
+        super.update(value, error);
+
+        const { style = 'default', decimals = 0, digits = 6, color = '#22c55e', unit = '' } = this.config;
+
+        if (style === 'default') {
+            if (!this.displayEl) return;
+
+            if (error) {
+                this.displayEl.textContent = 'ERR';
+                this.displayEl.style.color = 'var(--accent-red)';
+                return;
+            }
+
+            const numValue = parseFloat(value) || 0;
+            let text = numValue.toFixed(decimals);
+
+            // Pad with zeros if needed
+            const parts = text.split('.');
+            const intPart = parts[0].padStart(digits - (decimals > 0 ? decimals + 1 : 0), '0');
+            text = decimals > 0 ? `${intPart}.${parts[1]}` : intPart;
+
+            if (unit) {
+                text += ` ${unit}`;
+            }
+
+            this.displayEl.textContent = text;
+            this.displayEl.style.color = color;
+        } else {
+            // LCD or LED style
+            if (!this.digitsGroup) return;
+
+            if (error) {
+                this.updateSegmentDisplay('ERR');
+                return;
+            }
+
+            const numValue = parseFloat(value) || 0;
+            let text = numValue.toFixed(decimals);
+
+            // Pad with leading spaces/zeros
+            const parts = text.split('.');
+            const intPart = parts[0].padStart(digits - (decimals > 0 ? decimals + 1 : 0), ' ');
+            text = decimals > 0 ? `${intPart}.${parts[1]}` : intPart;
+
+            this.updateSegmentDisplay(text);
+        }
+    }
+
+    static getConfigForm(config = {}) {
+        return `
+            <div class="widget-config-field">
+                <label>Sensor</label>
+                <input type="text" class="widget-input" name="sensor"
+                       value="${escapeHtml(config.sensor || '')}" placeholder="Type to search..." autocomplete="off">
+            </div>
+            <div class="widget-config-field">
+                <label>Label</label>
+                <input type="text" class="widget-input" name="label"
+                       value="${escapeHtml(config.label || '')}" placeholder="Display label">
+            </div>
+            <div class="widget-config-field">
+                <label>Style</label>
+                <select class="widget-select" name="style">
+                    <option value="default" ${!config.style || config.style === 'default' ? 'selected' : ''}>Default (Orbitron font)</option>
+                    <option value="lcd" ${config.style === 'lcd' ? 'selected' : ''}>LCD (7-segment, light)</option>
+                    <option value="led" ${config.style === 'led' ? 'selected' : ''}>LED (7-segment, glow)</option>
+                </select>
+            </div>
+            <div class="widget-config-row">
+                <div class="widget-config-field">
+                    <label>Digits</label>
+                    <input type="number" class="widget-input" name="digits"
+                           value="${config.digits ?? 6}" min="1" max="12">
+                </div>
+                <div class="widget-config-field">
+                    <label>Decimals</label>
+                    <input type="number" class="widget-input" name="decimals"
+                           value="${config.decimals ?? 0}" min="0" max="4">
+                </div>
+            </div>
+            <div class="widget-config-row">
+                <div class="widget-config-field">
+                    <label>Color</label>
+                    <input type="color" class="widget-input" name="color"
+                           value="${config.color || '#22c55e'}" style="height: 38px; padding: 4px;">
+                </div>
+                <div class="widget-config-field">
+                    <label>Unit</label>
+                    <input type="text" class="widget-input" name="unit"
+                           value="${escapeHtml(config.unit || '')}" placeholder="Optional">
+                </div>
+            </div>
+        `;
+    }
+
+    static parseConfigForm(form) {
+        return {
+            sensor: form.querySelector('[name="sensor"]')?.value || '',
+            label: form.querySelector('[name="label"]')?.value || '',
+            style: form.querySelector('[name="style"]')?.value || 'default',
+            digits: parseInt(form.querySelector('[name="digits"]')?.value) || 6,
+            decimals: parseInt(form.querySelector('[name="decimals"]')?.value) || 0,
+            color: form.querySelector('[name="color"]')?.value || '#22c55e',
+            unit: form.querySelector('[name="unit"]')?.value || ''
+        };
+    }
+}
+
+// ============================================================================
+// Chart Widget (Chart.js based)
+// ============================================================================
+
+class ChartWidget extends DashboardWidget {
+    static type = 'chart';
+    static displayName = 'Chart';
+    static description = 'Real-time line chart with multiple sensors';
+    static icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>';
+    static defaultSize = { width: 24, height: 12 };
+
+    // Default colors for sensors
+    static COLORS = [
+        '#3274d9', '#73bf69', '#f2cc0c', '#ff6b6b', '#a855f7',
+        '#06b6d4', '#f97316', '#ec4899', '#14b8a6', '#8b5cf6'
+    ];
+
+    constructor(id, config, container) {
+        super(id, config, container);
+        this.charts = new Map();      // zoneId -> Chart.js instance
+        this.sensorData = new Map();  // sensorName -> { value, timestamp }
+        this.chartStartTime = Date.now();
+        this.updateInterval = null;
+        this.visibilityHandler = null;
+    }
+
+    render() {
+        const { zones = [], showTable = true, tableHeight = 100 } = this.config;
+
+        this.element = document.createElement('div');
+        this.element.className = 'widget-content chart-widget-content';
+
+        // Zones container
+        const zonesHtml = zones.map((zone, idx) => `
+            <div class="chart-widget-zone" data-zone-id="${zone.id || `zone-${idx}`}">
+                <canvas id="chart-canvas-${this.id}-${idx}"></canvas>
+            </div>
+        `).join('');
+
+        // Table container (if enabled) - IONC table style
+        const tableHtml = showTable ? `
+            <div class="chart-widget-table-container" style="height: ${tableHeight}px;">
+                <div class="chart-widget-table-resizer"></div>
+                <div class="chart-widget-table-scroll">
+                    <table class="chart-widget-table">
+                        <thead>
+                            <tr>
+                                <th class="col-color"></th>
+                                <th class="col-id">ID</th>
+                                <th class="col-name">Name</th>
+                                <th class="col-type">Type</th>
+                                <th class="col-value">Value</th>
+                                <th class="col-status">Status</th>
+                                <th class="col-supplier">Supplier</th>
+                            </tr>
+                        </thead>
+                        <tbody id="chart-table-${this.id}">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        ` : '';
+
+        // Get saved zones height or use default
+        const zonesHeight = this.config.zonesHeight || 150;
+
+        this.element.innerHTML = `
+            <div class="chart-widget-zones" style="height: ${zonesHeight}px;">
+                ${zonesHtml}
+                <div class="chart-widget-zones-resizer"></div>
+            </div>
+            ${tableHtml}
+        `;
+
+        this.container.appendChild(this.element);
+
+        // Initialize charts
+        this.initCharts();
+
+        // Initialize zones resizer
+        this.initZonesResizer();
+
+        // Initialize table
+        if (showTable) {
+            this.initTable();
+            this.initTableResizer();
+        }
+
+        // Load history for all sensors
+        this.loadHistory();
+
+        // Start periodic update interval (every 2 seconds, only when visible)
+        this.updateInterval = setInterval(() => {
+            if (!document.hidden && this.charts.size > 0) {
+                this.syncTimeRange();
+            }
+        }, 2000);
+
+        // Add visibility change handler
+        this.visibilityHandler = () => {
+            if (document.visibilityState === 'visible') {
+                // Force refresh charts when page becomes visible
+                this.syncTimeRange();
+            }
+        };
+        document.addEventListener('visibilitychange', this.visibilityHandler);
+    }
+
+    initCharts() {
+        const { zones = [], useTextname = false } = this.config;
+
+        zones.forEach((zone, idx) => {
+            const canvas = this.element.querySelector(`#chart-canvas-${this.id}-${idx}`);
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            const datasets = (zone.sensors || []).map((sensor, sensorIdx) => {
+                let label = sensor.label || sensor.name;
+                if (useTextname && !sensor.label) {
+                    const sensorInfo = typeof getSensorInfo === 'function' ? getSensorInfo(sensor.name) : null;
+                    if (sensorInfo?.textname) {
+                        label = sensorInfo.textname;
+                    }
+                }
+                return {
+                    label,
+                    data: [],
+                    borderColor: sensor.color || ChartWidget.COLORS[sensorIdx % ChartWidget.COLORS.length],
+                    backgroundColor: `${sensor.color || ChartWidget.COLORS[sensorIdx % ChartWidget.COLORS.length]}20`,
+                    fill: sensor.fill !== false,
+                    tension: sensor.stepped ? 0 : (sensor.smooth !== false ? 0.3 : 0),
+                    stepped: sensor.stepped ? 'before' : false,
+                    pointRadius: 0,
+                    borderWidth: sensor.stepped ? 2 : 1.5
+                };
+            });
+
+            const timeRange = this.getTimeRange();
+            const chart = new Chart(ctx, {
+                type: 'line',
+                data: { datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    normalized: true,
+                    parsing: false,
+                    spanGaps: true,
+                    interaction: {
+                        mode: 'nearest',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            enabled: true,
+                            backgroundColor: '#22252a',
+                            titleColor: '#d8dce2',
+                            bodyColor: '#d8dce2',
+                            borderColor: '#333840',
+                            borderWidth: 1
+                        },
+                        decimation: {
+                            enabled: true,
+                            algorithm: 'min-max'
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            display: true,
+                            min: timeRange.min,
+                            max: timeRange.max,
+                            grid: {
+                                color: '#333840',
+                                drawBorder: false
+                            },
+                            ticks: {
+                                color: '#8a9099',
+                                maxTicksLimit: 6,
+                                autoSkip: true,
+                                source: 'auto'
+                            },
+                            time: {
+                                displayFormats: {
+                                    second: 'HH:mm:ss',
+                                    minute: 'HH:mm',
+                                    hour: 'HH:mm'
+                                }
+                            }
+                        },
+                        y: {
+                            display: true,
+                            position: 'left',
+                            grid: {
+                                color: '#333840',
+                                drawBorder: false
+                            },
+                            ticks: {
+                                color: '#8a9099',
+                                maxTicksLimit: 5
+                            }
+                        }
+                    }
+                }
+            });
+
+            this.charts.set(zone.id || `zone-${idx}`, {
+                chart,
+                sensors: zone.sensors || []
+            });
+        });
+    }
+
+    initTable() {
+        const { zones = [], useTextname = false } = this.config;
+        const tbody = this.element.querySelector(`#chart-table-${this.id}`);
+        if (!tbody) return;
+
+        // Collect all sensors from all zones with zone index
+        const allSensors = [];
+        zones.forEach((zone, zoneIdx) => {
+            (zone.sensors || []).forEach((sensor, sensorIdx) => {
+                // Get sensor info from global state
+                const sensorInfo = typeof getSensorInfo === 'function' ? getSensorInfo(sensor.name) : null;
+                allSensors.push({
+                    ...sensor,
+                    zoneIdx,
+                    sensorIdx,
+                    zoneId: zone.id || `zone-${zoneIdx}`,
+                    color: sensor.color || ChartWidget.COLORS[sensorIdx % ChartWidget.COLORS.length],
+                    iotype: sensorInfo?.iotype || '',
+                    textname: sensorInfo?.textname || ''
+                });
+            });
+        });
+
+        // IONC-style table rows
+        tbody.innerHTML = allSensors.map((sensor, idx) => {
+            const safeId = sensor.name.replace(/[^a-zA-Z0-9]/g, '_');
+            const sensorInfo = typeof getSensorInfo === 'function' ? getSensorInfo(sensor.name) : null;
+            const sensorId = sensorInfo?.id || '';
+            const supplier = sensorInfo?.supplier || '';
+            // Use textname if enabled and available
+            const displayName = (useTextname && sensor.textname) ? sensor.textname : sensor.name;
+            return `
+            <tr data-sensor="${escapeHtml(sensor.name)}" data-zone="${sensor.zoneIdx}" data-idx="${sensor.sensorIdx}">
+                <td class="col-color">
+                    <span class="color-indicator" style="background: ${sensor.color}"></span>
+                </td>
+                <td class="col-id">${escapeHtml(String(sensorId))}</td>
+                <td class="col-name" title="${escapeHtml(sensor.name)}">${escapeHtml(displayName)}</td>
+                <td class="col-type">
+                    ${sensor.iotype ? `<span class="type-badge type-${sensor.iotype}">${sensor.iotype}</span>` : ''}
+                </td>
+                <td class="col-value" id="chart-value-${this.id}-${safeId}" style="color: ${sensor.color}">--</td>
+                <td class="col-status">—</td>
+                <td class="col-supplier">${escapeHtml(supplier)}</td>
+            </tr>
+        `}).join('');
+    }
+
+    initTableResizer() {
+        const container = this.element.querySelector('.chart-widget-table-container');
+        const resizer = this.element.querySelector('.chart-widget-table-resizer');
+        if (!container || !resizer) return;
+
+        let startY, startHeight;
+
+        const onMouseMove = (e) => {
+            const delta = startY - e.clientY;
+            const newHeight = Math.max(50, Math.min(300, startHeight + delta));
+            container.style.height = `${newHeight}px`;
+        };
+
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            document.body.style.cursor = '';
+
+            // Save new height to config
+            this.config.tableHeight = parseInt(container.style.height);
+            // Trigger save through dashboard manager
+            if (window.dashboardManager) {
+                dashboardManager.saveDashboard();
+            }
+        };
+
+        resizer.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            startY = e.clientY;
+            startHeight = container.offsetHeight;
+            document.body.style.cursor = 'ns-resize';
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+        });
+    }
+
+    initZonesResizer() {
+        const zones = this.element.querySelector('.chart-widget-zones');
+        const resizer = this.element.querySelector('.chart-widget-zones-resizer');
+        if (!zones || !resizer) return;
+
+        let startY, startHeight;
+
+        const onMouseMove = (e) => {
+            const delta = e.clientY - startY;
+            const newHeight = Math.max(80, Math.min(500, startHeight + delta));
+            zones.style.height = `${newHeight}px`;
+            // Trigger chart resize
+            this.charts.forEach(({ chart }) => chart.resize());
+        };
+
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            document.body.style.cursor = '';
+
+            // Save new height to config
+            this.config.zonesHeight = parseInt(zones.style.height);
+            // Trigger save through dashboard manager
+            if (window.dashboardManager) {
+                dashboardManager.saveDashboard();
+            }
+        };
+
+        resizer.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            startY = e.clientY;
+            startHeight = zones.offsetHeight;
+            document.body.style.cursor = 'ns-resize';
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+        });
+    }
+
+    getTimeRange() {
+        // Use widget's own timeRange or default to 15 minutes
+        const rangeMs = this.config.timeRange || 900000;
+        const now = Date.now();
+
+        let min = this.chartStartTime;
+        let max = min + rangeMs;
+
+        // Shift window if current time exceeds
+        if (now >= max) {
+            const shiftAmount = rangeMs * 0.9;
+            this.chartStartTime = min + shiftAmount;
+            min = this.chartStartTime;
+            max = min + rangeMs;
+        }
+
+        return { min, max };
+    }
+
+    async loadHistory() {
+        const { zones = [] } = this.config;
+
+        for (const zone of zones) {
+            const chartData = this.charts.get(zone.id);
+            if (!chartData) continue;
+
+            for (let i = 0; i < (zone.sensors || []).length; i++) {
+                const sensor = zone.sensors[i];
+                try {
+                    // Try to load history from SM API
+                    const response = await fetch(`/api/sm/sensors/${encodeURIComponent(sensor.name)}/history?limit=200`);
+                    if (response.ok) {
+                        const history = await response.json();
+                        if (history.points && history.points.length > 0) {
+                            // Use timestamp as number for decimation to work
+                            const data = history.points.map(p => ({
+                                x: new Date(p.timestamp).getTime(),
+                                y: p.value
+                            }));
+                            chartData.chart.data.datasets[i].data = data;
+                        }
+                    }
+                } catch (e) {
+                    console.warn(`Failed to load history for ${sensor.name}:`, e);
+                }
+            }
+
+            chartData.chart.update('none');
+        }
+    }
+
+    update(value, error = null) {
+        // This is called for the main sensor (config.sensor)
+        // Chart widget uses updateSensor instead
+    }
+
+    // Called from SSE handler for each sensor update
+    updateSensor(sensorName, value, timestamp = null) {
+        // Use timestamp as number for decimation to work with parsing: false
+        const ts = timestamp ? new Date(timestamp).getTime() : Date.now();
+
+        // Store current value
+        this.sensorData.set(sensorName, { value, timestamp: ts });
+
+        // Update table value
+        const safeId = sensorName.replace(/[^a-zA-Z0-9]/g, '_');
+        const valueEl = this.element?.querySelector(`#chart-value-${this.id}-${safeId}`);
+        if (valueEl) {
+            valueEl.textContent = typeof value === 'number' ? value.toFixed(2) : value;
+        }
+
+        // Add point to chart
+        const { zones = [] } = this.config;
+        for (const zone of zones) {
+            const chartData = this.charts.get(zone.id);
+            if (!chartData) continue;
+
+            const sensorIdx = (zone.sensors || []).findIndex(s => s.name === sensorName);
+            if (sensorIdx === -1) continue;
+
+            const dataset = chartData.chart.data.datasets[sensorIdx];
+            if (!dataset) continue;
+
+            dataset.data.push({ x: ts, y: value });
+
+            // Limit data points
+            if (dataset.data.length > 1000) {
+                dataset.data.shift();
+            }
+        }
+    }
+
+    // Called periodically to sync time range and update charts
+    syncTimeRange() {
+        const timeRange = this.getTimeRange();
+
+        this.charts.forEach(({ chart }) => {
+            chart.options.scales.x.min = timeRange.min;
+            chart.options.scales.x.max = timeRange.max;
+            chart.update('none');
+        });
+    }
+
+    // Get all sensor names for SSE subscription
+    getSensorNames() {
+        const { zones = [] } = this.config;
+        const names = new Set();
+        zones.forEach(zone => {
+            (zone.sensors || []).forEach(sensor => {
+                names.add(sensor.name);
+            });
+        });
+        return Array.from(names);
+    }
+
+    destroy() {
+        // Clear update interval
+        if (this.updateInterval) {
+            clearInterval(this.updateInterval);
+            this.updateInterval = null;
+        }
+
+        // Remove visibility handler
+        if (this.visibilityHandler) {
+            document.removeEventListener('visibilitychange', this.visibilityHandler);
+            this.visibilityHandler = null;
+        }
+
+        // Destroy all Chart.js instances
+        this.charts.forEach(({ chart }) => {
+            chart.destroy();
+        });
+        this.charts.clear();
+        this.sensorData.clear();
+        super.destroy();
+    }
+
+    static TIME_RANGES = [
+        { value: 60000, label: '1m' },
+        { value: 180000, label: '3m' },
+        { value: 300000, label: '5m' },
+        { value: 900000, label: '15m' },
+        { value: 3600000, label: '1h' },
+        { value: 10800000, label: '3h' }
+    ];
+
+    static getConfigForm(config = {}) {
+        const zones = config.zones || [{ id: 'zone-0', sensors: [] }];
+        const timeRange = config.timeRange || 900000; // default 15m
+
+        return `
+            <div class="widget-config-field">
+                <label>Label</label>
+                <input type="text" class="widget-input" name="label"
+                       value="${escapeHtml(config.label || '')}" placeholder="Chart title">
+            </div>
+            <div class="widget-config-field">
+                <label>Time Range</label>
+                <div class="time-range-selector">
+                    ${ChartWidget.TIME_RANGES.map(tr => `
+                        <label class="time-range-btn ${timeRange === tr.value ? 'active' : ''}">
+                            <input type="radio" name="timeRange" value="${tr.value}" ${timeRange === tr.value ? 'checked' : ''}>
+                            <span>${tr.label}</span>
+                        </label>
+                    `).join('')}
+                </div>
+            </div>
+            <div class="widget-config-field">
+                <label class="toggle-label">
+                    <input type="checkbox" name="showTable" ${config.showTable !== false ? 'checked' : ''}>
+                    <span class="toggle-switch"></span>
+                    Show sensor table
+                </label>
+            </div>
+            <div class="widget-config-field">
+                <label class="toggle-label">
+                    <input type="checkbox" name="useTextname" ${config.useTextname ? 'checked' : ''}>
+                    <span class="toggle-switch"></span>
+                    Use textname
+                </label>
+            </div>
+            <div class="chart-zones-editor" id="chart-zones-editor">
+                ${zones.map((zone, zoneIdx) => ChartWidget.renderZoneEditor(zone, zoneIdx)).join('')}
+            </div>
+            <div class="widget-config-field">
+                <button type="button" class="zones-add-btn" onclick="addChartZone()">+ Add Chart Zone</button>
+            </div>
+        `;
+    }
+
+    static renderZoneEditor(zone, zoneIdx) {
+        const sensors = zone.sensors || [];
+        return `
+            <div class="chart-zone-editor" data-zone-idx="${zoneIdx}">
+                <div class="chart-zone-header">
+                    <span class="chart-zone-title">Zone ${zoneIdx + 1}</span>
+                    ${zoneIdx > 0 ? `<button type="button" class="zone-remove-btn" onclick="removeChartZone(${zoneIdx})">×</button>` : ''}
+                </div>
+                <div class="chart-zone-sensors" id="chart-zone-sensors-${zoneIdx}">
+                    ${sensors.map((sensor, sensorIdx) => ChartWidget.renderSensorRow(sensor, zoneIdx, sensorIdx)).join('')}
+                </div>
+                <div class="chart-zone-add">
+                    <input type="text" class="widget-input chart-sensor-input"
+                           placeholder="Add sensor..."
+                           data-zone-idx="${zoneIdx}"
+                           autocomplete="off">
+                </div>
+            </div>
+        `;
+    }
+
+    static renderSensorRow(sensor, zoneIdx, sensorIdx) {
+        const color = sensor.color || ChartWidget.COLORS[sensorIdx % ChartWidget.COLORS.length];
+        return `
+            <div class="chart-sensor-row" data-zone-idx="${zoneIdx}" data-sensor-idx="${sensorIdx}">
+                <input type="color" class="chart-sensor-color" value="${color}"
+                       onchange="updateChartSensorColor(${zoneIdx}, ${sensorIdx}, this.value)">
+                <span class="chart-sensor-name">${escapeHtml(sensor.name)}</span>
+                <div class="chart-sensor-options">
+                    <label class="chart-sensor-option" title="Smooth line (bezier)">
+                        <input type="checkbox" name="sensor-${zoneIdx}-${sensorIdx}-smooth" ${sensor.smooth !== false ? 'checked' : ''}>
+                        <span>smooth</span>
+                    </label>
+                    <label class="chart-sensor-option" title="Fill area under line">
+                        <input type="checkbox" name="sensor-${zoneIdx}-${sensorIdx}-fill" ${sensor.fill !== false ? 'checked' : ''}>
+                        <span>fill</span>
+                    </label>
+                    <label class="chart-sensor-option" title="Stepped line (discrete)">
+                        <input type="checkbox" name="sensor-${zoneIdx}-${sensorIdx}-stepped" ${sensor.stepped ? 'checked' : ''}>
+                        <span>stepped</span>
+                    </label>
+                </div>
+                <button type="button" class="chart-sensor-remove" onclick="removeChartSensor(${zoneIdx}, ${sensorIdx})">×</button>
+                <input type="hidden" name="sensor-${zoneIdx}-${sensorIdx}-name" value="${escapeHtml(sensor.name)}">
+                <input type="hidden" name="sensor-${zoneIdx}-${sensorIdx}-color" value="${color}">
+            </div>
+        `;
+    }
+
+    static parseConfigForm(form) {
+        const zones = [];
+        const zoneEditors = form.querySelectorAll('.chart-zone-editor');
+
+        zoneEditors.forEach((editor, zoneIdx) => {
+            const sensors = [];
+            const sensorRows = editor.querySelectorAll('.chart-sensor-row');
+
+            sensorRows.forEach((row, sensorIdx) => {
+                const name = row.querySelector('input[type="hidden"][name$="-name"]')?.value;
+                const color = row.querySelector('input[type="hidden"][name$="-color"]')?.value;
+                const smooth = form.querySelector(`[name="sensor-${zoneIdx}-${sensorIdx}-smooth"]`)?.checked !== false;
+                const fill = form.querySelector(`[name="sensor-${zoneIdx}-${sensorIdx}-fill"]`)?.checked !== false;
+                const stepped = form.querySelector(`[name="sensor-${zoneIdx}-${sensorIdx}-stepped"]`)?.checked || false;
+
+                if (name) {
+                    sensors.push({ name, color, smooth, fill, stepped });
+                }
+            });
+
+            zones.push({
+                id: `zone-${zoneIdx}`,
+                sensors
+            });
+        });
+
+        // Get timeRange from radio button
+        const timeRangeInput = form.querySelector('[name="timeRange"]:checked');
+        const timeRange = timeRangeInput ? parseInt(timeRangeInput.value) : 900000;
+
+        return {
+            label: form.querySelector('[name="label"]')?.value || '',
+            timeRange,
+            showTable: form.querySelector('[name="showTable"]')?.checked !== false,
+            useTextname: form.querySelector('[name="useTextname"]')?.checked || false,
+            tableHeight: 100,
+            zones
+        };
+    }
+}
+
+
+// === 62-dashboard-manager.js ===
+
+// ============================================================================
+// Widget Registry
+// ============================================================================
+
+const WIDGET_TYPES = {
+    'gauge': GaugeWidget,
+    'level': LevelWidget,
+    'led': LedWidget,
+    'label': LabelWidget,
+    'divider': DividerWidget,
+    'statusbar': StatusBarWidget,
+    'bargraph': BarGraphWidget,
+    'digital': DigitalWidget,
+    'chart': ChartWidget
+};
+
+// Grid settings (4x finer grid for precise positioning)
+const GRID_COLS = 48;
+const GRID_ROW_HEIGHT = 30;
+const GRID_GAP = 4;
+
+// ============================================================================
+// Dashboard Manager
+// ============================================================================
+
+class DashboardManager {
+    constructor() {
+        this.gridEl = document.getElementById('dashboard-grid');
+        this.selectEl = document.getElementById('dashboard-select');
+        this.actionsEl = document.getElementById('dashboard-actions');
+
+        this.loadDashboards();
+        this.bindEvents();
+    }
+
+    bindEvents() {
+        // View switcher
+        document.getElementById('view-objects-btn')?.addEventListener('click', () => this.switchView('objects'));
+        document.getElementById('view-dashboard-btn')?.addEventListener('click', () => this.switchView('dashboard'));
+
+        // Dashboard selector
+        this.selectEl?.addEventListener('change', (e) => this.loadDashboard(e.target.value));
+
+        // Dashboard actions
+        document.getElementById('dashboard-new-btn')?.addEventListener('click', () => this.showNewDashboardDialog());
+        document.getElementById('dashboard-add-widget-btn')?.addEventListener('click', () => this.showWidgetPicker());
+        document.getElementById('dashboard-edit-btn')?.addEventListener('click', () => this.toggleEditMode());
+        document.getElementById('dashboard-import-btn')?.addEventListener('click', () => this.showImportDialog());
+        document.getElementById('dashboard-export-btn')?.addEventListener('click', () => this.exportDashboard());
+        document.getElementById('dashboard-delete-btn')?.addEventListener('click', () => this.deleteDashboard());
+
+        // Dialog events
+        document.getElementById('dashboard-name-confirm')?.addEventListener('click', () => this.createDashboard());
+        document.getElementById('widget-config-apply')?.addEventListener('click', () => this.applyWidgetConfig());
+        document.getElementById('import-confirm')?.addEventListener('click', () => this.confirmImport());
+
+        // Import dropzone
+        this.setupImportDropzone();
+
+        // Dashboards section collapse toggle
+        document.getElementById('dashboards-section-header')?.addEventListener('click', () => {
+            const section = document.getElementById('dashboards-section');
+            section?.classList.toggle('collapsed');
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeWidgetPicker();
+                closeWidgetConfig();
+                closeDashboardNameDialog();
+                closeDashboardImport();
+                // Deselect widget
+                if (dashboardState.selectedWidgetId) {
+                    this.selectWidget(null);
+                }
+            }
+
+            // Arrow keys for moving selected widget
+            // Default: move by grid cell, Shift+Arrow: move by 1px (fine mode)
+            if (dashboardState.editMode && dashboardState.selectedWidgetId) {
+                const arrowKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+                if (arrowKeys.includes(e.key)) {
+                    e.preventDefault();
+                    this.moveWidgetByKey(e.key, e.shiftKey);
+                }
+            }
+        });
+
+        // Click on grid background deselects widget
+        this.gridEl?.addEventListener('click', (e) => {
+            if (!dashboardState.editMode) return;
+            // Only deselect if clicked directly on grid, not on a widget
+            if (e.target === this.gridEl || e.target.classList.contains('dashboard-placeholder')) {
+                this.selectWidget(null);
+            }
+        });
+    }
+
+    switchView(view) {
+        dashboardState.currentView = view;
+
+        const objectsBtn = document.getElementById('view-objects-btn');
+        const dashboardBtn = document.getElementById('view-dashboard-btn');
+        const objectsView = document.getElementById('objects-view');
+        const dashboardView = document.getElementById('dashboard-view');
+        const sidebar = document.getElementById('sidebar');
+
+        if (view === 'objects') {
+            objectsBtn?.classList.add('active');
+            dashboardBtn?.classList.remove('active');
+            objectsView?.classList.add('active');
+            dashboardView?.classList.remove('active');
+            sidebar?.classList.remove('hidden');
+        } else {
+            objectsBtn?.classList.remove('active');
+            dashboardBtn?.classList.add('active');
+            objectsView?.classList.remove('active');
+            dashboardView?.classList.add('active');
+            sidebar?.classList.add('hidden');
+
+            // Принудительно обновляем все виджеты с их текущими значениями
+            // (SSE события могли прийти пока Dashboard был скрыт)
+            this.refreshAllWidgets();
+        }
+
+        this.saveDashboardSettings();
+    }
+
+    // Обновить все виджеты с их текущими значениями
+    refreshAllWidgets() {
+        dashboardState.widgets.forEach((widget) => {
+            if (widget.value !== null) {
+                widget.update(widget.value, widget.error);
+            }
+        });
+    }
+
+    loadDashboards() {
+        // Load from localStorage
+        try {
+            const userDashboards = JSON.parse(localStorage.getItem('user-dashboards') || '[]');
+            userDashboards.forEach(name => {
+                const config = localStorage.getItem(`dashboard:${name}`);
+                if (config) {
+                    dashboardState.dashboards.set(name, JSON.parse(config));
+                }
+            });
+        } catch (err) {
+            console.warn('Failed to load dashboards from localStorage:', err);
+        }
+
+        // Load server dashboards
+        this.loadServerDashboards();
+
+        // Update selector
+        this.updateDashboardSelector();
+
+        // Restore last viewed dashboard
+        const lastDashboard = localStorage.getItem('last-dashboard');
+        if (lastDashboard && dashboardState.dashboards.has(lastDashboard)) {
+            this.loadDashboard(lastDashboard);
+        }
+    }
+
+    async loadServerDashboards() {
+        try {
+            const response = await fetch('/api/dashboards');
+            if (response.ok) {
+                const dashboardInfos = await response.json();
+                if (Array.isArray(dashboardInfos) && dashboardInfos.length > 0) {
+                    // API returns array of DashboardInfo (name, description, widgetCount, server)
+                    for (const info of dashboardInfos) {
+                        const name = info.name;
+                        if (!name) continue;
+                        // Don't overwrite user dashboards with same name
+                        if (dashboardState.dashboards.has(name)) {
+                            continue;
+                        }
+                        // Create placeholder - will be loaded on demand
+                        dashboardState.dashboards.set(name, {
+                            _server: true,
+                            _loaded: false,
+                            meta: { name, description: info.description || '' }
+                        });
+                    }
+                    this.updateDashboardSelector();
+                }
+            }
+        } catch (err) {
+            console.log('No server dashboards available');
+        }
+    }
+
+    updateDashboardSelector() {
+        if (!this.selectEl) return;
+
+        const currentValue = this.selectEl.value;
+
+        let html = '<option value="">Select dashboard...</option>';
+
+        // Server dashboards
+        const serverDashboards = Array.from(dashboardState.dashboards.entries())
+            .filter(([_, config]) => config._server);
+        if (serverDashboards.length > 0) {
+            html += '<optgroup label="Server Dashboards">';
+            serverDashboards.forEach(([name]) => {
+                html += `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`;
+            });
+            html += '</optgroup>';
+        }
+
+        // User dashboards
+        const userDashboards = Array.from(dashboardState.dashboards.entries())
+            .filter(([_, config]) => !config._server);
+        if (userDashboards.length > 0) {
+            html += '<optgroup label="My Dashboards">';
+            userDashboards.forEach(([name]) => {
+                html += `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`;
+            });
+            html += '</optgroup>';
+        }
+
+        this.selectEl.innerHTML = html;
+        this.selectEl.value = currentValue;
+
+        // Also update sidebar dashboards list
+        this.updateSidebarDashboards();
+    }
+
+    updateSidebarDashboards() {
+        const listEl = document.getElementById('dashboards-list');
+        const countEl = document.getElementById('dashboards-count');
+        if (!listEl) return;
+
+        const allDashboards = Array.from(dashboardState.dashboards.entries());
+        const serverDashboards = allDashboards.filter(([_, c]) => c._server);
+        const userDashboards = allDashboards.filter(([_, c]) => !c._server);
+
+        // Update count
+        if (countEl) {
+            countEl.textContent = allDashboards.length;
+        }
+
+        // Build list HTML
+        let html = '';
+
+        // Server dashboards first
+        serverDashboards.forEach(([name]) => {
+            const isActive = dashboardState.currentDashboard === name;
+            html += `
+                <li class="dashboard-item server${isActive ? ' active' : ''}" data-name="${escapeHtml(name)}">
+                    <svg class="dashboard-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="7"/>
+                        <rect x="14" y="3" width="7" height="7"/>
+                        <rect x="14" y="14" width="7" height="7"/>
+                        <rect x="3" y="14" width="7" height="7"/>
+                    </svg>
+                    <span class="dashboard-name">${escapeHtml(name)}</span>
+                    <span class="dashboard-badge">srv</span>
+                </li>
+            `;
+        });
+
+        // User dashboards
+        userDashboards.forEach(([name]) => {
+            const isActive = dashboardState.currentDashboard === name;
+            html += `
+                <li class="dashboard-item${isActive ? ' active' : ''}" data-name="${escapeHtml(name)}">
+                    <svg class="dashboard-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="7"/>
+                        <rect x="14" y="3" width="7" height="7"/>
+                        <rect x="14" y="14" width="7" height="7"/>
+                        <rect x="3" y="14" width="7" height="7"/>
+                    </svg>
+                    <span class="dashboard-name">${escapeHtml(name)}</span>
+                </li>
+            `;
+        });
+
+        listEl.innerHTML = html;
+
+        // Bind click events
+        listEl.querySelectorAll('.dashboard-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const name = item.dataset.name;
+                this.switchView('dashboard');
+                this.loadDashboard(name);
+                if (this.selectEl) {
+                    this.selectEl.value = name;
+                }
+            });
+        });
+    }
+
+    async loadDashboard(name) {
+        if (!name) {
+            this.clearDashboard();
+            return;
+        }
+
+        let config = dashboardState.dashboards.get(name);
+        if (!config) {
+            console.warn('Dashboard not found:', name);
+            return;
+        }
+
+        // Lazy load server dashboard if not yet loaded
+        if (config._server && !config._loaded) {
+            try {
+                const response = await fetch(`/api/dashboards/${encodeURIComponent(name)}`);
+                if (response.ok) {
+                    const fullConfig = await response.json();
+                    fullConfig._server = true;
+                    fullConfig._loaded = true;
+                    dashboardState.dashboards.set(name, fullConfig);
+                    config = fullConfig;
+                } else {
+                    console.error('Failed to load dashboard:', name, response.status);
+                    return;
+                }
+            } catch (err) {
+                console.error('Error loading dashboard:', name, err);
+                return;
+            }
+        }
+
+        dashboardState.currentDashboard = name;
+        this.actionsEl?.classList.remove('hidden');
+
+        // Update sidebar active state
+        this.updateSidebarDashboards();
+
+        // Clear existing widgets
+        this.clearWidgets();
+
+        // Render widgets
+        this.renderDashboard(config);
+
+        // Save last viewed
+        localStorage.setItem('last-dashboard', name);
+
+        // Update edit button for server dashboards
+        const editBtn = document.getElementById('dashboard-edit-btn');
+        const deleteBtn = document.getElementById('dashboard-delete-btn');
+        if (config._server) {
+            editBtn?.classList.add('hidden');
+            deleteBtn?.classList.add('hidden');
+        } else {
+            editBtn?.classList.remove('hidden');
+            deleteBtn?.classList.remove('hidden');
+        }
+    }
+
+    renderDashboard(config) {
+        if (!this.gridEl) return;
+
+        this.gridEl.innerHTML = '';
+
+        if (!config.widgets || config.widgets.length === 0) {
+            this.gridEl.innerHTML = `
+                <div class="dashboard-placeholder">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <rect x="3" y="3" width="18" height="18" rx="2"/>
+                        <line x1="12" y1="8" x2="12" y2="16"/>
+                        <line x1="8" y1="12" x2="16" y2="12"/>
+                    </svg>
+                    <p>Dashboard is empty. Click "Add Widget" to get started.</p>
+                </div>
+            `;
+            return;
+        }
+
+        config.widgets.forEach(widgetConfig => {
+            this.createWidget(widgetConfig);
+        });
+
+        // Subscribe to sensor updates
+        this.updateSensorSubscriptions();
+
+        // Initialize widgets with cached/fetched values
+        this.initializeWidgetValues();
+    }
+
+    // Initialize widgets with current sensor values (from cache or API)
+    async initializeWidgetValues() {
+        // Collect unique sensor names from subscriptions
+        const sensorNames = new Set();
+        for (const sensorName of dashboardState.sensorSubscriptions.keys()) {
+            sensorNames.add(sensorName);
+        }
+        for (const sensorName of dashboardState.setpointSubscriptions.keys()) {
+            sensorNames.add(sensorName);
+        }
+        for (const sensorName of dashboardState.chartSubscriptions.keys()) {
+            sensorNames.add(sensorName);
+        }
+
+        if (sensorNames.size === 0) return;
+
+        // First, try to use cached values from SSE events
+        const uncachedSensors = [];
+        for (const name of sensorNames) {
+            const cached = state.sensorValuesCache.get(name);
+            if (cached) {
+                // Use cached value (not older than 60 seconds)
+                if (Date.now() - cached.timestamp < 60000) {
+                    this.handleSensorUpdate(name, cached.value, cached.error);
+                } else {
+                    uncachedSensors.push(name);
+                }
+            } else {
+                uncachedSensors.push(name);
+            }
+        }
+
+        // For uncached sensors, try to fetch from API
+        if (uncachedSensors.length > 0) {
+            this.fetchSensorValues(uncachedSensors);
+        }
+    }
+
+    // Fetch sensor values from IONC API
+    async fetchSensorValues(sensorNames) {
+        // Find SharedMemory server
+        let smServerId = null;
+        for (const [id, server] of state.servers) {
+            if (server.connected) {
+                smServerId = id;
+                break;
+            }
+        }
+
+        if (!smServerId) return;
+
+        // Fetch each sensor (could be optimized with batch API)
+        for (const name of sensorNames) {
+            try {
+                const response = await fetch(`/api/objects/SharedMemory/ionc/sensors?server=${smServerId}&search=${encodeURIComponent(name)}&limit=1`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.sensors && data.sensors.length > 0) {
+                        const sensor = data.sensors.find(s => s.name === name);
+                        if (sensor) {
+                            // Cache and update
+                            state.sensorValuesCache.set(name, {
+                                value: sensor.value,
+                                error: null,
+                                timestamp: Date.now()
+                            });
+                            this.handleSensorUpdate(name, sensor.value, null);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn('Failed to fetch sensor value:', name, err);
+            }
+        }
+    }
+
+    createWidget(widgetConfig) {
+        const WidgetClass = WIDGET_TYPES[widgetConfig.type];
+        if (!WidgetClass) {
+            console.warn('Unknown widget type:', widgetConfig.type);
+            return null;
+        }
+
+        const { position = {} } = widgetConfig;
+        const { col = 0, row = 0, width = 2, height = 1, freePosition, offset } = position;
+
+        // Create widget container
+        const container = document.createElement('div');
+        container.className = `dashboard-widget widget-${width}x${height}`;
+        // Transparent by default for most widgets, but NOT for chart
+        const isChart = widgetConfig.type === 'chart';
+        const isTransparent = isChart
+            ? (widgetConfig.config?.transparent === true)  // chart: explicit true only
+            : (widgetConfig.config?.transparent !== false); // others: default true
+        if (isTransparent) {
+            container.classList.add('transparent');
+        }
+        // Build transform string (offset + rotation)
+        const rotate = widgetConfig.config?.rotate || 0;
+        const transforms = [];
+        if (offset && (offset.x || offset.y)) {
+            transforms.push(`translate(${offset.x || 0}px, ${offset.y || 0}px)`);
+        }
+        if (rotate) {
+            transforms.push(`rotate(${rotate}deg)`);
+        }
+        if (transforms.length > 0) {
+            container.style.transform = transforms.join(' ');
+        }
+        container.dataset.widgetId = widgetConfig.id;
+        container.dataset.type = widgetConfig.type;
+
+        // Free pixel positioning (Shift+drag) or grid snap
+        if (freePosition) {
+            container.style.position = 'absolute';
+            container.style.left = `${freePosition.left}px`;
+            container.style.top = `${freePosition.top}px`;
+            // Always calculate size from grid cells (width/height are always in cells)
+            const gap = GRID_GAP;
+            const gridEl = this.gridEl || document.querySelector('.dashboard-grid');
+            if (gridEl) {
+                const gridRect = gridEl.getBoundingClientRect();
+                const computedStyle = window.getComputedStyle(gridEl);
+                const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
+                const contentWidth = gridRect.width - paddingLeft * 2;
+                const cellWidth = (contentWidth - gap * (GRID_COLS - 1)) / GRID_COLS;
+                const cellHeight = GRID_ROW_HEIGHT;
+                container.style.width = `${width * cellWidth + (width - 1) * gap}px`;
+                container.style.height = `${height * cellHeight + (height - 1) * gap}px`;
+            }
+            container.classList.add('free-position');
+        } else {
+            container.style.gridColumn = `${col + 1} / span ${width}`;
+            container.style.gridRow = `${row + 1} / span ${height}`;
+        }
+
+        // Widget header (always hidden, shows action buttons on hover)
+        // Title is rendered inside widget-content by the widget
+        container.innerHTML = `
+            <div class="widget-header hidden-title">
+                <span class="widget-title">${escapeHtml(widgetConfig.config?.label || widgetConfig.type)}</span>
+                <div class="widget-actions">
+                    <button class="widget-action-btn config" title="Configure">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+                        </svg>
+                    </button>
+                    <button class="widget-action-btn delete" title="Remove">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="widget-resize-handle" title="Drag to resize"></div>
+        `;
+
+        // Create widget instance
+        const widget = new WidgetClass(widgetConfig.id, widgetConfig.config || {}, container);
+        widget.render();
+
+        // Inject title if configured (before widget-content, not inside)
+        const title = widgetConfig.config?.title;
+        if (title) {
+            const widgetContent = container.querySelector('.widget-content');
+            if (widgetContent) {
+                const titleEl = document.createElement('div');
+                titleEl.className = 'widget-title-label' + (widgetConfig.config?.titleBorder ? ' title-badge' : '');
+                titleEl.textContent = title;
+                // Insert BEFORE widget-content, not inside it
+                widgetContent.parentNode.insertBefore(titleEl, widgetContent);
+            }
+        }
+
+        // Bind widget events
+        container.querySelector('.widget-action-btn.config')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.showWidgetConfig(widgetConfig.id);
+        });
+
+        container.querySelector('.widget-action-btn.delete')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.removeWidget(widgetConfig.id);
+        });
+
+        // Resize handle
+        const resizeHandle = container.querySelector('.widget-resize-handle');
+        if (resizeHandle) {
+            resizeHandle.addEventListener('mousedown', (e) => {
+                if (!dashboardState.editMode) return;
+                e.preventDefault();
+                e.stopPropagation();
+                this.startResize(widgetConfig.id, container, e);
+            });
+        }
+
+        // Drag by header
+        const header = container.querySelector('.widget-header');
+        if (header) {
+            header.addEventListener('mousedown', (e) => {
+                if (!dashboardState.editMode) return;
+                // Ignore clicks on buttons
+                if (e.target.closest('.widget-action-btn')) return;
+                e.preventDefault();
+                this.startDrag(widgetConfig.id, container, e);
+            });
+        }
+
+        // Select/deselect widget by click in edit mode (toggle)
+        container.addEventListener('click', (e) => {
+            if (!dashboardState.editMode) return;
+            // Ignore clicks on buttons
+            if (e.target.closest('.widget-action-btn')) return;
+            // Toggle: if already selected, deselect
+            if (dashboardState.selectedWidgetId === widgetConfig.id) {
+                this.selectWidget(null);
+            } else {
+                this.selectWidget(widgetConfig.id);
+            }
+        });
+
+        // Add to grid
+        this.gridEl.appendChild(container);
+
+        // Store widget instance
+        dashboardState.widgets.set(widgetConfig.id, widget);
+
+        return widget;
+    }
+
+    clearWidgets() {
+        // Destroy all widget instances
+        dashboardState.widgets.forEach(widget => {
+            if (widget && typeof widget.destroy === 'function') {
+                widget.destroy();
+            }
+        });
+        dashboardState.widgets.clear();
+        dashboardState.sensorSubscriptions.clear();
+    }
+
+    clearDashboard() {
+        dashboardState.currentDashboard = null;
+        this.clearWidgets();
+        this.actionsEl?.classList.add('hidden');
+
+        if (this.gridEl) {
+            this.gridEl.innerHTML = `
+                <div class="dashboard-placeholder">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 6v6l4 2"/>
+                    </svg>
+                    <p>Select a dashboard or create a new one</p>
+                </div>
+            `;
+        }
+    }
+
+    showNewDashboardDialog() {
+        const overlay = document.getElementById('dashboard-name-overlay');
+        const input = document.getElementById('dashboard-name-input');
+        const title = document.getElementById('dashboard-name-title');
+
+        if (title) title.textContent = 'New Dashboard';
+        if (input) input.value = '';
+        overlay?.classList.remove('hidden');
+        input?.focus();
+    }
+
+    createDashboard() {
+        const input = document.getElementById('dashboard-name-input');
+        const name = input?.value?.trim();
+
+        if (!name) {
+            alert('Please enter a dashboard name');
+            return;
+        }
+
+        if (dashboardState.dashboards.has(name)) {
+            alert('A dashboard with this name already exists');
+            return;
+        }
+
+        const config = {
+            version: DASHBOARD_VERSION,
+            meta: {
+                name,
+                created: new Date().toISOString(),
+                modified: new Date().toISOString()
+            },
+            grid: { cols: GRID_COLS, rowHeight: GRID_ROW_HEIGHT, gap: GRID_GAP },
+            widgets: []
+        };
+
+        dashboardState.dashboards.set(name, config);
+        this.saveDashboard(name);
+        this.updateDashboardSelector();
+
+        closeDashboardNameDialog();
+
+        // Select the new dashboard
+        if (this.selectEl) {
+            this.selectEl.value = name;
+        }
+        this.loadDashboard(name);
+    }
+
+    saveDashboard(name = dashboardState.currentDashboard) {
+        if (!name) return;
+
+        const config = dashboardState.dashboards.get(name);
+        if (!config || config._server) return; // Don't save server dashboards
+
+        config.meta = config.meta || {};
+        config.meta.modified = new Date().toISOString();
+
+        // Save to localStorage
+        localStorage.setItem(`dashboard:${name}`, JSON.stringify(config));
+
+        // Update user dashboards list
+        const userDashboards = Array.from(dashboardState.dashboards.entries())
+            .filter(([_, c]) => !c._server)
+            .map(([n]) => n);
+        localStorage.setItem('user-dashboards', JSON.stringify(userDashboards));
+    }
+
+    saveDashboardSettings() {
+        localStorage.setItem('dashboard-view', dashboardState.currentView);
+    }
+
+    showWidgetPicker() {
+        const overlay = document.getElementById('widget-picker-overlay');
+        const content = document.getElementById('widget-picker-content');
+
+        if (!content) return;
+
+        content.innerHTML = Object.values(WIDGET_TYPES).map(WidgetClass => `
+            <div class="widget-picker-item" data-type="${WidgetClass.type}">
+                <div class="widget-picker-icon">${WidgetClass.icon}</div>
+                <span class="widget-picker-name">${WidgetClass.displayName}</span>
+                <span class="widget-picker-desc">${WidgetClass.description}</span>
+            </div>
+        `).join('');
+
+        // Bind click events
+        content.querySelectorAll('.widget-picker-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const type = item.dataset.type;
+                closeWidgetPicker();
+                this.showWidgetConfig(null, type);
+            });
+        });
+
+        overlay?.classList.remove('hidden');
+    }
+
+    showWidgetConfig(widgetId, type = null) {
+        const overlay = document.getElementById('widget-config-overlay');
+        const title = document.getElementById('widget-config-title');
+        const content = document.getElementById('widget-config-content');
+
+        if (!content) return;
+
+        let config = {};
+        let position = {};
+        let WidgetClass;
+
+        if (widgetId) {
+            // Editing existing widget
+            const dashboard = dashboardState.dashboards.get(dashboardState.currentDashboard);
+            const widgetConfig = dashboard?.widgets?.find(w => w.id === widgetId);
+            if (widgetConfig) {
+                type = widgetConfig.type;
+                config = widgetConfig.config || {};
+                position = widgetConfig.position || {};
+            }
+        }
+
+        WidgetClass = WIDGET_TYPES[type];
+        if (!WidgetClass) return;
+
+        if (title) {
+            title.textContent = widgetId ? `Configure ${WidgetClass.displayName}` : `Add ${WidgetClass.displayName}`;
+        }
+
+        // Get current size from position, or default
+        const currentWidth = position.width || WidgetClass.defaultSize.width;
+        const currentHeight = position.height || WidgetClass.defaultSize.height;
+
+        // Chart widget doesn't show transparent option (always opaque)
+        const showTransparent = type !== 'chart';
+        const transparentHtml = showTransparent ? `
+            <div class="widget-config-row">
+                <div class="widget-config-field">
+                    <label class="widget-toggle">
+                        <input type="checkbox" name="transparent" ${config.transparent !== false ? 'checked' : ''}>
+                        <span class="widget-toggle-track"><span class="widget-toggle-thumb"></span></span>
+                        <span class="widget-toggle-label">Transparent background</span>
+                    </label>
+                </div>
+            </div>
+        ` : '';
+
+        // Title option (shown above widget content)
+        const titleHtml = `
+            <div class="widget-config-row">
+                <div class="widget-config-field">
+                    <label>Title (optional)</label>
+                    <input type="text" class="widget-input" name="title" value="${escapeHtml(config.title || '')}" placeholder="e.g. Engine RPM">
+                </div>
+                <div class="widget-config-field">
+                    <label class="widget-toggle">
+                        <input type="checkbox" name="titleBorder" ${config.titleBorder ? 'checked' : ''}>
+                        <span class="widget-toggle-track"><span class="widget-toggle-thumb"></span></span>
+                        <span class="widget-toggle-label">Badge style</span>
+                    </label>
+                </div>
+            </div>
+        `;
+
+        // Rotate option - available for all widget types
+        const currentRotate = config.rotate || 0;
+        const rotateHtml = `
+            <div class="widget-config-row">
+                <div class="widget-config-field">
+                    <label>Rotate</label>
+                    <div class="rotate-input-group">
+                        <input type="number" name="rotate" value="${currentRotate}" min="0" max="360" step="1">
+                        <span class="rotate-unit">°</span>
+                        <div class="rotate-quick-buttons">
+                            <button type="button" class="rotate-quick-btn" data-angle="0">0°</button>
+                            <button type="button" class="rotate-quick-btn" data-angle="90">90°</button>
+                            <button type="button" class="rotate-quick-btn" data-angle="180">180°</button>
+                            <button type="button" class="rotate-quick-btn" data-angle="270">270°</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        content.innerHTML = `
+            ${WidgetClass.getConfigForm(config)}
+            ${titleHtml}
+            ${transparentHtml}
+            ${rotateHtml}
+        `;
+
+        // Store context for apply
+        content.dataset.widgetId = widgetId || '';
+        content.dataset.widgetType = type;
+
+        // Setup sensor autocomplete for all sensor inputs
+        this.setupSensorAutocomplete(content, 'sensor');
+        this.setupSensorAutocomplete(content, 'sensor2');
+
+        // Setup chart widget autocomplete for zone sensor inputs
+        if (type === 'chart') {
+            setupChartWidgetAutocomplete();
+        }
+
+        // Setup custom number inputs
+        setupNumberInputs(content);
+
+        // Setup rotate quick buttons
+        const rotateInput = content.querySelector('[name="rotate"]');
+        content.querySelectorAll('.rotate-quick-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (rotateInput) {
+                    rotateInput.value = btn.dataset.angle;
+                }
+            });
+        });
+
+        // Call widget-specific config handlers if available
+        if (typeof WidgetClass.initConfigHandlers === 'function') {
+            WidgetClass.initConfigHandlers(content, config);
+        }
+
+        overlay?.classList.remove('hidden');
+    }
+
+    setupSensorAutocomplete(container, fieldName = 'sensor') {
+        const sensorInput = container.querySelector(`[name="${fieldName}"]`);
+        if (!sensorInput) return;
+
+        // Wrap input in relative container and add autocomplete dropdown
+        const field = sensorInput.closest('.widget-config-field');
+        if (!field) return;
+
+        field.classList.add('sensor-autocomplete-field');
+
+        // Create autocomplete container
+        const autocompleteContainer = document.createElement('div');
+        autocompleteContainer.className = 'widget-sensor-autocomplete';
+        autocompleteContainer.style.display = 'none';
+        field.appendChild(autocompleteContainer);
+
+        // State
+        let autocompleteResults = [];
+        let selectedIndex = 0;
+        let debounceTimer = null;
+
+        const sensors = Array.from(state.sensorsByName.entries()).map(([name, data]) => ({
+            name,
+            iotype: data?.iotype || '?',
+            textname: data?.textname || ''
+        }));
+
+        const hideAutocomplete = () => {
+            autocompleteContainer.style.display = 'none';
+            autocompleteContainer.innerHTML = '';
+            autocompleteResults = [];
+            selectedIndex = 0;
+        };
+
+        const showAutocomplete = (matches) => {
+            if (matches.length === 0) {
+                hideAutocomplete();
+                return;
+            }
+
+            autocompleteResults = matches;
+            selectedIndex = 0;
+
+            autocompleteContainer.innerHTML = matches.map((s, i) => `
+                <div class="widget-autocomplete-item${i === 0 ? ' selected' : ''}" data-name="${escapeHtml(s.name)}">
+                    <span class="sensor-name">${escapeHtml(s.name)}</span>
+                    <span class="type-badge type-${s.iotype}">${s.iotype}</span>
+                    ${s.textname ? `<span class="sensor-textname">${escapeHtml(s.textname)}</span>` : ''}
+                </div>
+            `).join('');
+
+            // Click handlers
+            autocompleteContainer.querySelectorAll('.widget-autocomplete-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    sensorInput.value = item.dataset.name;
+                    hideAutocomplete();
+                });
+            });
+
+            autocompleteContainer.style.display = 'block';
+        };
+
+        const updateSelection = () => {
+            const items = autocompleteContainer.querySelectorAll('.widget-autocomplete-item');
+            items.forEach((item, i) => {
+                item.classList.toggle('selected', i === selectedIndex);
+            });
+            // Scroll selected into view
+            const selected = autocompleteContainer.querySelector('.selected');
+            if (selected) {
+                selected.scrollIntoView({ block: 'nearest' });
+            }
+        };
+
+        const navigateAutocomplete = (direction) => {
+            if (autocompleteResults.length === 0) return;
+            selectedIndex = Math.max(0, Math.min(autocompleteResults.length - 1, selectedIndex + direction));
+            updateSelection();
+        };
+
+        // Input event - debounced search
+        sensorInput.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                const query = sensorInput.value.trim().toLowerCase();
+                if (query.length < 2) {
+                    hideAutocomplete();
+                    return;
+                }
+
+                // Filter: partial match (contains)
+                const matches = sensors
+                    .filter(s => s.name.toLowerCase().includes(query))
+                    .slice(0, 10);
+
+                showAutocomplete(matches);
+            }, 150);
+        });
+
+        // Keyboard navigation
+        sensorInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                sensorInput.value = '';
+                sensorInput.blur();
+                hideAutocomplete();
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                navigateAutocomplete(1);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                navigateAutocomplete(-1);
+            } else if (e.key === 'Enter') {
+                if (autocompleteResults.length > 0) {
+                    e.preventDefault();
+                    sensorInput.value = autocompleteResults[selectedIndex].name;
+                    hideAutocomplete();
+                }
+            }
+        });
+
+        // Focus - show autocomplete if text is present
+        sensorInput.addEventListener('focus', () => {
+            const query = sensorInput.value.trim().toLowerCase();
+            if (query.length >= 2) {
+                const matches = sensors
+                    .filter(s => s.name.toLowerCase().includes(query))
+                    .slice(0, 10);
+                showAutocomplete(matches);
+            }
+        });
+
+        // Click outside to hide
+        const clickOutsideHandler = (e) => {
+            if (!field.contains(e.target)) {
+                hideAutocomplete();
+            }
+        };
+        document.addEventListener('click', clickOutsideHandler);
+
+        // Cleanup on overlay close
+        const overlay = document.getElementById('widget-config-overlay');
+        if (overlay) {
+            const observer = new MutationObserver(() => {
+                if (overlay.classList.contains('hidden')) {
+                    document.removeEventListener('click', clickOutsideHandler);
+                    observer.disconnect();
+                }
+            });
+            observer.observe(overlay, { attributes: true, attributeFilter: ['class'] });
+        }
+    }
+
+    applyWidgetConfig() {
+        const content = document.getElementById('widget-config-content');
+        if (!content) return;
+
+        const widgetId = content.dataset.widgetId;
+        const type = content.dataset.widgetType;
+        const WidgetClass = WIDGET_TYPES[type];
+
+        if (!WidgetClass) return;
+
+        const config = WidgetClass.parseConfigForm(content);
+        const transparent = content.querySelector('[name="transparent"]')?.checked || false;
+        config.transparent = transparent;
+
+        // Read title value
+        const title = content.querySelector('[name="title"]')?.value?.trim() || '';
+        if (title) {
+            config.title = title;
+        }
+
+        // Read titleBorder value
+        const titleBorder = content.querySelector('[name="titleBorder"]')?.checked || false;
+        config.titleBorder = titleBorder;
+
+        // Read rotate value
+        const rotateInput = content.querySelector('[name="rotate"]');
+        const rotate = parseInt(rotateInput?.value) || 0;
+        config.rotate = rotate;
+
+        const dashboard = dashboardState.dashboards.get(dashboardState.currentDashboard);
+        if (!dashboard) return;
+
+        if (widgetId) {
+            // Update existing widget - keep current size
+            const widgetConfig = dashboard.widgets.find(w => w.id === widgetId);
+            if (widgetConfig) {
+                widgetConfig.config = config;
+                const width = widgetConfig.position.width;
+                const height = widgetConfig.position.height;
+
+                // Re-render widget
+                const widget = dashboardState.widgets.get(widgetId);
+                if (widget) {
+                    widget.config = config;
+                    widget.container.className = `dashboard-widget widget-${width}x${height}`;
+                    widget.container.classList.toggle('transparent', transparent);
+                    // Preserve edit-mode class if active
+                    if (dashboardState.editMode) {
+                        widget.container.classList.add('edit-mode');
+                    }
+                    // Apply transform (offset + rotation)
+                    const offset = widgetConfig.position?.offset;
+                    const transforms = [];
+                    if (offset && (offset.x || offset.y)) {
+                        transforms.push(`translate(${offset.x || 0}px, ${offset.y || 0}px)`);
+                    }
+                    if (rotate) {
+                        transforms.push(`rotate(${rotate}deg)`);
+                    }
+                    widget.container.style.transform = transforms.length > 0 ? transforms.join(' ') : '';
+                    widget.container.querySelector('.widget-title').textContent = config.label || type;
+                    // Remove old title and content before re-render
+                    widget.container.querySelector('.widget-title-label')?.remove();
+                    widget.container.querySelector('.widget-content')?.remove();
+                    widget.render();
+
+                    // Inject title if configured (before widget-content, not inside)
+                    if (config.title) {
+                        const widgetContent = widget.container.querySelector('.widget-content');
+                        if (widgetContent) {
+                            const titleEl = document.createElement('div');
+                            titleEl.className = 'widget-title-label' + (config.titleBorder ? ' title-badge' : '');
+                            titleEl.textContent = config.title;
+                            // Insert BEFORE widget-content, not inside it
+                            widgetContent.parentNode.insertBefore(titleEl, widgetContent);
+                        }
+                    }
+                }
+            }
+        } else {
+            // Add new widget with default size
+            const newId = `widget-${Date.now()}`;
+            const width = WidgetClass.defaultSize.width;
+            const height = WidgetClass.defaultSize.height;
+            const position = this.findEmptyPosition(width, height);
+
+            const widgetConfig = {
+                id: newId,
+                type,
+                position: { ...position, width, height },
+                config
+            };
+
+            dashboard.widgets = dashboard.widgets || [];
+            dashboard.widgets.push(widgetConfig);
+
+            this.createWidget(widgetConfig);
+        }
+
+        this.saveDashboard();
+        this.updateSensorSubscriptions();
+        closeWidgetConfig();
+    }
+
+    findEmptyPosition(width, height) {
+        // Simple algorithm: find first empty position
+        const dashboard = dashboardState.dashboards.get(dashboardState.currentDashboard);
+        const widgets = dashboard?.widgets || [];
+        const cols = GRID_COLS;
+
+        // Build occupancy grid
+        const occupied = new Set();
+        widgets.forEach(w => {
+            const { col, row, width: w2, height: h } = w.position || {};
+            for (let c = col; c < col + w2; c++) {
+                for (let r = row; r < row + h; r++) {
+                    occupied.add(`${c},${r}`);
+                }
+            }
+        });
+
+        // Find first empty position
+        for (let row = 0; row < 100; row++) {
+            for (let col = 0; col <= cols - width; col++) {
+                let fits = true;
+                for (let c = col; c < col + width && fits; c++) {
+                    for (let r = row; r < row + height && fits; r++) {
+                        if (occupied.has(`${c},${r}`)) {
+                            fits = false;
+                        }
+                    }
+                }
+                if (fits) {
+                    return { col, row };
+                }
+            }
+        }
+
+        return { col: 0, row: 0 };
+    }
+
+    async removeWidget(widgetId) {
+        const confirmed = await showConfirmDialog(
+            'Remove Widget',
+            'Are you sure you want to remove this widget?',
+            'Remove'
+        );
+        if (!confirmed) return;
+
+        const dashboard = dashboardState.dashboards.get(dashboardState.currentDashboard);
+        if (!dashboard) return;
+
+        // Remove from config
+        dashboard.widgets = dashboard.widgets.filter(w => w.id !== widgetId);
+
+        // Remove widget instance
+        const widget = dashboardState.widgets.get(widgetId);
+        if (widget) {
+            widget.container.remove();
+            widget.destroy();
+            dashboardState.widgets.delete(widgetId);
+        }
+
+        this.saveDashboard();
+        this.updateSensorSubscriptions();
+    }
+
+    startResize(widgetId, container, startEvent) {
+        const dashboard = dashboardState.dashboards.get(dashboardState.currentDashboard);
+        if (!dashboard) return;
+
+        const widgetConfig = dashboard.widgets.find(w => w.id === widgetId);
+        if (!widgetConfig) return;
+
+        const gridRect = this.gridEl.getBoundingClientRect();
+        const startX = startEvent.clientX;
+        const startY = startEvent.clientY;
+        const startWidth = widgetConfig.position.width || 2;
+        const startHeight = widgetConfig.position.height || 1;
+
+        // Calculate cell size
+        const gap = GRID_GAP;
+        const cellWidth = (gridRect.width - gap * (GRID_COLS - 1)) / GRID_COLS;
+        const cellHeight = GRID_ROW_HEIGHT;
+
+        container.classList.add('resizing');
+
+        const onMouseMove = (e) => {
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+
+            // Calculate new size in cells
+            const col = widgetConfig.position.col || 0;
+            const maxWidth = GRID_COLS - col; // Can't extend beyond grid
+            let newWidth = Math.max(1, Math.min(maxWidth, Math.round(startWidth + deltaX / (cellWidth + gap))));
+            let newHeight = Math.max(1, Math.min(20, Math.round(startHeight + deltaY / (cellHeight + gap))));
+
+            // Update visual preview
+            container.style.gridColumn = `${(widgetConfig.position.col || 0) + 1} / span ${newWidth}`;
+            container.style.gridRow = `${(widgetConfig.position.row || 0) + 1} / span ${newHeight}`;
+
+            // Store pending size
+            container.dataset.pendingWidth = newWidth;
+            container.dataset.pendingHeight = newHeight;
+        };
+
+        const onMouseUp = () => {
+            container.classList.remove('resizing');
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+
+            // Apply new size
+            const newWidth = parseInt(container.dataset.pendingWidth) || startWidth;
+            const newHeight = parseInt(container.dataset.pendingHeight) || startHeight;
+
+            if (newWidth !== startWidth || newHeight !== startHeight) {
+                widgetConfig.position.width = newWidth;
+                widgetConfig.position.height = newHeight;
+
+                // Update class
+                container.className = container.className.replace(/widget-\d+x\d+/, `widget-${newWidth}x${newHeight}`);
+
+                this.saveDashboard();
+            }
+
+            delete container.dataset.pendingWidth;
+            delete container.dataset.pendingHeight;
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    }
+
+    startDrag(widgetId, container, startEvent) {
+        // Auto-select widget being dragged
+        if (dashboardState.selectedWidgetId !== widgetId) {
+            this.selectWidget(widgetId);
+        }
+
+        const dashboard = dashboardState.dashboards.get(dashboardState.currentDashboard);
+        if (!dashboard) return;
+
+        const widgetConfig = dashboard.widgets.find(w => w.id === widgetId);
+        if (!widgetConfig) return;
+
+        const gridRect = this.gridEl.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        const computedStyle = window.getComputedStyle(this.gridEl);
+        const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
+        const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
+
+        // Offset from mouse to container top-left
+        const offsetX = startEvent.clientX - containerRect.left;
+        const offsetY = startEvent.clientY - containerRect.top;
+
+        // Calculate cell size (grid content area = width minus padding on both sides)
+        const gap = GRID_GAP;
+        const contentWidth = gridRect.width - paddingLeft * 2;
+        const cellWidth = (contentWidth - gap * (GRID_COLS - 1)) / GRID_COLS;
+        const cellHeight = GRID_ROW_HEIGHT;
+
+        const width = widgetConfig.position.width || 2;
+        const height = widgetConfig.position.height || 1;
+
+        // Switch to absolute positioning for smooth drag
+        container.classList.add('dragging');
+        container.style.position = 'fixed';
+        container.style.width = `${containerRect.width}px`;
+        container.style.height = `${containerRect.height}px`;
+        container.style.left = `${containerRect.left}px`;
+        container.style.top = `${containerRect.top}px`;
+        container.style.zIndex = '1000';
+        container.style.gridColumn = '';
+        container.style.gridRow = '';
+
+        // Create placeholder with actual widget size (absolute positioning)
+        const placeholder = document.createElement('div');
+        placeholder.className = 'widget-drag-placeholder';
+        placeholder.style.position = 'absolute';
+        placeholder.style.width = `${containerRect.width}px`;
+        placeholder.style.height = `${containerRect.height}px`;
+        // Initial position (use freePosition if available, otherwise calculate from grid)
+        const initCol = widgetConfig.position.col || 0;
+        const initRow = widgetConfig.position.row || 0;
+        const freePos = widgetConfig.position.freePosition;
+        if (freePos) {
+            placeholder.style.left = `${freePos.left}px`;
+            placeholder.style.top = `${freePos.top}px`;
+        } else {
+            placeholder.style.left = `${initCol * (cellWidth + gap)}px`;
+            placeholder.style.top = `${initRow * (cellHeight + gap)}px`;
+        }
+        this.gridEl.appendChild(placeholder);
+
+        let pendingCol = initCol;
+        let pendingRow = initRow;
+        let pendingFreePosition = null;
+        let isShiftHeld = startEvent.shiftKey;
+
+        const onMouseMove = (e) => {
+            // Move container with mouse
+            const widgetLeft = e.clientX - offsetX;
+            const widgetTop = e.clientY - offsetY;
+            container.style.left = `${widgetLeft}px`;
+            container.style.top = `${widgetTop}px`;
+
+            isShiftHeld = e.shiftKey;
+
+            // Calculate position relative to grid content area
+            const relativeLeft = widgetLeft - gridRect.left - paddingLeft;
+            const relativeTop = widgetTop - gridRect.top - paddingTop;
+
+            if (isShiftHeld) {
+                // Free pixel positioning (Shift held)
+                // Only store left/top, size comes from width/height (grid cells)
+                placeholder.style.display = 'none';
+                pendingFreePosition = {
+                    left: Math.max(0, relativeLeft),
+                    top: Math.max(0, relativeTop)
+                };
+            } else {
+                // Grid snap mode
+                placeholder.style.display = '';
+                pendingFreePosition = null;
+
+                let newCol = Math.floor(relativeLeft / (cellWidth + gap));
+                let newRow = Math.floor(relativeTop / (cellHeight + gap));
+
+                // Clamp to grid bounds
+                newCol = Math.max(0, Math.min(GRID_COLS - width, newCol));
+                newRow = Math.max(0, newRow);
+
+                if (newCol !== pendingCol || newRow !== pendingRow) {
+                    pendingCol = newCol;
+                    pendingRow = newRow;
+                    placeholder.style.left = `${newCol * (cellWidth + gap)}px`;
+                    placeholder.style.top = `${newRow * (cellHeight + gap)}px`;
+                }
+            }
+        };
+
+        const onMouseUp = (e) => {
+            container.classList.remove('dragging');
+            container.classList.remove('free-position');
+            container.style.position = '';
+            container.style.width = '';
+            container.style.height = '';
+            container.style.left = '';
+            container.style.top = '';
+            container.style.zIndex = '';
+
+            placeholder.remove();
+
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+
+            const useFreePosition = e.shiftKey && pendingFreePosition;
+
+            if (useFreePosition) {
+                // Apply free pixel position with size
+                widgetConfig.position.freePosition = pendingFreePosition;
+                container.style.position = 'absolute';
+                container.style.left = `${pendingFreePosition.left}px`;
+                container.style.top = `${pendingFreePosition.top}px`;
+                container.style.width = `${pendingFreePosition.width}px`;
+                container.style.height = `${pendingFreePosition.height}px`;
+                container.classList.add('free-position');
+                this.saveDashboard();
+            } else {
+                // Clear free position and apply grid snap
+                delete widgetConfig.position.freePosition;
+
+                if (pendingCol !== widgetConfig.position.col || pendingRow !== widgetConfig.position.row) {
+                    widgetConfig.position.col = pendingCol;
+                    widgetConfig.position.row = pendingRow;
+                    this.saveDashboard();
+                }
+
+                container.style.gridColumn = `${pendingCol + 1} / span ${width}`;
+                container.style.gridRow = `${pendingRow + 1} / span ${height}`;
+            }
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    }
+
+    toggleEditMode() {
+        dashboardState.editMode = !dashboardState.editMode;
+
+        const editBtn = document.getElementById('dashboard-edit-btn');
+        editBtn?.classList.toggle('active', dashboardState.editMode);
+
+        this.gridEl?.classList.toggle('edit-mode', dashboardState.editMode);
+
+        dashboardState.widgets.forEach((widget, id) => {
+            widget.container.classList.toggle('edit-mode', dashboardState.editMode);
+        });
+
+        if (dashboardState.editMode) {
+            this.enableDragAndDrop();
+        } else {
+            this.disableDragAndDrop();
+            // Deselect widget when exiting edit mode
+            this.selectWidget(null);
+        }
+    }
+
+    selectWidget(widgetId) {
+        // Deselect previous
+        if (dashboardState.selectedWidgetId) {
+            const prevWidget = dashboardState.widgets.get(dashboardState.selectedWidgetId);
+            prevWidget?.container.classList.remove('selected');
+        }
+
+        dashboardState.selectedWidgetId = widgetId;
+
+        // Select new
+        if (widgetId) {
+            const widget = dashboardState.widgets.get(widgetId);
+            widget?.container.classList.add('selected');
+        }
+    }
+
+    moveWidgetByKey(key, fineMode = false) {
+        const widgetId = dashboardState.selectedWidgetId;
+        if (!widgetId) return;
+
+        const dashboard = dashboardState.dashboards.get(dashboardState.currentDashboard);
+        if (!dashboard) return;
+
+        const widgetConfig = dashboard.widgets.find(w => w.id === widgetId);
+        if (!widgetConfig) return;
+
+        const widget = dashboardState.widgets.get(widgetId);
+        if (!widget) return;
+
+        const container = widget.container;
+
+        // Calculate grid parameters
+        const gridRect = this.gridEl.getBoundingClientRect();
+        const computedStyle = window.getComputedStyle(this.gridEl);
+        const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
+        const gap = GRID_GAP;
+        const contentWidth = gridRect.width - paddingLeft * 2;
+        const cellWidth = (contentWidth - gap * (GRID_COLS - 1)) / GRID_COLS;
+        const cellHeight = GRID_ROW_HEIGHT;
+
+        const width = widgetConfig.position.width || 2;
+        const height = widgetConfig.position.height || 1;
+
+        if (fineMode) {
+            // Fine mode (Shift): move by 1px using freePosition
+            // freePosition only stores left/top, size comes from width/height (grid cells)
+            let freePos = widgetConfig.position.freePosition;
+            if (!freePos) {
+                // Convert grid position to pixels
+                const col = widgetConfig.position.col || 0;
+                const row = widgetConfig.position.row || 0;
+                freePos = {
+                    left: col * (cellWidth + gap),
+                    top: row * (cellHeight + gap)
+                };
+            }
+
+            const step = 1;
+            switch (key) {
+                case 'ArrowUp':
+                    freePos.top = Math.max(0, freePos.top - step);
+                    break;
+                case 'ArrowDown':
+                    freePos.top = freePos.top + step;
+                    break;
+                case 'ArrowLeft':
+                    freePos.left = Math.max(0, freePos.left - step);
+                    break;
+                case 'ArrowRight':
+                    freePos.left = freePos.left + step;
+                    break;
+            }
+
+            // Apply free position
+            widgetConfig.position.freePosition = freePos;
+            container.style.position = 'absolute';
+            container.style.left = `${freePos.left}px`;
+            container.style.top = `${freePos.top}px`;
+            container.classList.add('free-position');
+            container.style.gridColumn = '';
+            container.style.gridRow = '';
+        } else {
+            // Grid mode (default): move by one grid cell
+            let col = widgetConfig.position.col || 0;
+            let row = widgetConfig.position.row || 0;
+
+            switch (key) {
+                case 'ArrowUp':
+                    row = Math.max(0, row - 1);
+                    break;
+                case 'ArrowDown':
+                    row = row + 1;
+                    break;
+                case 'ArrowLeft':
+                    col = Math.max(0, col - 1);
+                    break;
+                case 'ArrowRight':
+                    col = Math.min(GRID_COLS - width, col + 1);
+                    break;
+            }
+
+            // Update grid position
+            widgetConfig.position.col = col;
+            widgetConfig.position.row = row;
+
+            // Clear free position if was set
+            delete widgetConfig.position.freePosition;
+
+            // Apply grid positioning
+            container.style.position = '';
+            container.style.left = '';
+            container.style.top = '';
+            container.classList.remove('free-position');
+            container.style.gridColumn = `${col + 1} / span ${width}`;
+            container.style.gridRow = `${row + 1} / span ${height}`;
+        }
+
+        this.saveDashboard();
+    }
+
+    enableDragAndDrop() {
+        dashboardState.widgets.forEach((widget, id) => {
+            widget.container.draggable = true;
+
+            widget.container.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('text/plain', id);
+                widget.container.classList.add('dragging');
+            });
+
+            widget.container.addEventListener('dragend', () => {
+                widget.container.classList.remove('dragging');
+            });
+        });
+
+        this.gridEl?.addEventListener('dragover', (e) => {
+            e.preventDefault();
+        });
+
+        this.gridEl?.addEventListener('drop', (e) => {
+            e.preventDefault();
+            // TODO: Implement grid position calculation
+        });
+    }
+
+    disableDragAndDrop() {
+        dashboardState.widgets.forEach((widget) => {
+            widget.container.draggable = false;
+        });
+    }
+
+    updateSensorSubscriptions() {
+        dashboardState.sensorSubscriptions.clear();
+        dashboardState.setpointSubscriptions.clear();
+        dashboardState.chartSubscriptions.clear();
+
+        dashboardState.widgets.forEach((widget, id) => {
+            // Main sensor subscription
+            const sensor = widget.config?.sensor;
+            if (sensor) {
+                if (!dashboardState.sensorSubscriptions.has(sensor)) {
+                    dashboardState.sensorSubscriptions.set(sensor, new Set());
+                }
+                dashboardState.sensorSubscriptions.get(sensor).add(id);
+            }
+
+            // Setpoint sensor subscription (for dual scale)
+            const sensor2 = widget.config?.sensor2;
+            if (sensor2) {
+                if (!dashboardState.setpointSubscriptions.has(sensor2)) {
+                    dashboardState.setpointSubscriptions.set(sensor2, new Set());
+                }
+                dashboardState.setpointSubscriptions.get(sensor2).add(id);
+            }
+
+            // StatusBar items subscription (multiple sensors in items array)
+            const items = widget.config?.items;
+            if (Array.isArray(items)) {
+                items.forEach(item => {
+                    if (item.sensor) {
+                        if (!dashboardState.sensorSubscriptions.has(item.sensor)) {
+                            dashboardState.sensorSubscriptions.set(item.sensor, new Set());
+                        }
+                        dashboardState.sensorSubscriptions.get(item.sensor).add(id);
+                    }
+                });
+            }
+
+            // Chart widget subscriptions (multiple sensors from zones)
+            if (widget instanceof ChartWidget && typeof widget.getSensorNames === 'function') {
+                const sensorNames = widget.getSensorNames();
+                for (const sensorName of sensorNames) {
+                    if (!dashboardState.chartSubscriptions.has(sensorName)) {
+                        dashboardState.chartSubscriptions.set(sensorName, new Set());
+                    }
+                    dashboardState.chartSubscriptions.get(sensorName).add(id);
+                }
+            }
+        });
+    }
+
+    handleSensorUpdate(sensorName, value, error = null, timestamp = null) {
+        // Main sensor updates
+        const widgetIds = dashboardState.sensorSubscriptions.get(sensorName);
+        if (widgetIds) {
+            widgetIds.forEach(id => {
+                const widget = dashboardState.widgets.get(id);
+                if (widget) {
+                    // StatusBar widget uses updateBySensor for items
+                    if (typeof widget.updateBySensor === 'function') {
+                        widget.updateBySensor(sensorName, value, error);
+                    } else {
+                        widget.update(value, error);
+                    }
+                }
+            });
+        }
+
+        // Setpoint sensor updates
+        const setpointWidgetIds = dashboardState.setpointSubscriptions.get(sensorName);
+        if (setpointWidgetIds) {
+            setpointWidgetIds.forEach(id => {
+                const widget = dashboardState.widgets.get(id);
+                if (widget && typeof widget.updateSetpoint === 'function') {
+                    widget.updateSetpoint(value, error);
+                }
+            });
+        }
+
+        // Chart widget updates
+        const chartWidgetIds = dashboardState.chartSubscriptions.get(sensorName);
+        if (chartWidgetIds) {
+            chartWidgetIds.forEach(id => {
+                const widget = dashboardState.widgets.get(id);
+                if (widget && typeof widget.updateSensor === 'function') {
+                    widget.updateSensor(sensorName, value, timestamp);
+                }
+            });
+        }
+    }
+
+    exportDashboard() {
+        const name = dashboardState.currentDashboard;
+        if (!name) return;
+
+        const config = dashboardState.dashboards.get(name);
+        if (!config) return;
+
+        // Create clean export (remove internal flags)
+        const exportConfig = JSON.parse(JSON.stringify(config));
+        delete exportConfig._server;
+
+        const blob = new Blob([JSON.stringify(exportConfig, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${name.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.json`;
+        a.click();
+
+        URL.revokeObjectURL(url);
+    }
+
+    setupImportDropzone() {
+        const dropzone = document.getElementById('import-dropzone');
+        const fileInput = document.getElementById('import-file-input');
+
+        if (!dropzone || !fileInput) return;
+
+        dropzone.addEventListener('click', () => fileInput.click());
+
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('drag-over');
+        });
+
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('drag-over');
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('drag-over');
+
+            const file = e.dataTransfer.files[0];
+            if (file) this.handleImportFile(file);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) this.handleImportFile(file);
+        });
+
+        // Import mode toggle
+        document.querySelectorAll('[name="import-mode"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                const nameField = document.getElementById('import-name-field');
+                if (radio.value === 'new') {
+                    nameField?.classList.remove('hidden');
+                } else {
+                    nameField?.classList.add('hidden');
+                }
+            });
+        });
+    }
+
+    handleImportFile(file) {
+        const reader = new FileReader();
+
+        reader.onload = (e) => {
+            try {
+                const config = JSON.parse(e.target.result);
+
+                // Validate
+                if (!config.widgets || !Array.isArray(config.widgets)) {
+                    throw new Error('Invalid dashboard format: missing widgets array');
+                }
+
+                // Migrate if needed
+                const migrated = migrateDashboard(config);
+
+                dashboardState.pendingImport = migrated;
+
+                // Update UI
+                const dropzone = document.getElementById('import-dropzone');
+                dropzone?.classList.add('has-file');
+                dropzone.querySelector('p').textContent = `${file.name} (${config.widgets.length} widgets)`;
+
+                const nameInput = document.getElementById('import-name-input');
+                if (nameInput) {
+                    nameInput.value = config.meta?.name || file.name.replace('.json', '');
+                }
+
+                document.getElementById('import-confirm').disabled = false;
+                document.getElementById('import-error')?.classList.add('hidden');
+
+            } catch (err) {
+                const errorEl = document.getElementById('import-error');
+                if (errorEl) {
+                    errorEl.textContent = err.message;
+                    errorEl.classList.remove('hidden');
+                }
+                document.getElementById('import-confirm').disabled = true;
+            }
+        };
+
+        reader.readAsText(file);
+    }
+
+    showImportDialog() {
+        const overlay = document.getElementById('dashboard-import-overlay');
+        const dropzone = document.getElementById('import-dropzone');
+
+        // Reset state
+        dashboardState.pendingImport = null;
+        dropzone?.classList.remove('has-file');
+        if (dropzone) dropzone.querySelector('p').textContent = 'Drop JSON file here or click to browse';
+        document.getElementById('import-confirm').disabled = true;
+        document.getElementById('import-error')?.classList.add('hidden');
+        document.getElementById('import-file-input').value = '';
+
+        overlay?.classList.remove('hidden');
+    }
+
+    confirmImport() {
+        if (!dashboardState.pendingImport) return;
+
+        const mode = document.querySelector('[name="import-mode"]:checked')?.value;
+        let name;
+
+        if (mode === 'replace' && dashboardState.currentDashboard) {
+            name = dashboardState.currentDashboard;
+        } else {
+            name = document.getElementById('import-name-input')?.value?.trim();
+            if (!name) {
+                alert('Please enter a dashboard name');
+                return;
+            }
+        }
+
+        const config = dashboardState.pendingImport;
+        config.meta = config.meta || {};
+        config.meta.name = name;
+        config.meta.modified = new Date().toISOString();
+
+        dashboardState.dashboards.set(name, config);
+        this.saveDashboard(name);
+        this.updateDashboardSelector();
+
+        closeDashboardImport();
+
+        // Load imported dashboard
+        if (this.selectEl) {
+            this.selectEl.value = name;
+        }
+        this.loadDashboard(name);
+    }
+
+    deleteDashboard() {
+        const name = dashboardState.currentDashboard;
+        if (!name) return;
+
+        const config = dashboardState.dashboards.get(name);
+        if (config?._server) {
+            alert('Cannot delete server dashboards');
+            return;
+        }
+
+        if (!confirm(`Delete dashboard "${name}"?`)) return;
+
+        dashboardState.dashboards.delete(name);
+        localStorage.removeItem(`dashboard:${name}`);
+
+        // Update user dashboards list
+        const userDashboards = Array.from(dashboardState.dashboards.entries())
+            .filter(([_, c]) => !c._server)
+            .map(([n]) => n);
+        localStorage.setItem('user-dashboards', JSON.stringify(userDashboards));
+
+        this.updateDashboardSelector();
+        this.clearDashboard();
+    }
+}
+
+// Dashboard migration
+
+
+// === 63-dashboard-dialogs.js ===
+function migrateDashboard(dashboard) {
+    let version = dashboard.version || 0;
+
+    // Future migrations will be added here
+    // if (version < 2) { ... }
+
+    dashboard.version = DASHBOARD_VERSION;
+    return dashboard;
+}
+
+// Dialog close functions
+function closeWidgetPicker() {
+    document.getElementById('widget-picker-overlay')?.classList.add('hidden');
+}
+
+function closeWidgetConfig() {
+    document.getElementById('widget-config-overlay')?.classList.add('hidden');
+}
+
+function closeDashboardNameDialog() {
+    document.getElementById('dashboard-name-overlay')?.classList.add('hidden');
+}
+
+function closeDashboardImport() {
+    document.getElementById('dashboard-import-overlay')?.classList.add('hidden');
+    dashboardState.pendingImport = null;
+}
+
+// Confirm Dialog
+function showConfirmDialog(title, message, okText = 'OK') {
+    return new Promise((resolve) => {
+        const overlay = document.getElementById('confirm-dialog-overlay');
+        const titleEl = document.getElementById('confirm-dialog-title');
+        const messageEl = document.getElementById('confirm-dialog-message');
+        const okBtn = document.getElementById('confirm-dialog-ok');
+        const cancelBtn = document.getElementById('confirm-dialog-cancel');
+
+        if (!overlay) {
+            resolve(false);
+            return;
+        }
+
+        titleEl.textContent = title;
+        messageEl.textContent = message;
+        okBtn.textContent = okText;
+
+        const cleanup = () => {
+            overlay.classList.add('hidden');
+            okBtn.removeEventListener('click', onOk);
+            cancelBtn.removeEventListener('click', onCancel);
+            overlay.removeEventListener('click', onOverlayClick);
+        };
+
+        const onOk = () => {
+            cleanup();
+            resolve(true);
+        };
+
+        const onCancel = () => {
+            cleanup();
+            resolve(false);
+        };
+
+        const onOverlayClick = (e) => {
+            if (e.target === overlay) {
+                cleanup();
+                resolve(false);
+            }
+        };
+
+        okBtn.addEventListener('click', onOk);
+        cancelBtn.addEventListener('click', onCancel);
+        overlay.addEventListener('click', onOverlayClick);
+
+        overlay.classList.remove('hidden');
+    });
+}
+
+// Setup custom number inputs with arrow buttons
+function setupNumberInputs(container) {
+    const numberInputs = container.querySelectorAll('input[type="number"]');
+    numberInputs.forEach(input => {
+        // Skip if already wrapped
+        if (input.parentElement.classList.contains('widget-number-wrapper')) return;
+
+        // Create wrapper
+        const wrapper = document.createElement('div');
+        wrapper.className = 'widget-number-wrapper';
+        input.parentNode.insertBefore(wrapper, input);
+        wrapper.appendChild(input);
+
+        // Create arrow buttons
+        const arrows = document.createElement('div');
+        arrows.className = 'widget-number-arrows';
+        arrows.innerHTML = `
+            <button type="button" class="widget-number-arrow up">
+                <svg viewBox="0 0 10 10"><path d="M2 7 L5 3 L8 7" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+            </button>
+            <button type="button" class="widget-number-arrow down">
+                <svg viewBox="0 0 10 10"><path d="M2 3 L5 7 L8 3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+            </button>
+        `;
+        wrapper.appendChild(arrows);
+
+        // Arrow button handlers
+        const step = parseFloat(input.step) || 1;
+        arrows.querySelector('.up').addEventListener('click', (e) => {
+            e.preventDefault();
+            input.stepUp();
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        arrows.querySelector('.down').addEventListener('click', (e) => {
+            e.preventDefault();
+            input.stepDown();
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+    });
+}
+
+// Toggle dual scale fields visibility based on style selection
+function toggleDualScaleFields(select) {
+    const dualFields = select.closest('.widget-config-form, #widget-config-content')?.querySelector('.dual-scale-fields');
+    if (dualFields) {
+        dualFields.style.display = select.value === 'dual' ? 'block' : 'none';
+    }
+}
+
+// Zone field helpers
+function addZoneField(btn) {
+    const zonesList = btn.closest('.zones-editor').querySelector('.zones-list');
+    if (!zonesList) return;
+
+    // Get min/max from the config form
+    const form = btn.closest('.widget-config-form') || btn.closest('#widget-config-content');
+    const minInput = form?.querySelector('[name="min"]');
+    const maxInput = form?.querySelector('[name="max"]');
+    const min = parseFloat(minInput?.value) || 0;
+    const max = parseFloat(maxInput?.value) || 100;
+
+    const index = zonesList.children.length;
+    const zoneHtml = `
+        <div class="zone-item">
+            <input type="color" class="zone-color" name="zone-color-${index}" value="#ef4444">
+            <div class="zone-inputs">
+                <input type="number" class="zone-input" name="zone-from-${index}" value="${min}" placeholder="From">
+                <span class="zone-separator">→</span>
+                <input type="number" class="zone-input" name="zone-to-${index}" value="${max}" placeholder="To">
+            </div>
+            <button type="button" class="zone-remove-btn" onclick="removeZoneField(this)">×</button>
+        </div>
+    `;
+    zonesList.insertAdjacentHTML('beforeend', zoneHtml);
+}
+
+function removeZoneField(btn) {
+    btn.closest('.zone-item')?.remove();
+}
+
+// ============================================================================
+// Chart Widget Zone Helpers
+// ============================================================================
+
+function addChartZone() {
+    const editor = document.getElementById('chart-zones-editor');
+    if (!editor) return;
+
+    const zoneIdx = editor.querySelectorAll('.chart-zone-editor').length;
+    const zoneHtml = ChartWidget.renderZoneEditor({ id: `zone-${zoneIdx}`, sensors: [] }, zoneIdx);
+    editor.insertAdjacentHTML('beforeend', zoneHtml);
+
+    // Setup autocomplete for new zone
+    setupChartSensorAutocomplete(zoneIdx);
+}
+
+function removeChartZone(zoneIdx) {
+    const editor = document.querySelector(`.chart-zone-editor[data-zone-idx="${zoneIdx}"]`);
+    editor?.remove();
+
+    // Re-index remaining zones
+    document.querySelectorAll('.chart-zone-editor').forEach((zone, idx) => {
+        zone.dataset.zoneIdx = idx;
+        zone.querySelector('.chart-zone-title').textContent = `Zone ${idx + 1}`;
+        // Update remove button
+        const removeBtn = zone.querySelector('.zone-remove-btn');
+        if (removeBtn) {
+            removeBtn.onclick = () => removeChartZone(idx);
+        }
+    });
+}
+
+function removeChartSensor(zoneIdx, sensorIdx) {
+    const row = document.querySelector(`.chart-sensor-row[data-zone-idx="${zoneIdx}"][data-sensor-idx="${sensorIdx}"]`);
+    row?.remove();
+
+    // Re-index remaining sensors in this zone
+    const sensorsContainer = document.getElementById(`chart-zone-sensors-${zoneIdx}`);
+    if (sensorsContainer) {
+        sensorsContainer.querySelectorAll('.chart-sensor-row').forEach((row, idx) => {
+            row.dataset.sensorIdx = idx;
+            // Update hidden inputs names
+            row.querySelectorAll('input[type="hidden"]').forEach(input => {
+                const nameParts = input.name.split('-');
+                nameParts[2] = idx;
+                input.name = nameParts.join('-');
+            });
+        });
+    }
+}
+
+function updateChartSensorColor(zoneIdx, sensorIdx, color) {
+    const row = document.querySelector(`.chart-sensor-row[data-zone-idx="${zoneIdx}"][data-sensor-idx="${sensorIdx}"]`);
+    const colorInput = row?.querySelector('input[name$="-color"]');
+    if (colorInput) {
+        colorInput.value = color;
+    }
+}
+
+function updateChartSensorFill(zoneIdx, sensorIdx, fill) {
+    const row = document.querySelector(`.chart-sensor-row[data-zone-idx="${zoneIdx}"][data-sensor-idx="${sensorIdx}"]`);
+    const fillInput = row?.querySelector('input[name$="-fill"]');
+    if (fillInput) {
+        fillInput.value = fill ? '1' : '0';
+    }
+}
+
+function setupChartSensorAutocomplete(zoneIdx) {
+    const input = document.querySelector(`.chart-sensor-input[data-zone-idx="${zoneIdx}"]`);
+    if (!input) return;
+
+    let autocompleteContainer = null;
+    let autocompleteResults = [];
+    let selectedIndex = 0;
+
+    input.addEventListener('input', async (e) => {
+        const query = e.target.value.trim();
+        if (query.length < 2) {
+            closeAutocomplete();
+            return;
+        }
+
+        // Search sensors (use sensorsByName to avoid duplicates from multiple servers)
+        const allSensors = Array.from(state.sensorsByName.values());
+        autocompleteResults = allSensors
+            .filter(s => s.name.toLowerCase().includes(query.toLowerCase()))
+            .slice(0, 10);
+
+        if (autocompleteResults.length === 0) {
+            closeAutocomplete();
+            return;
+        }
+
+        showAutocomplete();
+    });
+
+    input.addEventListener('keydown', (e) => {
+        if (!autocompleteContainer) return;
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            selectedIndex = Math.min(selectedIndex + 1, autocompleteResults.length - 1);
+            updateSelection();
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            selectedIndex = Math.max(selectedIndex - 1, 0);
+            updateSelection();
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (autocompleteResults[selectedIndex]) {
+                selectSensor(autocompleteResults[selectedIndex]);
+            }
+        } else if (e.key === 'Escape') {
+            closeAutocomplete();
+        }
+    });
+
+    input.addEventListener('blur', () => {
+        setTimeout(closeAutocomplete, 200);
+    });
+
+    function showAutocomplete() {
+        if (!autocompleteContainer) {
+            autocompleteContainer = document.createElement('div');
+            autocompleteContainer.className = 'widget-autocomplete';
+            input.parentNode.style.position = 'relative';
+            input.parentNode.appendChild(autocompleteContainer);
+        }
+
+        selectedIndex = 0;
+        autocompleteContainer.innerHTML = autocompleteResults.map((s, i) => `
+            <div class="widget-autocomplete-item${i === 0 ? ' selected' : ''}" data-name="${escapeHtml(s.name)}">
+                <span class="autocomplete-name">${escapeHtml(s.name)}</span>
+                ${s.textname ? `<span class="autocomplete-desc">${escapeHtml(s.textname)}</span>` : ''}
+            </div>
+        `).join('');
+
+        autocompleteContainer.querySelectorAll('.widget-autocomplete-item').forEach((item, i) => {
+            item.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                selectSensor(autocompleteResults[i]);
+            });
+        });
+    }
+
+    function updateSelection() {
+        autocompleteContainer?.querySelectorAll('.widget-autocomplete-item').forEach((item, i) => {
+            item.classList.toggle('selected', i === selectedIndex);
+        });
+    }
+
+    function closeAutocomplete() {
+        autocompleteContainer?.remove();
+        autocompleteContainer = null;
+    }
+
+    function selectSensor(sensor) {
+        // Add sensor to zone
+        const sensorsContainer = document.getElementById(`chart-zone-sensors-${zoneIdx}`);
+        if (!sensorsContainer) return;
+
+        // Check if sensor is discrete (DI/DO) - set stepped=true, smooth=false
+        const isDiscrete = sensor.iotype === 'DI' || sensor.iotype === 'DO';
+        const sensorConfig = {
+            name: sensor.name,
+            fill: true,
+            smooth: !isDiscrete,  // smooth off for discrete
+            stepped: isDiscrete   // stepped on for discrete
+        };
+
+        const sensorIdx = sensorsContainer.querySelectorAll('.chart-sensor-row').length;
+        const sensorHtml = ChartWidget.renderSensorRow(sensorConfig, zoneIdx, sensorIdx);
+        sensorsContainer.insertAdjacentHTML('beforeend', sensorHtml);
+
+        // Clear input
+        input.value = '';
+        closeAutocomplete();
+    }
+}
+
+// Setup autocomplete when widget config dialog opens for chart widget
+function setupChartWidgetAutocomplete() {
+    const zoneEditors = document.querySelectorAll('.chart-zone-editor');
+    zoneEditors.forEach((editor) => {
+        const zoneIdx = parseInt(editor.dataset.zoneIdx);
+        setupChartSensorAutocomplete(zoneIdx);
+    });
+}
+
+// ============================================================================
+// Add to Dashboard Dialog
+// ============================================================================
+
+// State for add-to-dashboard dialog
+let addToDashboardState = {
+    sensorName: null,
+    sensorLabel: null,
+    selectedType: 'gauge'
+};
+
+function closeAddToDashboard() {
+    document.getElementById('add-to-dashboard-overlay')?.classList.add('hidden');
+    addToDashboardState.sensorName = null;
+    addToDashboardState.sensorLabel = null;
+}
+
+function showAddToDashboardDialog(sensorName, sensorLabel = null) {
+    const overlay = document.getElementById('add-to-dashboard-overlay');
+    const sensorNameEl = document.getElementById('add-to-dashboard-sensor-name');
+    const selectEl = document.getElementById('add-to-dashboard-select');
+    const typesEl = document.getElementById('add-to-dashboard-types');
+    const newNameField = document.getElementById('new-dashboard-name-field');
+    const newNameInput = document.getElementById('add-to-dashboard-new-name');
+    const okBtn = document.getElementById('add-to-dashboard-ok');
+
+    if (!overlay || !selectEl || !typesEl) return;
+
+    // Store sensor info
+    addToDashboardState.sensorName = sensorName;
+    addToDashboardState.sensorLabel = sensorLabel || sensorName;
+    addToDashboardState.selectedType = 'gauge';
+
+    // Show sensor name
+    sensorNameEl.textContent = sensorLabel || sensorName;
+
+    // Populate dashboard select
+    selectEl.innerHTML = '<option value="__new__">+ Create New Dashboard</option>';
+
+    // Add user dashboards (editable)
+    for (const [name, dashboard] of dashboardState.dashboards) {
+        // Skip server dashboards (they're read-only)
+        if (!dashboardState.serverDashboards.some(sd => sd.meta?.name === name)) {
+            selectEl.innerHTML += `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`;
+        }
+    }
+
+    // Handle select change
+    selectEl.onchange = () => {
+        if (selectEl.value === '__new__') {
+            newNameField.style.display = 'block';
+            newNameInput.focus();
+        } else {
+            newNameField.style.display = 'none';
+        }
+    };
+
+    // Populate widget types
+    const widgetTypes = [
+        { type: 'gauge', name: 'Gauge', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>' },
+        { type: 'level', name: 'Level', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="2" width="12" height="20" rx="2"/><rect x="8" y="10" width="8" height="10" fill="currentColor" opacity="0.3"/></svg>' },
+        { type: 'led', name: 'LED', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>' },
+        { type: 'label', name: 'Label', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><text x="12" y="16" text-anchor="middle" font-size="12" fill="currentColor">Aa</text></svg>' },
+        { type: 'divider', name: 'Divider', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="12" x2="20" y2="12"/></svg>' },
+        { type: 'statusbar', name: 'Status Bar', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="3" fill="#22c55e"/><circle cx="12" cy="12" r="3" fill="#ef4444"/><circle cx="19" cy="12" r="3" fill="#6b7280"/></svg>' },
+        { type: 'bargraph', name: 'Bar Graph', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="14" width="4" height="6" fill="currentColor" opacity="0.7"/><rect x="10" y="8" width="4" height="12" fill="currentColor" opacity="0.5"/><rect x="16" y="4" width="4" height="16" fill="currentColor" opacity="0.3"/></svg>' },
+        { type: 'digital', name: 'Digital', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><text x="12" y="15" text-anchor="middle" font-size="8" fill="currentColor">123</text></svg>' }
+    ];
+
+    typesEl.innerHTML = widgetTypes.map(w => `
+        <div class="add-to-dashboard-type ${w.type === addToDashboardState.selectedType ? 'selected' : ''}"
+             data-type="${w.type}">
+            <span class="widget-type-icon">${w.icon}</span>
+            <span class="widget-type-name">${w.name}</span>
+        </div>
+    `).join('');
+
+    // Handle type selection
+    typesEl.querySelectorAll('.add-to-dashboard-type').forEach(el => {
+        el.addEventListener('click', () => {
+            typesEl.querySelectorAll('.add-to-dashboard-type').forEach(e => e.classList.remove('selected'));
+            el.classList.add('selected');
+            addToDashboardState.selectedType = el.dataset.type;
+        });
+    });
+
+    // Handle OK button
+    okBtn.onclick = () => {
+        const dashboardName = selectEl.value === '__new__'
+            ? newNameInput.value.trim()
+            : selectEl.value;
+
+        if (!dashboardName) {
+            newNameInput.focus();
+            return;
+        }
+
+        addSensorToDashboard(
+            addToDashboardState.sensorName,
+            addToDashboardState.sensorLabel,
+            dashboardName,
+            addToDashboardState.selectedType,
+            selectEl.value === '__new__'
+        );
+
+        closeAddToDashboard();
+    };
+
+    // Reset and show
+    newNameField.style.display = 'none';
+    newNameInput.value = '';
+    overlay.classList.remove('hidden');
+}
+
+function addSensorToDashboard(sensorName, sensorLabel, dashboardName, widgetType, createNew) {
+    if (!dashboardManager) {
+        console.warn('Dashboard manager not initialized');
+        return;
+    }
+
+    // Create new dashboard if needed
+    if (createNew) {
+        const newDashboard = {
+            version: DASHBOARD_VERSION,
+            meta: { name: dashboardName, description: '' },
+            grid: { cols: GRID_COLS, rowHeight: GRID_ROW_HEIGHT, gap: GRID_GAP },
+            widgets: []
+        };
+        dashboardState.dashboards.set(dashboardName, newDashboard);
+        dashboardManager.updateDashboardList();
+    }
+
+    // Get or set current dashboard
+    const prevDashboard = dashboardState.currentDashboard;
+    dashboardState.currentDashboard = dashboardName;
+
+    // Get widget default config based on type
+    const WidgetClass = WIDGET_TYPES[widgetType];
+    const defaultSize = WidgetClass?.defaultSize || { width: 2, height: 1 };
+
+    // Find empty position
+    const position = dashboardManager.findEmptyPosition(defaultSize.width, defaultSize.height);
+
+    // Create widget config
+    const widgetConfig = {
+        id: `widget-${Date.now()}`,
+        type: widgetType,
+        position: { ...position, width: defaultSize.width, height: defaultSize.height },
+        config: {
+            sensor: sensorName,
+            label: sensorLabel,
+            min: 0,
+            max: 100,
+            unit: '',
+            decimals: 1
+        }
+    };
+
+    // Add to dashboard
+    const dashboard = dashboardState.dashboards.get(dashboardName);
+    if (dashboard) {
+        dashboard.widgets = dashboard.widgets || [];
+        dashboard.widgets.push(widgetConfig);
+
+        // Save dashboard
+        dashboardManager.saveDashboard();
+
+        // If we're viewing this dashboard, create the widget
+        if (dashboardState.currentView === 'dashboard' && dashboardState.currentDashboard === dashboardName) {
+            dashboardManager.createWidget(widgetConfig);
+            dashboardManager.updateSensorSubscriptions();
+        }
+    }
+
+    // Restore previous dashboard if different
+    if (prevDashboard && prevDashboard !== dashboardName) {
+        dashboardState.currentDashboard = prevDashboard;
+    }
+
+    console.log(`Added ${sensorName} as ${widgetType} to dashboard "${dashboardName}"`);
+}
+
+// Global dashboard manager instance (exposed on window for tests)
+let dashboardManager = window.dashboardManager = null;
+
+// Helper to update dashboard widgets from SSE events
+function updateDashboardWidgets(sensors, timestamp = null) {
+    if (!dashboardManager || !sensors) return;
+
+    for (const sensor of sensors) {
+        const name = sensor.name;
+        const value = sensor.value;
+        const error = sensor.error || null;
+
+        if (name !== undefined && value !== undefined) {
+            dashboardManager.handleSensorUpdate(name, value, error, timestamp);
+        }
+    }
+}
+
+
 // === 99-init.js ===
+// Загрузка версии приложения
 async function loadAppVersion() {
     try {
         const response = await fetch('/api/version');
@@ -12971,6 +18859,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Loading сохранённых настроек
     loadSettings();
+
+    // Инициализация Dashboard Manager
+    dashboardManager = window.dashboardManager = new DashboardManager();
 });
 
 // Инициализация селектора интервала опроса

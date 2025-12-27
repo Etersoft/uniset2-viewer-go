@@ -3,18 +3,47 @@ package api
 import (
 	"io/fs"
 	"net/http"
+	"os"
+	"strings"
+
+	"github.com/pv/uniset-panel/internal/logger"
 )
 
 type Server struct {
 	mux      *http.ServeMux
 	handlers *Handlers
+	jsFile   string // путь к внешнему app.js (для разработки)
+	cssFile  string // путь к внешнему style.css (для разработки)
 }
 
-func NewServer(handlers *Handlers, staticFS fs.FS) *Server {
+// ServerOption функциональная опция для конфигурации Server
+type ServerOption func(*Server)
+
+// WithJSFile устанавливает путь к внешнему app.js файлу
+func WithJSFile(path string) ServerOption {
+	return func(s *Server) {
+		s.jsFile = path
+	}
+}
+
+// WithCSSFile устанавливает путь к внешнему style.css файлу
+func WithCSSFile(path string) ServerOption {
+	return func(s *Server) {
+		s.cssFile = path
+	}
+}
+
+func NewServer(handlers *Handlers, staticFS fs.FS, opts ...ServerOption) *Server {
 	s := &Server{
 		mux:      http.NewServeMux(),
 		handlers: handlers,
 	}
+
+	// Применяем опции
+	for _, opt := range opts {
+		opt(s)
+	}
+
 	s.setupRoutes(staticFS)
 	return s
 }
@@ -119,6 +148,10 @@ func (s *Server) setupRoutes(staticFS fs.FS) {
 	// Application config for UI
 	s.mux.HandleFunc("GET /api/config", s.handlers.GetConfig)
 
+	// Dashboard API
+	s.mux.HandleFunc("GET /api/dashboards", s.handlers.GetDashboards)
+	s.mux.HandleFunc("GET /api/dashboards/{name}", s.handlers.GetDashboard)
+
 	// Session Control API
 	s.mux.HandleFunc("GET /api/control/status", s.handlers.GetControlStatus)
 	s.mux.HandleFunc("POST /api/control/take", s.handlers.TakeControl)
@@ -138,7 +171,53 @@ func (s *Server) setupRoutes(staticFS fs.FS) {
 
 	// Static files
 	staticHandler := http.FileServer(http.FS(staticFS))
-	s.mux.Handle("GET /static/", staticHandler)
+
+	// Внешние файлы для hot reload при разработке
+	hasExternalFiles := s.jsFile != "" || s.cssFile != ""
+
+	if s.jsFile != "" {
+		logger.Info("Using external JS file", "path", s.jsFile)
+		s.mux.HandleFunc("GET /static/js/app.js", func(w http.ResponseWriter, r *http.Request) {
+			content, err := os.ReadFile(s.jsFile)
+			if err != nil {
+				logger.Error("Failed to read external JS file", "path", s.jsFile, "error", err)
+				http.Error(w, "JS file not found", http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "application/javascript")
+			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+			w.Write(content)
+		})
+	}
+
+	if s.cssFile != "" {
+		logger.Info("Using external CSS file", "path", s.cssFile)
+		s.mux.HandleFunc("GET /static/css/style.css", func(w http.ResponseWriter, r *http.Request) {
+			content, err := os.ReadFile(s.cssFile)
+			if err != nil {
+				logger.Error("Failed to read external CSS file", "path", s.cssFile, "error", err)
+				http.Error(w, "CSS file not found", http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "text/css")
+			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+			w.Write(content)
+		})
+	}
+
+	if hasExternalFiles {
+		// Остальные static файлы из embedded FS
+		s.mux.HandleFunc("GET /static/", func(w http.ResponseWriter, r *http.Request) {
+			// Внешние файлы уже обрабатываются выше
+			if (s.jsFile != "" && strings.HasSuffix(r.URL.Path, "/app.js")) ||
+				(s.cssFile != "" && strings.HasSuffix(r.URL.Path, "/style.css")) {
+				return
+			}
+			staticHandler.ServeHTTP(w, r)
+		})
+	} else {
+		s.mux.Handle("GET /static/", staticHandler)
+	}
 
 	// Index page
 	s.mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {

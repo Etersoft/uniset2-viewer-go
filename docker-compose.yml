@@ -3,6 +3,7 @@ version: '3.8'
 services:
   # Development viewer connecting to real UniSet2 on host
   # Usage: docker-compose --profile dev up dev-viewer
+  # Используйте -jsfile для горячей перезагрузки JS без пересборки контейнера
   dev-viewer:
     build:
       context: .
@@ -21,12 +22,16 @@ services:
       --uniset-url http://localhost:9595
       --uniset-url http://localhost:9696
       --uniset-url http://localhost:8081
-      --control-token admin123
-      --control-token operator456
       --control-timeout 60s
       --recording-path /tmp/recording.db
+      --dashboards-dir /app/dashboards
+      --js /app/ext/app.js
+      --css /app/ext/style.css
     volumes:
       - ./config:/app/config:ro
+      - ./examples/dashboards:/app/dashboards:ro
+      - ./ui/static/js/app.js:/app/ext/app.js:ro
+      - ./ui/static/css/style.css:/app/ext/style.css:ro
     network_mode: host
     profiles:
       - dev
@@ -53,9 +58,17 @@ services:
       dockerfile: Dockerfile
     environment:
       - UNISET_URL=http://mock-uniset:9393
-    command: ./uniset-panel --addr :8000 --uniset-url http://mock-uniset:9393 --uniset-config /app/config/test.xml --sm-url http://mock-uniset:9393
+    command: >
+      ./uniset-panel --addr :8000
+      --uniset-url http://mock-uniset:9393
+      --uniset-config /app/config/test.xml
+      --sm-url http://mock-uniset:9393
+      --js /app/ext/app.js
+      --css /app/ext/style.css
     volumes:
       - ./config:/app/config:ro
+      - ./ui/static/js/app.js:/app/ext/app.js:ro
+      - ./ui/static/css/style.css:/app/ext/style.css:ro
     ports:
       - "8000:8000"
     depends_on:
@@ -89,3 +102,48 @@ services:
         cp -r /app/* .
         npm install --no-fund --no-audit
         npx playwright test single/ --reporter=list
+
+  # Demo mock server - Diesel Generator Simulator
+  # Usage: docker-compose --profile demo up demo-viewer
+  demo-mock-server:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./demo/mock-server:/app
+    command: node server.js
+    expose:
+      - "9393"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9393/api/v2/list"]
+      interval: 2s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - demo
+
+  # Demo viewer connecting to demo mock server
+  demo-viewer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - UNISET_URL=http://demo-mock-server:9393
+    command: >
+      ./uniset-panel --addr :8000
+      --uniset-url http://demo-mock-server:9393
+      --sm-url http://demo-mock-server:9393
+      --dashboards-dir /app/dashboards
+      --js /app/ext/app.js
+      --css /app/ext/style.css
+    volumes:
+      - ./config:/app/config:ro
+      - ./examples/dashboards:/app/dashboards:ro
+      - ./ui/static/js/app.js:/app/ext/app.js:ro
+      - ./ui/static/css/style.css:/app/ext/style.css:ro
+    ports:
+      - "8001:8000"
+    depends_on:
+      demo-mock-server:
+        condition: service_healthy
+    profiles:
+      - demo
