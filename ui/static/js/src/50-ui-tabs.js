@@ -217,6 +217,11 @@ async function openObjectTab(name, serverId, serverName) {
     // Составной ключ для tabs: serverId:objectName
     const tabKey = `${serverId}:${name}`;
 
+    // Переключаемся на Objects view если сейчас на Dashboard
+    if (dashboardManager && dashboardState.currentView !== 'objects') {
+        dashboardManager.switchView('objects');
+    }
+
     if (state.tabs.has(tabKey)) {
         activateTab(tabKey);
         return;
@@ -331,6 +336,8 @@ function activateTab(name) {
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
     document.querySelectorAll('.objects-list li').forEach(li => li.classList.remove('active'));
+    // Снимаем выделение с dashboard items в sidebar
+    document.querySelectorAll('.dashboard-item').forEach(item => item.classList.remove('active'));
 
     document.querySelector(`.tab-btn[data-name="${name}"]`)?.classList.add('active');
     document.querySelector(`.tab-panel[data-name="${name}"]`)?.classList.add('active');
