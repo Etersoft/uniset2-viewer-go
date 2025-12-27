@@ -554,3 +554,123 @@ func TestPollerSetEventCallbackNil(t *testing.T) {
 		t.Error("expected data to be saved even without callback")
 	}
 }
+
+func TestPollerSetServerID(t *testing.T) {
+	store := storage.NewMemoryStorage()
+	defer store.Close()
+
+	client := uniset.NewClient("http://localhost:9999")
+	p := New(client, store, time.Second, time.Hour)
+
+	// Initially empty
+	p.mu.RLock()
+	if p.serverID != "" {
+		t.Errorf("expected empty serverID, got %q", p.serverID)
+	}
+	p.mu.RUnlock()
+
+	// Set server ID
+	p.SetServerID("server123")
+
+	p.mu.RLock()
+	if p.serverID != "server123" {
+		t.Errorf("expected serverID=server123, got %q", p.serverID)
+	}
+	p.mu.RUnlock()
+}
+
+func TestPollerSetRecordingManager(t *testing.T) {
+	store := storage.NewMemoryStorage()
+	defer store.Close()
+
+	client := uniset.NewClient("http://localhost:9999")
+	p := New(client, store, time.Second, time.Hour)
+
+	// Initially nil
+	p.mu.RLock()
+	if p.recordingMgr != nil {
+		t.Error("expected nil recordingMgr")
+	}
+	p.mu.RUnlock()
+
+	// Set nil (should not panic)
+	p.SetRecordingManager(nil)
+
+	p.mu.RLock()
+	if p.recordingMgr != nil {
+		t.Error("expected nil recordingMgr after SetRecordingManager(nil)")
+	}
+	p.mu.RUnlock()
+}
+
+func TestPollerPollWithIOData(t *testing.T) {
+	store := storage.NewMemoryStorage()
+	defer store.Close()
+
+	server := newMockServer(t, func(w http.ResponseWriter, r *http.Request) {
+		response := map[string]interface{}{
+			"TestProc": map[string]interface{}{
+				"Variables": map[string]interface{}{
+					"value": "100",
+				},
+				"io": map[string]interface{}{
+					"in": map[string]interface{}{
+						"sensor1": map[string]interface{}{
+							"id":    1,
+							"name":  "Sensor1",
+							"value": 42,
+						},
+					},
+					"out": map[string]interface{}{
+						"actuator1": map[string]interface{}{
+							"id":    2,
+							"name":  "Actuator1",
+							"value": 100,
+						},
+					},
+				},
+			},
+			"object": map[string]interface{}{
+				"id":   6000,
+				"name": "TestProc",
+			},
+		}
+		json.NewEncoder(w).Encode(response)
+	})
+	defer server.Close()
+
+	client := uniset.NewClient(server.URL)
+	p := New(client, store, 50*time.Millisecond, time.Hour)
+
+	p.SetServerID("test-server")
+	p.Watch("TestProc")
+
+	p.poll()
+
+	// Check variable was saved with serverID
+	history, err := store.GetLatest("test-server", "TestProc", "value", 10)
+	if err != nil {
+		t.Fatalf("GetLatest failed: %v", err)
+	}
+	if len(history.Points) == 0 {
+		t.Error("expected variable history points")
+	}
+
+	// Check IO in was saved
+	ioInHistory, err := store.GetLatest("test-server", "TestProc", "io.in.sensor1", 10)
+	if err != nil {
+		t.Fatalf("GetLatest IO in failed: %v", err)
+	}
+	if len(ioInHistory.Points) == 0 {
+		t.Error("expected IO in history points")
+	}
+
+	// Check IO out was saved
+	ioOutHistory, err := store.GetLatest("test-server", "TestProc", "io.out.actuator1", 10)
+	if err != nil {
+		t.Fatalf("GetLatest IO out failed: %v", err)
+	}
+	if len(ioOutHistory.Points) == 0 {
+		t.Error("expected IO out history points")
+	}
+}
