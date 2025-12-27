@@ -947,7 +947,44 @@ class BaseObjectRenderer {
         subscribeToIONCSensor(this.tabKey, sensorId);
     }
 
-    // Сгенерировать HTML для checkbox добавления на график
+    // Сгенерировать HTML для объединённой ячейки кнопок (Chart + Dashboard)
+    renderAddButtonsCell(sensorId, sensorName, prefix = 'sensor', sensorLabel = null) {
+        const isOnChart = this.isSensorOnChart(sensorName);
+        const varName = `${prefix}-${sensorId}`;
+        const checkboxId = `chart-${this.objectName}-${varName}`;
+        const label = sensorLabel || sensorName;
+        return `
+            <td class="add-buttons-col">
+                <span class="chart-toggle">
+                    <input type="checkbox"
+                           class="chart-checkbox chart-toggle-input"
+                           id="${checkboxId}"
+                           data-sensor-id="${sensorId}"
+                           data-sensor-name="${escapeHtml(sensorName)}"
+                           ${isOnChart ? 'checked' : ''}>
+                    <label class="chart-toggle-label" for="${checkboxId}" title="Add to Chart">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 3v18h18"/>
+                            <path d="M18 9l-5 5-4-4-3 3"/>
+                        </svg>
+                    </label>
+                </span>
+                <button class="dashboard-add-btn"
+                        data-sensor-name="${escapeHtml(sensorName)}"
+                        data-sensor-label="${escapeHtml(label)}"
+                        title="Add to Dashboard">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="7" rx="1"/>
+                        <rect x="14" y="3" width="7" height="7" rx="1"/>
+                        <rect x="3" y="14" width="7" height="7" rx="1"/>
+                        <rect x="14" y="14" width="7" height="7" rx="1"/>
+                    </svg>
+                </button>
+            </td>
+        `;
+    }
+
+    // Устаревшие методы - оставлены для обратной совместимости
     renderChartToggleCell(sensorId, sensorName, prefix = 'sensor') {
         const isOnChart = this.isSensorOnChart(sensorName);
         const varName = `${prefix}-${sensorId}`;
@@ -961,13 +998,31 @@ class BaseObjectRenderer {
                            data-sensor-id="${sensorId}"
                            data-sensor-name="${escapeHtml(sensorName)}"
                            ${isOnChart ? 'checked' : ''}>
-                    <label class="chart-toggle-label" for="${checkboxId}">
+                    <label class="chart-toggle-label" for="${checkboxId}" title="Add to Chart">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M3 3v18h18"/>
                             <path d="M18 9l-5 5-4-4-3 3"/>
                         </svg>
                     </label>
                 </span>
+            </td>
+        `;
+    }
+
+    renderDashboardToggleCell(sensorName, sensorLabel = null) {
+        return `
+            <td class="dashboard-col">
+                <button class="dashboard-add-btn"
+                        data-sensor-name="${escapeHtml(sensorName)}"
+                        data-sensor-label="${escapeHtml(sensorLabel || sensorName)}"
+                        title="Add to Dashboard">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="7" rx="1"/>
+                        <rect x="14" y="3" width="7" height="7" rx="1"/>
+                        <rect x="3" y="14" width="7" height="7" rx="1"/>
+                        <rect x="14" y="14" width="7" height="7" rx="1"/>
+                    </svg>
+                </button>
             </td>
         `;
     }
@@ -983,6 +1038,19 @@ class BaseObjectRenderer {
                 if (sensor) {
                     this.toggleSensorChart(sensor);
                 }
+            });
+        });
+    }
+
+    // Привязать обработчики для кнопок добавления на dashboard
+    attachDashboardToggleListeners(container) {
+        if (!container) return;
+        container.querySelectorAll('.dashboard-add-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const sensorName = btn.dataset.sensorName;
+                const sensorLabel = btn.dataset.sensorLabel;
+                showAddToDashboardDialog(sensorName, sensorLabel);
             });
         });
     }

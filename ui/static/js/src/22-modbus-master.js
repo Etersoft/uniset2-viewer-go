@@ -212,7 +212,7 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
                                 <th class="col-pin">
                                     <span class="mb-unpin-all" id="mb-unpin-${this.objectName}" title="Unpin all" style="display:none">✕</span>
                                 </th>
-                                <th class="col-chart"></th>
+                                <th class="col-add-buttons"></th>
                                 <th class="col-id">ID</th>
                                 <th class="col-name">Name</th>
                                 <th class="col-type">Type</th>
@@ -545,7 +545,7 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
                             ${pinIcon}
                         </span>
                     </td>
-                    ${this.renderChartToggleCell(reg.id, reg.name, 'mbreg')}
+                    ${this.renderAddButtonsCell(reg.id, reg.name, 'mbreg', reg.textname || reg.name)}
                     <td class="col-id">${reg.id}</td>
                     <td class="col-name" title="${escapeHtml(reg.textname || reg.comment || '')}">${escapeHtml(reg.name || '')}</td>
                     <td class="col-type">${reg.iotype ? `<span class="type-badge type-${reg.iotype}">${reg.iotype}</span>` : ''}</td>
@@ -562,6 +562,9 @@ class ModbusMasterRenderer extends BaseObjectRenderer {
 
         // Bind chart toggle events
         this.attachChartToggleListeners(tbody, this.registerMap);
+
+        // Bind dashboard button events
+        this.attachDashboardToggleListeners(tbody);
 
         // Bind pin toggle events
         tbody.querySelectorAll('.pin-toggle').forEach(toggle => {

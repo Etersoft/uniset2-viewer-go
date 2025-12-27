@@ -241,7 +241,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
                                 <th class="col-pin">
                                     <span class="opcua-unpin-all" id="opcua-unpin-${this.objectName}" title="Unpin all" style="display:none">✕</span>
                                 </th>
-                                <th class="col-chart"></th>
+                                <th class="col-add-buttons"></th>
                                 <th class="col-id">ID</th>
                                 <th class="col-name">Name</th>
                                 <th class="col-type">Type</th>
@@ -810,7 +810,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
 
         // Show empty state if no sensors
         if (sensorsToShow.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="10" class="opcua-no-sensors">No sensors</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="11" class="opcua-no-sensors">No sensors</td></tr>';
             return;
         }
 
@@ -840,7 +840,7 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
                         ${pinIcon}
                     </span>
                 </td>
-                ${this.renderChartToggleCell(sensor.id, sensor.name, 'opcua')}
+                ${this.renderAddButtonsCell(sensor.id, sensor.name, 'opcua', sensor.textname || sensor.name)}
                 <td class="col-id">${sensor.id ?? '—'}</td>
                 <td class="col-name" title="${escapeHtml(sensor.textname || sensor.comment || '')}">${escapeHtml(sensor.name || '')}</td>
                 <td class="col-type"><span class="${typeBadgeClass}">${iotype || '—'}</span></td>
@@ -854,6 +854,9 @@ class OPCUAExchangeRenderer extends BaseObjectRenderer {
 
         // Bind chart toggle events
         this.attachChartToggleListeners(tbody, this.sensorMap);
+
+        // Bind dashboard toggle events
+        this.attachDashboardToggleListeners(tbody);
 
         // Bind pin toggle events
         tbody.querySelectorAll('.pin-toggle').forEach(toggle => {
