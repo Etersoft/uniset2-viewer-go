@@ -1,4 +1,4 @@
-.PHONY: build run test js-tests js-tests-multi coverage clean app demo
+.PHONY: build run test js-tests js-tests-multi coverage clean app demo test-integration clickhouse-up clickhouse-down
 
 # Generate app.js from source modules
 app:
@@ -49,3 +49,20 @@ clean:
 # Starts demo-mock-server and demo-viewer on http://localhost:8001
 demo:
 	docker compose --profile demo up --build demo-mock-server demo-viewer
+
+# Start ClickHouse for integration tests
+clickhouse-up:
+	docker compose up -d clickhouse
+	@echo "Waiting for ClickHouse to be ready..."
+	@docker compose exec clickhouse clickhouse-client --query "SELECT 1" > /dev/null 2>&1 || sleep 5
+	@echo "ClickHouse is ready"
+
+# Stop ClickHouse
+clickhouse-down:
+	docker compose stop clickhouse
+	docker compose rm -f clickhouse
+
+# Integration tests (requires ClickHouse running)
+# Usage: make clickhouse-up && make test-integration && make clickhouse-down
+test-integration:
+	CLICKHOUSE_URL="clickhouse://localhost:9000/uniset" go test -mod=vendor -tags=integration -v ./internal/journal/...

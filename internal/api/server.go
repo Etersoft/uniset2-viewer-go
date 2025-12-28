@@ -152,6 +152,12 @@ func (s *Server) setupRoutes(staticFS fs.FS) {
 	s.mux.HandleFunc("GET /api/dashboards", s.handlers.GetDashboards)
 	s.mux.HandleFunc("GET /api/dashboards/{name}", s.handlers.GetDashboard)
 
+	// Journal API
+	s.mux.HandleFunc("GET /api/journals", s.handlers.GetJournals)
+	s.mux.HandleFunc("GET /api/journals/{id}/messages", s.handlers.GetJournalMessages)
+	s.mux.HandleFunc("GET /api/journals/{id}/mtypes", s.handlers.GetJournalMTypes)
+	s.mux.HandleFunc("GET /api/journals/{id}/mgroups", s.handlers.GetJournalMGroups)
+
 	// Session Control API
 	s.mux.HandleFunc("GET /api/control/status", s.handlers.GetControlStatus)
 	s.mux.HandleFunc("POST /api/control/take", s.handlers.TakeControl)

@@ -99,32 +99,10 @@ class DashboardManager {
     }
 
     switchView(view) {
-        dashboardState.currentView = view;
-
-        const objectsBtn = document.getElementById('view-objects-btn');
-        const dashboardBtn = document.getElementById('view-dashboard-btn');
-        const objectsView = document.getElementById('objects-view');
-        const dashboardView = document.getElementById('dashboard-view');
-        const sidebar = document.getElementById('sidebar');
-
-        if (view === 'objects') {
-            objectsBtn?.classList.add('active');
-            dashboardBtn?.classList.remove('active');
-            objectsView?.classList.add('active');
-            dashboardView?.classList.remove('active');
-            sidebar?.classList.remove('hidden');
-        } else {
-            objectsBtn?.classList.remove('active');
-            dashboardBtn?.classList.add('active');
-            objectsView?.classList.remove('active');
-            dashboardView?.classList.add('active');
-            sidebar?.classList.add('hidden');
-
-            // Принудительно обновляем все виджеты с их текущими значениями
-            // (SSE события могли прийти пока Dashboard был скрыт)
-            this.refreshAllWidgets();
+        // Delegate to global switchView function
+        if (typeof window.switchView === 'function') {
+            window.switchView(view);
         }
-
         this.saveDashboardSettings();
     }
 

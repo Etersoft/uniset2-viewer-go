@@ -9,6 +9,7 @@ import (
 	"github.com/pv/uniset-panel/internal/config"
 	"github.com/pv/uniset-panel/internal/dashboard"
 	"github.com/pv/uniset-panel/internal/ionc"
+	"github.com/pv/uniset-panel/internal/journal"
 	"github.com/pv/uniset-panel/internal/logserver"
 	"github.com/pv/uniset-panel/internal/modbus"
 	"github.com/pv/uniset-panel/internal/opcua"
@@ -43,6 +44,7 @@ type Handlers struct {
 	version         string               // версия приложения
 	uwsgatePoller   *uwsgate.Poller      // поллер UWebSocketGate
 	dashboardMgr    *dashboard.Manager   // менеджер серверных dashboard'ов
+	journalMgr      *journal.Manager     // менеджер журналов сообщений
 }
 
 func NewHandlers(client *uniset.Client, store storage.Storage, p *poller.Poller, sensorCfg *sensorconfig.SensorConfig, pollInterval time.Duration) *Handlers {
@@ -89,6 +91,11 @@ func (h *Handlers) SetUWSGatePoller(p *uwsgate.Poller) {
 // SetDashboardManager устанавливает менеджер dashboard'ов
 func (h *Handlers) SetDashboardManager(mgr *dashboard.Manager) {
 	h.dashboardMgr = mgr
+}
+
+// SetJournalManager устанавливает менеджер журналов
+func (h *Handlers) SetJournalManager(mgr *journal.Manager) {
+	h.journalMgr = mgr
 }
 
 // SetServerManager устанавливает менеджер серверов

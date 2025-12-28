@@ -14,6 +14,7 @@ import (
 	"github.com/pv/uniset-panel/internal/config"
 	"github.com/pv/uniset-panel/internal/dashboard"
 	"github.com/pv/uniset-panel/internal/ionc"
+	"github.com/pv/uniset-panel/internal/journal"
 	"github.com/pv/uniset-panel/internal/logger"
 	"github.com/pv/uniset-panel/internal/logserver"
 	"github.com/pv/uniset-panel/internal/modbus"
@@ -230,6 +231,29 @@ func main() {
 		}
 	}
 
+	// Create journal manager if configured
+	var journalMgr *journal.Manager
+	var journalPollers []*journal.Poller
+	if len(cfg.JournalURLs) > 0 {
+		journalMgr = journal.NewManager(slog.Default())
+		for _, url := range cfg.JournalURLs {
+			if err := journalMgr.AddJournal(url); err != nil {
+				logger.Error("Failed to add journal", "url", url, "error", err)
+				continue
+			}
+		}
+		handlers.SetJournalManager(journalMgr)
+		logger.Info("Journal manager initialized", "count", journalMgr.Count())
+
+		// Create pollers for each journal
+		for _, client := range journalMgr.GetAllClients() {
+			poller := journal.NewPoller(client, 2*time.Second, func(journalID string, messages []journal.Message) {
+				sseHub.BroadcastJournalMessages(journalID, messages)
+			}, slog.Default())
+			journalPollers = append(journalPollers, poller)
+		}
+	}
+
 	// Set pollers if available
 	if ioncPollerInstance != nil {
 		handlers.SetIONCPoller(ioncPollerInstance)
@@ -270,6 +294,11 @@ func main() {
 	if smPoller != nil {
 		smPoller.Start()
 		defer smPoller.Stop()
+	}
+
+	// Start journal pollers
+	for _, jp := range journalPollers {
+		jp.Start()
 	}
 
 	// Start HTTP server
@@ -314,6 +343,14 @@ func main() {
 		if err := recordingMgr.Stop(); err != nil {
 			logger.Error("Recording manager stop error", "error", err)
 		}
+	}
+
+	// Stop journal pollers and manager
+	for _, jp := range journalPollers {
+		jp.Stop()
+	}
+	if journalMgr != nil {
+		journalMgr.Close()
 	}
 
 	// Shutdown server manager

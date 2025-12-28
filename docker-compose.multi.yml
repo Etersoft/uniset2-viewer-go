@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Multi-server test configuration
 # Usage: docker-compose -f docker-compose.multi.yml up --build --abort-on-container-exit
 

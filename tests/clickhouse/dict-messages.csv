@@ -1,0 +1,82 @@
+"id","sensorname","value","message","mtype","mgroup","mcode","default"
+3554423592,"Door_Sensor1",0,"Door closed","Normal","Security","N010",0
+3522815439,"Door_Sensor1",1,"Door opened","Warning","Security","W004",0
+1559807999,"Emergency_Stop",0,"Emergency stop released","Normal","Safety","N007",0
+904505076,"Emergency_Stop",1,"Emergency stop activated","Emergancy","Safety","E001",0
+1117051507,"Level_Sensor1",50,"Level normal","Normal","Process","N008",0
+464857868,"Level_Sensor1",75,"Level caution","Cauton","Process","C001",0
+2470442936,"Motor_Control1",0,"Motor stopped","Normal","Control","N005",0
+205149865,"Motor_Control1",1,"Motor started","Normal","Control","N004",0
+1638550952,"Power_Sensor1",100,"Power normalized","Normal","Power","N006",0
+1033413852,"Power_Sensor1",120,"Power overload","Alarm","Power","A002",0
+1760600787,"Pressure_Sensor1",30,"Pressure low","Warning","Environment","W003",0
+3674203758,"Pressure_Sensor1",45,"Pressure level warning","Warning","Environment","W001",0
+1818848879,"Pressure_Sensor1",50,"Pressure restored","Normal","Environment","N003",0
+2812665132,"Sensor_0",0,"Test message Sensor_0 value 0","Alarm","Environment","A000",0
+4122498026,"Sensor_0",1,"Test message Sensor_0 value 1","Warning","Environment","W000",0
+3354834322,"Sensor_0",2,"Test message Sensor_0 value 2","Normal","Environment","N000",0
+3596981614,"Sensor_0",3,"Test message Sensor_0 value 3","Emergancy","Environment","E000",0
+1496203267,"Sensor_0",4,"Test message Sensor_0 value 4","Cauton","Environment","B000",0
+3000315948,"Sensor_0",5,"Test message Sensor_0 value 5","Blocking","Environment","C000",0
+1353862731,"Sensor_1",0,"Test message Sensor_1 value 0","Alarm","Control","A001",0
+3645124827,"Sensor_1",1,"Test message Sensor_1 value 1","Warning","Control","W001",0
+3320443275,"Sensor_1",2,"Test message Sensor_1 value 2","Normal","Control","N001",0
+2598899605,"Sensor_1",3,"Test message Sensor_1 value 3","Emergancy","Control","E001",0
+2644109352,"Sensor_1",4,"Test message Sensor_1 value 4","Cauton","Control","B001",0
+686051141,"Sensor_1",5,"Test message Sensor_1 value 5","Blocking","Control","C001",0
+2612943981,"Sensor_2",0,"Test message Sensor_2 value 0","Alarm","Safety","A002",0
+3178586455,"Sensor_2",1,"Test message Sensor_2 value 1","Warning","Safety","W002",0
+2063977697,"Sensor_2",2,"Test message Sensor_2 value 2","Normal","Safety","N002",0
+2801316932,"Sensor_2",3,"Test message Sensor_2 value 3","Emergancy","Safety","E002",0
+2076848229,"Sensor_2",4,"Test message Sensor_2 value 4","Cauton","Safety","B002",0
+4139925429,"Sensor_2",5,"Test message Sensor_2 value 5","Blocking","Safety","C002",0
+924775908,"Sensor_3",0,"Test message Sensor_3 value 0","Alarm","System","A003",0
+2082654228,"Sensor_3",1,"Test message Sensor_3 value 1","Warning","System","W003",0
+643438369,"Sensor_3",2,"Test message Sensor_3 value 2","Normal","System","N003",0
+3866982928,"Sensor_3",3,"Test message Sensor_3 value 3","Emergancy","System","E003",0
+2194378289,"Sensor_3",4,"Test message Sensor_3 value 4","Cauton","System","B003",0
+3309133636,"Sensor_3",5,"Test message Sensor_3 value 5","Blocking","System","C003",0
+1986299977,"Sensor_4",0,"Test message Sensor_4 value 0","Alarm","Environment","A004",0
+2866669132,"Sensor_4",1,"Test message Sensor_4 value 1","Warning","Environment","W004",0
+2328307388,"Sensor_4",2,"Test message Sensor_4 value 2","Normal","Environment","N004",0
+3208484443,"Sensor_4",3,"Test message Sensor_4 value 3","Emergancy","Environment","E004",0
+1620754063,"Sensor_4",4,"Test message Sensor_4 value 4","Cauton","Environment","B004",0
+152876267,"Sensor_4",5,"Test message Sensor_4 value 5","Blocking","Environment","C004",0
+3846646035,"Sensor_5",0,"Test message Sensor_5 value 0","Alarm","Control","A005",0
+115242212,"Sensor_5",1,"Test message Sensor_5 value 1","Warning","Control","W005",0
+2537435272,"Sensor_5",2,"Test message Sensor_5 value 2","Normal","Control","N005",0
+774613112,"Sensor_5",3,"Test message Sensor_5 value 3","Emergancy","Control","E005",0
+2607779918,"Sensor_5",4,"Test message Sensor_5 value 4","Cauton","Control","B005",0
+713462322,"Sensor_5",5,"Test message Sensor_5 value 5","Blocking","Control","C005",0
+2356445806,"Sensor_6",0,"Test message Sensor_6 value 0","Alarm","Safety","A006",0
+1491360296,"Sensor_6",1,"Test message Sensor_6 value 1","Warning","Safety","W006",0
+2546260298,"Sensor_6",2,"Test message Sensor_6 value 2","Normal","Safety","N006",0
+3435569179,"Sensor_6",3,"Test message Sensor_6 value 3","Emergancy","Safety","E006",0
+3514932659,"Sensor_6",4,"Test message Sensor_6 value 4","Cauton","Safety","B006",0
+4022796359,"Sensor_6",5,"Test message Sensor_6 value 5","Blocking","Safety","C006",0
+919216444,"Sensor_7",0,"Test message Sensor_7 value 0","Alarm","System","A007",0
+1305354211,"Sensor_7",1,"Test message Sensor_7 value 1","Warning","System","W007",0
+4233133228,"Sensor_7",2,"Test message Sensor_7 value 2","Normal","System","N007",0
+123899875,"Sensor_7",3,"Test message Sensor_7 value 3","Emergancy","System","E007",0
+4006294992,"Sensor_7",4,"Test message Sensor_7 value 4","Cauton","System","B007",0
+3223229447,"Sensor_7",5,"Test message Sensor_7 value 5","Blocking","System","C007",0
+1255668838,"Sensor_8",0,"Test message Sensor_8 value 0","Alarm","Environment","A008",0
+1782553912,"Sensor_8",1,"Test message Sensor_8 value 1","Warning","Environment","W008",0
+3408742342,"Sensor_8",2,"Test message Sensor_8 value 2","Normal","Environment","N008",0
+1506840318,"Sensor_8",3,"Test message Sensor_8 value 3","Emergancy","Environment","E008",0
+2909242072,"Sensor_8",4,"Test message Sensor_8 value 4","Cauton","Environment","B008",0
+2227148209,"Sensor_8",5,"Test message Sensor_8 value 5","Blocking","Environment","C008",0
+2145944391,"Sensor_9",0,"Test message Sensor_9 value 0","Alarm","Control","A009",0
+849082556,"Sensor_9",1,"Test message Sensor_9 value 1","Warning","Control","W009",0
+1847046913,"Sensor_9",2,"Test message Sensor_9 value 2","Normal","Control","N009",0
+2097606466,"Sensor_9",3,"Test message Sensor_9 value 3","Emergancy","Control","E009",0
+4134408677,"Sensor_9",4,"Test message Sensor_9 value 4","Cauton","Control","B009",0
+1786567332,"Sensor_9",5,"Test message Sensor_9 value 5","Blocking","Control","C009",0
+2149425105,"System_Block",0,"System unblocked","Normal","System","N009",0
+2118515363,"System_Block",1,"System blocking initiated","Blocking","System","B001",0
+2059994436,"Temperature_Sensor1",85,"Temperature normalized","Normal","Environment","N002",0
+1859527063,"Temperature_Sensor1",98,"Temperature high","Warning","Environment","W002",0
+1829611906,"Temperature_Sensor1",99,"Temperature critical","Alarm","Environment","A001",0
+816635768,"Temperature_Sensor1",100,"Temperature exceeded threshold","Alarm","Environment","A001",0
+2894480713,"Valve_Control1",0,"Valve opened","Normal","Control","N001",0
+1913572515,"Valve_Control1",1,"Valve closed","Normal","Control","N001",0

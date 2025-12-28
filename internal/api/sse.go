@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/pv/uniset-panel/internal/ionc"
+	"github.com/pv/uniset-panel/internal/journal"
 	"github.com/pv/uniset-panel/internal/logger"
 	"github.com/pv/uniset-panel/internal/modbus"
 	"github.com/pv/uniset-panel/internal/opcua"
@@ -311,6 +312,21 @@ func (h *SSEHub) UpdateClientControlToken(client *sseClient, token string) {
 	if _, exists := h.clients[client]; exists {
 		client.controlToken = token
 	}
+}
+
+// BroadcastJournalMessages отправляет новые сообщения журнала
+func (h *SSEHub) BroadcastJournalMessages(journalID string, messages []journal.Message) {
+	if len(messages) == 0 {
+		return
+	}
+	h.Broadcast(SSEEvent{
+		Type: "journal_messages",
+		Data: map[string]interface{}{
+			"journalId": journalID,
+			"messages":  messages,
+		},
+		Timestamp: time.Now(),
+	})
 }
 
 // HandleSSE обрабатывает SSE подключение

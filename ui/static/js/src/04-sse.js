@@ -527,6 +527,19 @@ function initSSE() {
         }
     });
 
+    // Обработка сообщений журнала
+    eventSource.addEventListener('journal_messages', (e) => {
+        try {
+            const event = JSON.parse(e.data);
+            const data = event.data;
+            if (data && journalManager) {
+                journalManager.handleSSEMessage(data);
+            }
+        } catch (err) {
+            console.warn('SSE: Error обработки journal_messages:', err);
+        }
+    });
+
     eventSource.onerror = (e) => {
         console.warn('SSE: Error соединения');
         state.sse.connected = false;
