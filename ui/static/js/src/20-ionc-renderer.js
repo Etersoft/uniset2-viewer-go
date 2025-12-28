@@ -16,6 +16,9 @@ class IONotifyControllerRenderer extends BaseObjectRenderer {
         this.totalCount = 0;
         this.loading = false;
         this.subscribedSensorIds = new Set();
+
+        // IONC владеет всеми датчиками, добавление через таблицу
+        this.showAddSensorButton = false;
         // Для батчевого рендеринга
         this.pendingUpdates = new Map(); // id -> sensor
         this.renderScheduled = false;

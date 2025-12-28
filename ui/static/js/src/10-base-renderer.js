@@ -576,6 +576,9 @@ class BaseObjectRenderer {
         // Timestamp последнего обновления статуса (для относительного времени)
         this.statusLastUpdate = null;
         this.statusDisplayTimer = null;
+
+        // Показывать ли кнопку "+ Sensor" в секции Charts
+        this.showAddSensorButton = true;
     }
 
     // Получить тип объекта (для отображения)
@@ -692,9 +695,9 @@ class BaseObjectRenderer {
                         <path d="M6 9l6 6 6-6"/>
                     </svg>
                     <span class="collapsible-title">Charts</span>
-                    <button class="add-sensor-btn" id="add-sensor-btn-${this.objectName}"
+                    ${this.showAddSensorButton ? `<button class="add-sensor-btn" id="add-sensor-btn-${this.objectName}"
                             onclick="event.stopPropagation(); openSensorDialog('${this.tabKey}')"
-                            ${!state.capabilities.smEnabled ? 'disabled title="SM not connected (-sm-url not set)"' : ''}>+ Sensor</button>
+                            ${!state.capabilities.smEnabled ? 'disabled title="SM not connected (-sm-url not set)"' : ''}>+ Sensor</button>` : ''}
                     <div class="charts-time-range" onclick="event.stopPropagation()">
                         <div class="time-range-selector">
                             <button class="time-range-btn${state.timeRange === 60 ? ' active' : ''}" onclick="setTimeRange(60)">1m</button>
