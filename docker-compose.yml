@@ -1,6 +1,31 @@
-version: '3.8'
-
 services:
+  # ClickHouse for journal testing
+  # Starts automatically when needed via depends_on (viewer, dev-viewer)
+  # Manual: docker compose up -d clickhouse
+  # Data is stored in tmpfs - cleared on restart to ensure init scripts run
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.1
+    environment:
+      - CLICKHOUSE_DB=uniset
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+    tmpfs:
+      - /var/lib/clickhouse
+    volumes:
+      - ./tests/clickhouse/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./tests/clickhouse/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+      - ./tests/clickhouse/dictionaries.xml:/etc/clickhouse-server/config.d/dictionaries.xml:ro
+      - ./tests/clickhouse/dict-messages.csv:/docker-entrypoint-initdb.d/dict-messages.csv:ro
+      - ./tests/clickhouse/init-check.sh:/init-check.sh:ro
+    ports:
+      - "9000:9000"
+      - "8123:8123"
+    healthcheck:
+      test: ["CMD", "bash", "/init-check.sh"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
   # Development viewer connecting to real UniSet2 on host
   # Usage: docker-compose --profile dev up dev-viewer
   # Используйте -jsfile для горячей перезагрузки JS без пересборки контейнера
@@ -25,6 +50,7 @@ services:
       --control-timeout 60s
       --recording-path /tmp/recording.db
       --dashboards-dir /app/dashboards
+      --journal-url "clickhouse://localhost:9000/uniset?name=DevJournal"
       --js /app/ext/app.js
       --css /app/ext/style.css
     volumes:
@@ -33,6 +59,9 @@ services:
       - ./ui/static/js/app.js:/app/ext/app.js:ro
       - ./ui/static/css/style.css:/app/ext/style.css:ro
     network_mode: host
+    depends_on:
+      clickhouse:
+        condition: service_healthy
     profiles:
       - dev
 
@@ -63,6 +92,7 @@ services:
       --uniset-url http://mock-uniset:9393
       --uniset-config /app/config/test.xml
       --sm-url http://mock-uniset:9393
+      --journal-url "clickhouse://clickhouse:9000/uniset?name=TestJournal"
       --js /app/ext/app.js
       --css /app/ext/style.css
     volumes:
@@ -73,6 +103,8 @@ services:
       - "8000:8000"
     depends_on:
       mock-uniset:
+        condition: service_healthy
+      clickhouse:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/objects"]

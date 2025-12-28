@@ -107,8 +107,52 @@ function renderObjectsList(data) {
         list.appendChild(group);
     });
 
-    // Рендерим секцию серверов
+    // Рендерим секцию серверов и обновляем objects section
     renderServersSection();
+    updateObjectsSectionHeader();
+}
+
+// Обновить заголовок секции Objects
+function updateObjectsSectionHeader() {
+    const section = document.getElementById('objects-section');
+    const header = document.getElementById('objects-section-header');
+    const countEl = document.getElementById('objects-count');
+
+    if (!section || !header) return;
+
+    // Подсчитываем общее количество объектов
+    let totalObjects = 0;
+    state.servers.forEach(server => {
+        totalObjects += server.objectCount || 0;
+    });
+
+    // Обновляем счётчик
+    if (countEl) {
+        countEl.textContent = totalObjects;
+    }
+
+    // Применяем сохранённое состояние свёрнутости
+    if (state.objectsSectionCollapsed) {
+        section.classList.add('collapsed');
+    } else {
+        section.classList.remove('collapsed');
+    }
+
+    // Обработчик клика на заголовок секции
+    if (!header.dataset.listenerAdded) {
+        header.addEventListener('click', toggleObjectsSection);
+        header.dataset.listenerAdded = 'true';
+    }
+}
+
+// Переключить свёрнутость секции "Objects"
+function toggleObjectsSection() {
+    const section = document.getElementById('objects-section');
+    if (!section) return;
+
+    state.objectsSectionCollapsed = !state.objectsSectionCollapsed;
+    section.classList.toggle('collapsed', state.objectsSectionCollapsed);
+    saveSettings();
 }
 
 // Переключить свёрнутость группы сервера в списке объектов

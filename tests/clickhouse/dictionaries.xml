@@ -1,0 +1,57 @@
+<clickhouse>
+<dictionaries>
+<dictionary>
+    <name>dict_messages</name>
+    <source>
+      <file>
+        <path>/docker-entrypoint-initdb.d/dict-messages.csv</path>
+        <format>CSV</format>
+      </file>
+    </source>
+    <lifetime>30</lifetime>
+    <layout>
+      <hashed />
+    </layout>
+    <structure>
+      <id>
+          <name>id</name>
+      </id>
+      <attribute>
+        <name>sensorname</name>
+        <type>String</type>
+        <null_value></null_value>
+      </attribute>
+      <attribute>
+        <name>value</name>
+        <type>Float64</type>
+        <null_value>0</null_value>
+      </attribute>
+      <attribute>
+        <name>message</name>
+        <type>String</type>
+        <null_value></null_value>
+      </attribute>
+      <attribute>
+        <name>mtype</name>
+        <type>String</type>
+        <null_value></null_value>
+      </attribute>
+      <attribute>
+        <name>mgroup</name>
+        <type>String</type>
+        <null_value></null_value>
+      </attribute>
+      <attribute>
+        <name>mcode</name>
+        <type>String</type>
+        <null_value></null_value>
+      </attribute>
+      <attribute>
+        <name>default</name>
+        <type>Int32</type>
+        <null_value>0</null_value>
+      </attribute>
+    </structure>
+</dictionary>
+</dictionaries>
+</clickhouse>

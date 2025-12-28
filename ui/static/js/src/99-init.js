@@ -76,6 +76,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Инициализация Dashboard Manager
     dashboardManager = window.dashboardManager = new DashboardManager();
+
+    // Инициализация Journals (не блокируем)
+    initJournals().catch(err => {
+        console.warn('Failed to initialize journals:', err);
+    });
 });
 
 // Инициализация селектора интервала опроса

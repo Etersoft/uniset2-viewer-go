@@ -16,7 +16,9 @@ const state = window.state = {
     sidebarCollapsed: false, // свёрнутая боковая панель
     collapsedSections: {}, // состояние спойлеров
     collapsedServerGroups: new Set(), // свёрнутые группы серверов в списке объектов
+    objectsSectionCollapsed: false, // свёрнута ли секция "Objects"
     serversSectionCollapsed: false, // свёрнута ли секция "Servers"
+    journalsSectionCollapsed: false, // свёрнута ли секция "Journals"
     capabilities: {
         smEnabled: false // по умолчанию SM отключен
     },

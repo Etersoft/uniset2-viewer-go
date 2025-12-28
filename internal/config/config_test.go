@@ -335,3 +335,111 @@ func TestControlConfigFields(t *testing.T) {
 		t.Errorf("Timeout = %v, want 60s", ctrl.Timeout)
 	}
 }
+
+func TestBuildJournalURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   JournalConfig
+		contains []string // substrings that should be in the result
+	}{
+		{
+			name: "basic URL",
+			config: JournalConfig{
+				URL: "clickhouse://localhost:9000/uniset",
+			},
+			contains: []string{"clickhouse://localhost:9000/uniset"},
+		},
+		{
+			name: "with name",
+			config: JournalConfig{
+				URL:  "clickhouse://localhost:9000/uniset",
+				Name: "Production",
+			},
+			contains: []string{"name=Production"},
+		},
+		{
+			name: "with table",
+			config: JournalConfig{
+				URL:   "clickhouse://localhost:9000/uniset",
+				Table: "custom_table",
+			},
+			contains: []string{"table=custom_table"},
+		},
+		{
+			name: "with database override",
+			config: JournalConfig{
+				URL:      "clickhouse://localhost:9000/default",
+				Database: "custom_db",
+			},
+			contains: []string{"/custom_db"},
+		},
+		{
+			name: "with all options",
+			config: JournalConfig{
+				URL:      "clickhouse://localhost:9000/default",
+				Name:     "Test",
+				Table:    "messages",
+				Database: "mydb",
+			},
+			contains: []string{"name=Test", "table=messages", "/mydb"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := buildJournalURL(tt.config)
+			for _, substr := range tt.contains {
+				if !containsString(result, substr) {
+					t.Errorf("buildJournalURL() = %q, should contain %q", result, substr)
+				}
+			}
+		})
+	}
+}
+
+func TestBuildJournalURL_InvalidURL(t *testing.T) {
+	config := JournalConfig{
+		URL: "://invalid",
+	}
+	result := buildJournalURL(config)
+	// Should return original URL if parsing fails
+	if result != "://invalid" {
+		t.Errorf("expected original URL for invalid input, got %q", result)
+	}
+}
+
+func containsString(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
+		(len(s) > 0 && len(substr) > 0 && stringContains(s, substr)))
+}
+
+func stringContains(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
+func TestJournalConfigFields(t *testing.T) {
+	cfg := JournalConfig{
+		URL:      "clickhouse://host:9000/db",
+		Name:     "Test",
+		Table:    "messages",
+		Database: "custom",
+	}
+
+	if cfg.URL != "clickhouse://host:9000/db" {
+		t.Errorf("URL = %q, want clickhouse://host:9000/db", cfg.URL)
+	}
+	if cfg.Name != "Test" {
+		t.Errorf("Name = %q, want Test", cfg.Name)
+	}
+	if cfg.Table != "messages" {
+		t.Errorf("Table = %q, want messages", cfg.Table)
+	}
+	if cfg.Database != "custom" {
+		t.Errorf("Database = %q, want custom", cfg.Database)
+	}
+}

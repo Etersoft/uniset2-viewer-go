@@ -114,3 +114,103 @@ control:
 		t.Errorf("expected timeout 0, got %v", cfg.Control.Timeout)
 	}
 }
+
+func TestLoadFromYAML_WithJournals(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	yamlContent := `
+servers:
+  - url: http://localhost:9090
+
+journals:
+  - url: "clickhouse://host1:9000/uniset"
+    name: "Production"
+    table: "main_messages_src"
+  - url: "clickhouse://host2:9000/uniset"
+    name: "Test"
+`
+	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	cfg, err := LoadFromYAML(configPath)
+	if err != nil {
+		t.Fatalf("LoadFromYAML failed: %v", err)
+	}
+
+	if len(cfg.Journals) != 2 {
+		t.Fatalf("expected 2 journals, got %d", len(cfg.Journals))
+	}
+
+	// Check first journal
+	if cfg.Journals[0].URL != "clickhouse://host1:9000/uniset" {
+		t.Errorf("expected first journal URL clickhouse://host1:9000/uniset, got %s", cfg.Journals[0].URL)
+	}
+	if cfg.Journals[0].Name != "Production" {
+		t.Errorf("expected first journal name Production, got %s", cfg.Journals[0].Name)
+	}
+	if cfg.Journals[0].Table != "main_messages_src" {
+		t.Errorf("expected first journal table main_messages_src, got %s", cfg.Journals[0].Table)
+	}
+
+	// Check second journal
+	if cfg.Journals[1].URL != "clickhouse://host2:9000/uniset" {
+		t.Errorf("expected second journal URL clickhouse://host2:9000/uniset, got %s", cfg.Journals[1].URL)
+	}
+	if cfg.Journals[1].Name != "Test" {
+		t.Errorf("expected second journal name Test, got %s", cfg.Journals[1].Name)
+	}
+}
+
+func TestLoadFromYAML_WithoutJournals(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	yamlContent := `
+servers:
+  - url: http://localhost:9090
+`
+	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	cfg, err := LoadFromYAML(configPath)
+	if err != nil {
+		t.Fatalf("LoadFromYAML failed: %v", err)
+	}
+
+	if len(cfg.Journals) != 0 {
+		t.Errorf("expected 0 journals, got %d", len(cfg.Journals))
+	}
+}
+
+func TestLoadFromYAML_JournalWithDatabase(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	yamlContent := `
+servers:
+  - url: http://localhost:9090
+
+journals:
+  - url: "clickhouse://host:9000/default"
+    database: "custom_db"
+`
+	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	cfg, err := LoadFromYAML(configPath)
+	if err != nil {
+		t.Fatalf("LoadFromYAML failed: %v", err)
+	}
+
+	if len(cfg.Journals) != 1 {
+		t.Fatalf("expected 1 journal, got %d", len(cfg.Journals))
+	}
+
+	if cfg.Journals[0].Database != "custom_db" {
+		t.Errorf("expected database custom_db, got %s", cfg.Journals[0].Database)
+	}
+}

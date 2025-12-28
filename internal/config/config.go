@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"flag"
 	"log/slog"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -129,6 +130,9 @@ type Config struct {
 	// Dashboard settings
 	DashboardsDir string // Директория с серверными dashboard'ами (опционально)
 
+	// Journal settings
+	JournalURLs []string // URL подключений к журналам (ClickHouse)
+
 	// Development settings
 	JSFile  string // Внешний файл app.js для разработки (вместо встроенного)
 	CSSFile string // Внешний файл style.css для разработки (вместо встроенного)
@@ -176,8 +180,10 @@ func Parse() *Config {
 
 	var unisetURLs stringSlice
 	var controlTokens stringSlice
+	var journalURLs stringSlice
 
 	flag.Var(&unisetURLs, "uniset-url", "UniSet2 HTTP API URL (can be specified multiple times)")
+	flag.Var(&journalURLs, "journal-url", "Journal ClickHouse URL (can be specified multiple times, format: clickhouse://host:port/db?table=xxx&name=Name)")
 	flag.StringVar(&cfg.Addr, "addr", ":8181", "Listen address (e.g. :8181 or 127.0.0.1:8181)")
 	flag.DurationVar(&cfg.PollInterval, "poll-interval", 1*time.Second, "UniSet2 polling interval")
 
@@ -211,6 +217,7 @@ func Parse() *Config {
 
 	flag.Parse()
 	cfg.ControlTokens = controlTokens
+	cfg.JournalURLs = journalURLs
 
 	cfg.Storage = StorageType(storageStr)
 	if cfg.Storage != StorageMemory && cfg.Storage != StorageSQLite {
@@ -235,6 +242,11 @@ func Parse() *Config {
 				if yamlConfig.Control.Timeout > 0 {
 					cfg.ControlTimeout = yamlConfig.Control.Timeout
 				}
+			}
+			// Журналы из YAML (конвертируем в URL формат)
+			for _, j := range yamlConfig.Journals {
+				journalURL := buildJournalURL(j)
+				cfg.JournalURLs = append(cfg.JournalURLs, journalURL)
 			}
 		}
 	}
@@ -264,9 +276,31 @@ func Parse() *Config {
 }
 
 // generateServerID генерирует короткий ID на основе URL
-func generateServerID(url string) string {
-	hash := sha256.Sum256([]byte(url))
+func generateServerID(urlStr string) string {
+	hash := sha256.Sum256([]byte(urlStr))
 	return hex.EncodeToString(hash[:4]) // первые 8 символов hex
+}
+
+// buildJournalURL строит URL для журнала из YAML конфигурации
+func buildJournalURL(j JournalConfig) string {
+	u, err := url.Parse(j.URL)
+	if err != nil {
+		return j.URL // возвращаем как есть, если не парсится
+	}
+
+	q := u.Query()
+	if j.Name != "" {
+		q.Set("name", j.Name)
+	}
+	if j.Table != "" {
+		q.Set("table", j.Table)
+	}
+	if j.Database != "" {
+		// Переопределяем базу данных из URL
+		u.Path = "/" + j.Database
+	}
+	u.RawQuery = q.Encode()
+	return u.String()
 }
 
 // ParseLogLevel converts string log level to slog.Level
