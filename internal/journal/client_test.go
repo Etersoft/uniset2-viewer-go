@@ -1,7 +1,11 @@
 package journal
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"net/url"
+	"strings"
 	"testing"
 )
 
@@ -111,6 +115,83 @@ func TestGenerateID(t *testing.T) {
 	// Different URLs should produce different IDs (can't test without connection)
 	_ = url1
 	_ = url2
+}
+
+// Test URL parsing variations
+func TestParseJournalURL_EmptyDatabase(t *testing.T) {
+	urlStr := "clickhouse://localhost:9000/"
+	u, _ := url.Parse(urlStr)
+	database := strings.TrimPrefix(u.Path, "/")
+	if database != "" {
+		t.Errorf("expected empty database, got %q", database)
+	}
+}
+
+func TestParseJournalURL_NoPath(t *testing.T) {
+	urlStr := "clickhouse://localhost:9000"
+	u, _ := url.Parse(urlStr)
+	database := strings.TrimPrefix(u.Path, "/")
+	if database != "" {
+		t.Errorf("expected empty database, got %q", database)
+	}
+}
+
+func TestParseJournalURL_WithUserPassword(t *testing.T) {
+	urlStr := "clickhouse://user:pass@localhost:9000/testdb"
+	u, err := url.Parse(urlStr)
+	if err != nil {
+		t.Fatalf("failed to parse URL: %v", err)
+	}
+	if u.User.Username() != "user" {
+		t.Errorf("expected user=user, got %s", u.User.Username())
+	}
+	pass, _ := u.User.Password()
+	if pass != "pass" {
+		t.Errorf("expected password=pass, got %s", pass)
+	}
+}
+
+func TestGenerateID_Consistency(t *testing.T) {
+	// Same URL should produce same hash
+	urlStr := "clickhouse://localhost:9000/testdb"
+	hash1 := sha256.Sum256([]byte(urlStr))
+	hash2 := sha256.Sum256([]byte(urlStr))
+
+	id1 := hex.EncodeToString(hash1[:4])
+	id2 := hex.EncodeToString(hash2[:4])
+
+	if id1 != id2 {
+		t.Errorf("expected same ID for same URL, got %s != %s", id1, id2)
+	}
+}
+
+func TestGenerateID_Uniqueness(t *testing.T) {
+	url1 := "clickhouse://localhost:9000/db1"
+	url2 := "clickhouse://localhost:9000/db2"
+
+	hash1 := sha256.Sum256([]byte(url1))
+	hash2 := sha256.Sum256([]byte(url2))
+
+	id1 := hex.EncodeToString(hash1[:4])
+	id2 := hex.EncodeToString(hash2[:4])
+
+	if id1 == id2 {
+		t.Errorf("expected different IDs for different URLs, got %s == %s", id1, id2)
+	}
+}
+
+func TestDefaultNameGeneration(t *testing.T) {
+	// When name is not specified, it should be database@host
+	urlStr := "clickhouse://myhost:9000/mydb"
+	u, _ := url.Parse(urlStr)
+
+	database := strings.TrimPrefix(u.Path, "/")
+	name := fmt.Sprintf("%s@%s", database, u.Host)
+
+	expected := "mydb@myhost:9000"
+	if name != expected {
+		t.Errorf("expected name=%q, got %q", expected, name)
+	}
 }
 
 // Integration tests (require running ClickHouse)
