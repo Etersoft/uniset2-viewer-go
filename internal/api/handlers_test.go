@@ -63,6 +63,45 @@ func mockUnisetServer() *httptest.Server {
 			}
 			json.NewEncoder(w).Encode(response)
 
+		// UNetExchange endpoints
+		case "/UNetExchange/status":
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"result": "OK",
+				"status": map[string]interface{}{
+					"activated":    true,
+					"maxHeartBeat": 10,
+					"steptime":     1000,
+					"no_sender":    false,
+				},
+			})
+
+		case "/UNetExchange/receivers":
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"result": "OK",
+				"receivers": []map[string]interface{}{
+					{
+						"chan1": map[string]interface{}{
+							"transport": "127.255.255.255:2049",
+							"mode":      "ACTIVE",
+							"recvOK":    true,
+						},
+					},
+				},
+			})
+
+		case "/UNetExchange/senders":
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"result": "OK",
+				"senders": map[string]interface{}{
+					"chan1": map[string]interface{}{
+						"transport":   "127.255.255.255:2048",
+						"mode":        "Enabled",
+						"items":       2,
+						"lastpacknum": 561,
+					},
+				},
+			})
+
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -2384,5 +2423,246 @@ func TestSubscribeModbusRegisters_MissingRegisterIDs(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected status 400 for missing register_ids, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// === UNetExchange API Tests ===
+
+func TestGetUNetStatus(t *testing.T) {
+	unisetServer := mockUnisetServer()
+	defer unisetServer.Close()
+
+	handlers := setupTestHandlers(unisetServer)
+
+	req := httptest.NewRequest("GET", "/api/objects/UNetExchange/unet/status", nil)
+	req.SetPathValue("name", "UNetExchange")
+	w := httptest.NewRecorder()
+
+	handlers.GetUNetStatus(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Handler returns resp.Status directly (not the full response with "result")
+	var response map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+
+	if activated, ok := response["activated"].(bool); !ok || !activated {
+		t.Errorf("expected activated=true, got %v", response["activated"])
+	}
+
+	if steptime, ok := response["steptime"].(float64); !ok || steptime != 1000 {
+		t.Errorf("expected steptime=1000, got %v", response["steptime"])
+	}
+
+	if maxHeartBeat, ok := response["maxHeartBeat"].(float64); !ok || maxHeartBeat != 10 {
+		t.Errorf("expected maxHeartBeat=10, got %v", response["maxHeartBeat"])
+	}
+}
+
+func TestGetUNetStatus_MissingObjectName(t *testing.T) {
+	unisetServer := mockUnisetServer()
+	defer unisetServer.Close()
+
+	handlers := setupTestHandlers(unisetServer)
+
+	req := httptest.NewRequest("GET", "/api/objects//unet/status", nil)
+	// Don't set PathValue
+	w := httptest.NewRecorder()
+
+	handlers.GetUNetStatus(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
+	}
+}
+
+func TestGetUNetReceivers(t *testing.T) {
+	unisetServer := mockUnisetServer()
+	defer unisetServer.Close()
+
+	handlers := setupTestHandlers(unisetServer)
+
+	req := httptest.NewRequest("GET", "/api/objects/UNetExchange/unet/receivers", nil)
+	req.SetPathValue("name", "UNetExchange")
+	w := httptest.NewRecorder()
+
+	handlers.GetUNetReceivers(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Handler returns {"receivers": resp.Receivers}
+	var response map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+
+	receivers, ok := response["receivers"].([]interface{})
+	if !ok {
+		t.Fatal("expected receivers array in response")
+	}
+
+	if len(receivers) != 1 {
+		t.Errorf("expected 1 receiver node, got %d", len(receivers))
+	}
+
+	// Check first receiver has chan1
+	firstReceiver := receivers[0].(map[string]interface{})
+	chan1, ok := firstReceiver["chan1"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected chan1 in receiver")
+	}
+
+	if chan1["mode"] != "ACTIVE" {
+		t.Errorf("expected mode=ACTIVE, got %v", chan1["mode"])
+	}
+
+	if chan1["transport"] != "127.255.255.255:2049" {
+		t.Errorf("expected transport=127.255.255.255:2049, got %v", chan1["transport"])
+	}
+}
+
+func TestGetUNetReceivers_MissingObjectName(t *testing.T) {
+	unisetServer := mockUnisetServer()
+	defer unisetServer.Close()
+
+	handlers := setupTestHandlers(unisetServer)
+
+	req := httptest.NewRequest("GET", "/api/objects//unet/receivers", nil)
+	// Don't set PathValue
+	w := httptest.NewRecorder()
+
+	handlers.GetUNetReceivers(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
+	}
+}
+
+func TestGetUNetSenders(t *testing.T) {
+	unisetServer := mockUnisetServer()
+	defer unisetServer.Close()
+
+	handlers := setupTestHandlers(unisetServer)
+
+	req := httptest.NewRequest("GET", "/api/objects/UNetExchange/unet/senders", nil)
+	req.SetPathValue("name", "UNetExchange")
+	w := httptest.NewRecorder()
+
+	handlers.GetUNetSenders(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Handler returns {"senders": resp.Senders}
+	var response map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+
+	senders, ok := response["senders"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected senders object in response")
+	}
+
+	chan1, ok := senders["chan1"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected chan1 in senders")
+	}
+
+	if chan1["mode"] != "Enabled" {
+		t.Errorf("expected mode=Enabled, got %v", chan1["mode"])
+	}
+
+	if items, ok := chan1["items"].(float64); !ok || items != 2 {
+		t.Errorf("expected items=2, got %v", chan1["items"])
+	}
+
+	if chan1["transport"] != "127.255.255.255:2048" {
+		t.Errorf("expected transport=127.255.255.255:2048, got %v", chan1["transport"])
+	}
+}
+
+func TestGetUNetSenders_MissingObjectName(t *testing.T) {
+	unisetServer := mockUnisetServer()
+	defer unisetServer.Close()
+
+	handlers := setupTestHandlers(unisetServer)
+
+	req := httptest.NewRequest("GET", "/api/objects//unet/senders", nil)
+	// Don't set PathValue
+	w := httptest.NewRecorder()
+
+	handlers.GetUNetSenders(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
+	}
+}
+
+func TestGetUNetStatus_ServerError(t *testing.T) {
+	// Мок-сервер возвращает ошибку
+	errorServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("internal error"))
+	}))
+	defer errorServer.Close()
+
+	handlers := setupTestHandlers(errorServer)
+
+	req := httptest.NewRequest("GET", "/api/objects/UNetExchange/unet/status", nil)
+	req.SetPathValue("name", "UNetExchange")
+	w := httptest.NewRecorder()
+
+	handlers.GetUNetStatus(w, req)
+
+	if w.Code != http.StatusBadGateway {
+		t.Errorf("expected status 502, got %d", w.Code)
+	}
+}
+
+func TestGetUNetReceivers_ServerError(t *testing.T) {
+	errorServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write([]byte("service unavailable"))
+	}))
+	defer errorServer.Close()
+
+	handlers := setupTestHandlers(errorServer)
+
+	req := httptest.NewRequest("GET", "/api/objects/UNetExchange/unet/receivers", nil)
+	req.SetPathValue("name", "UNetExchange")
+	w := httptest.NewRecorder()
+
+	handlers.GetUNetReceivers(w, req)
+
+	if w.Code != http.StatusBadGateway {
+		t.Errorf("expected status 502, got %d", w.Code)
+	}
+}
+
+func TestGetUNetSenders_ServerError(t *testing.T) {
+	errorServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("not found"))
+	}))
+	defer errorServer.Close()
+
+	handlers := setupTestHandlers(errorServer)
+
+	req := httptest.NewRequest("GET", "/api/objects/UNetExchange/unet/senders", nil)
+	req.SetPathValue("name", "UNetExchange")
+	w := httptest.NewRecorder()
+
+	handlers.GetUNetSenders(w, req)
+
+	if w.Code != http.StatusBadGateway {
+		t.Errorf("expected status 502, got %d", w.Code)
 	}
 }

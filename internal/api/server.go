@@ -128,6 +128,11 @@ func (s *Server) setupRoutes(staticFS fs.FS) {
 	s.mux.HandleFunc("GET /api/objects/{name}/uwsgate/subscriptions", s.handlers.GetUWSGateSubscriptions)
 	s.mux.HandleFunc("GET /api/objects/{name}/uwsgate/sensors", s.handlers.GetUWSGateSensors)
 
+	// UNetExchange API
+	s.mux.HandleFunc("GET /api/objects/{name}/unet/status", s.handlers.GetUNetStatus)
+	s.mux.HandleFunc("GET /api/objects/{name}/unet/receivers", s.handlers.GetUNetReceivers)
+	s.mux.HandleFunc("GET /api/objects/{name}/unet/senders", s.handlers.GetUNetSenders)
+
 	// LogServer API
 	s.mux.HandleFunc("GET /api/logs/status", s.handlers.GetAllLogServerStatuses)
 	s.mux.HandleFunc("GET /api/logs/{name}/status", s.handlers.GetLogServerStatus)
