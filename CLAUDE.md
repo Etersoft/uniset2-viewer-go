@@ -168,6 +168,17 @@ node debug-something.js
    this.tabKey      // полный ключ (77b5af18:MBSlave1)
    ```
 
+4. **`serverId` в состоянии вкладки:**
+   ```javascript
+   // Получение serverId из состояния вкладки
+   const tabState = state.tabs.get(this.tabKey);
+   const serverId = tabState?.serverId || '';  // Важно: serverId (не serverID!)
+
+   // Формирование параметра для API запроса
+   const serverParam = serverId ? `server=${encodeURIComponent(serverId)}` : '';
+   ```
+   **ВАЖНО:** В `state.tabs` используется `serverId` (camelCase с маленькой буквой d), а не `serverID`.
+
 ### SSE и графики (Charts)
 
 Графики идентифицируются через `varName` в формате `${prefix}:${sensor.name}`:

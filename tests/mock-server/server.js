@@ -3,7 +3,7 @@ const http = require('http');
 const PORT = 9393;
 
 // Mock data
-const objects = ['UniSetActivator', 'TestProc', 'SharedMemory', 'OPCUAClient1', 'MBTCPMaster1', 'MBTCPSlave1', 'OPCUAServer1'];
+const objects = ['UniSetActivator', 'TestProc', 'SharedMemory', 'OPCUAClient1', 'MBTCPMaster1', 'MBTCPSlave1', 'OPCUAServer1', 'UNetExchange'];
 
 const testProcData = {
   TestProc: {
@@ -395,6 +395,73 @@ for (let i = 1; i <= 50; i++) {
     precision: isAnalog ? 2 : 0
   });
 }
+
+// UNetExchange mock data
+const unetStatus = {
+  result: 'OK',
+  status: {
+    name: 'UNetExchange',
+    activated: true,
+    maxHeartBeat: 10,
+    steptime: 1000,
+    no_sender: false,
+    LogServer: { host: 'localhost', port: 6008, state: 'RUNNING' },
+    receivers: [
+      {
+        chan1: {
+          transport: '127.255.255.255:2049',
+          mode: 'ACTIVE',
+          recvOK: true,
+          receivepack: 1500,
+          lostPackets: 2,
+          cacheMissed: 0,
+          params: { recvTimeout: 5000, lostTimeout: 200 },
+          stats: { recvPerSec: 15, upPerSec: 10, qsize: 1 }
+        },
+        chan2: {
+          transport: '192.168.56.255:3001',
+          mode: 'PASSIVE',
+          recvOK: true,
+          receivepack: 1200,
+          lostPackets: 0,
+          cacheMissed: 1,
+          params: { recvTimeout: 5000, lostTimeout: 200 },
+          stats: { recvPerSec: 12, upPerSec: 8, qsize: 2 }
+        }
+      },
+      {
+        chan1: {
+          transport: '127.255.255.255:2050',
+          mode: 'ACTIVE',
+          recvOK: false,
+          receivepack: 0,
+          lostPackets: 10,
+          cacheMissed: 5,
+          params: { recvTimeout: 5000, lostTimeout: 200 },
+          stats: { recvPerSec: 0, upPerSec: 0, qsize: 0 }
+        }
+      }
+    ],
+    senders: {
+      chan1: {
+        transport: '127.255.255.255:2048',
+        mode: 'Enabled',
+        items: 2,
+        lastpacknum: 561,
+        params: { sendpause: 1000, packsendpause: 5 },
+        packGroups: [{ sendfactor: 2, count: 1, packs: [] }]
+      },
+      chan2: {
+        transport: '192.168.56.255:3000',
+        mode: 'Enabled',
+        items: 2,
+        lastpacknum: 562,
+        params: { sendpause: 1000, packsendpause: 5 },
+        packGroups: [{ sendfactor: 2, count: 1, packs: [] }]
+      }
+    }
+  }
+};
 
 const mbParams = {
   force: 0,
@@ -949,6 +1016,20 @@ const server = http.createServer((req, res) => {
     });
 
     res.end(JSON.stringify({ result: 'OK', sensors }));
+  // UNetExchange endpoints
+  } else if (url === '/api/v2/UNetExchange') {
+    res.end(JSON.stringify({
+      UNetExchange: {},
+      object: {
+        id: 7001,
+        isActive: true,
+        name: 'UNetExchange',
+        objectType: 'UniSetObject',
+        extensionType: 'UNetExchange'
+      }
+    }));
+  } else if (url === '/api/v2/UNetExchange/status') {
+    res.end(JSON.stringify(unetStatus));
   } else {
     res.statusCode = 404;
     res.end(JSON.stringify({ error: 'Not found' }));
