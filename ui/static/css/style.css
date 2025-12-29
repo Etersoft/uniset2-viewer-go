@@ -5161,6 +5161,10 @@ td.ionc-col-add-buttons > *:last-child {
     border-color: var(--accent-red);
 }
 
+.dashboard-btn.hidden {
+    display: none;
+}
+
 .dashboard-actions {
     display: flex;
     align-items: center;
