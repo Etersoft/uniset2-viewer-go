@@ -17974,6 +17974,7 @@ class DashboardManager {
         let config = dashboardState.dashboards.get(name);
         if (!config) {
             console.warn('Dashboard not found:', name);
+            this.clearDashboard();
             return;
         }
 
@@ -17989,10 +17990,12 @@ class DashboardManager {
                     config = fullConfig;
                 } else {
                     console.error('Failed to load dashboard:', name, response.status);
+                    this.clearDashboard();
                     return;
                 }
             } catch (err) {
                 console.error('Error loading dashboard:', name, err);
+                this.clearDashboard();
                 return;
             }
         }
@@ -18301,6 +18304,17 @@ class DashboardManager {
         dashboardState.currentDashboard = null;
         this.clearWidgets();
         this.actionsEl?.classList.add('hidden');
+
+        // Reset selector to empty value
+        if (this.selectEl) {
+            this.selectEl.value = '';
+        }
+
+        // Update sidebar to remove active state
+        this.updateSidebarDashboards();
+
+        // Clear last-dashboard from localStorage
+        localStorage.removeItem('last-dashboard');
 
         if (this.gridEl) {
             this.gridEl.innerHTML = `
