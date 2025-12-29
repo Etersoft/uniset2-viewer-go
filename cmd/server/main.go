@@ -360,6 +360,9 @@ func main() {
 		logger.Error("Server manager shutdown error", "error", err)
 	}
 
+	// Close all SSE connections to allow HTTP handlers to complete
+	sseHub.Close()
+
 	// Graceful shutdown HTTP server with timeout
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		logger.Error("Server shutdown error", "error", err)

@@ -90,7 +90,13 @@ func (h *SSEHub) RemoveClient(client *sseClient) {
 	controlMgr := h.controlMgr
 	h.mu.Unlock()
 
-	close(client.done)
+	// Close done channel (avoid panic on double close)
+	select {
+	case <-client.done:
+		// already closed
+	default:
+		close(client.done)
+	}
 
 	// Если клиент был контроллером, освобождаем управление
 	if client.controlToken != "" && controlMgr != nil {
@@ -294,6 +300,24 @@ func (h *SSEHub) ClientCount() int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return len(h.clients)
+}
+
+// Close закрывает все SSE соединения (для graceful shutdown)
+func (h *SSEHub) Close() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	for client := range h.clients {
+		select {
+		case <-client.done:
+			// already closed
+		default:
+			close(client.done)
+		}
+	}
+	h.clients = make(map[*sseClient]bool)
+
+	logger.Info("SSE hub closed, all clients disconnected")
 }
 
 // BroadcastControlStatus отправляет статус контроля всем клиентам

@@ -67,6 +67,52 @@ func TestSSEHubAddRemoveClient(t *testing.T) {
 	}
 }
 
+func TestSSEHubClose(t *testing.T) {
+	hub := NewSSEHub()
+
+	// Add several clients
+	client1 := hub.AddClient("")
+	client2 := hub.AddClient("obj1")
+	client3 := hub.AddClientWithToken("", "token1")
+
+	if hub.ClientCount() != 3 {
+		t.Fatalf("expected 3 clients, got %d", hub.ClientCount())
+	}
+
+	// Close all clients
+	hub.Close()
+
+	// Verify all clients disconnected
+	if hub.ClientCount() != 0 {
+		t.Errorf("expected 0 clients after Close(), got %d", hub.ClientCount())
+	}
+
+	// Verify done channels are closed
+	select {
+	case <-client1.done:
+		// ok
+	default:
+		t.Error("client1.done not closed")
+	}
+
+	select {
+	case <-client2.done:
+		// ok
+	default:
+		t.Error("client2.done not closed")
+	}
+
+	select {
+	case <-client3.done:
+		// ok
+	default:
+		t.Error("client3.done not closed")
+	}
+
+	// Verify RemoveClient doesn't panic on already closed client
+	hub.RemoveClient(client1) // should not panic
+}
+
 func TestSSEHubBroadcast(t *testing.T) {
 	hub := NewSSEHub()
 
