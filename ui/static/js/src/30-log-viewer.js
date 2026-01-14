@@ -51,6 +51,13 @@ class LogViewer {
         this.paused = false; // пауза автопрокрутки
         this.pausedBuffer = []; // буфер логов во время паузы
 
+        // Reconnection settings
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 5;
+        this.baseReconnectDelay = 1000; // 1 second
+        this.maxReconnectDelay = 30000; // 30 seconds
+        this.reconnectTimer = null;
+
         this.init();
     }
 
@@ -547,6 +554,11 @@ class LogViewer {
     }
 
     connect() {
+        // Clear any pending reconnect timer
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+        }
         if (this.eventSource) {
             this.eventSource.close();
         }
@@ -570,6 +582,7 @@ class LogViewer {
         this.eventSource.addEventListener('connected', (e) => {
             this.connected = true;
             this.hasReceivedLogs = false;
+            this.reconnectAttempts = 0; // Reset on successful connection
             this.updateStatus('connected');
             this.showWaiting(); // Показываем "ожидание сообщений"
 
@@ -602,37 +615,77 @@ class LogViewer {
         });
 
         this.eventSource.addEventListener('disconnected', () => {
-            this.connected = false;
-            // isActive остаётся true - EventSource будет пытаться переподключиться
-            this.updateStatus('reconnecting');
-            console.log('LogViewer: Disconnected, will reconnect');
+            console.log('LogViewer: Disconnected from LogServer, will reconnect');
+            this.handleConnectionError();
         });
 
         this.eventSource.addEventListener('error', (e) => {
             if (e.data) {
                 this.addLine(`[ERROR] ${e.data}`, 'error');
             }
-            this.connected = false;
-            // isActive остаётся true - EventSource будет пытаться переподключиться
-            this.updateStatus('reconnecting');
+            this.handleConnectionError();
         });
 
         this.eventSource.onerror = () => {
-            if (this.connected) {
-                this.connected = false;
-                // isActive остаётся true - EventSource будет пытаться переподключиться
-                this.updateStatus('reconnecting');
-            }
+            this.handleConnectionError();
         };
     }
 
+    handleConnectionError() {
+        if (!this.isActive) return; // Already disconnected by user
+
+        this.connected = false;
+
+        // Close current EventSource to prevent browser's automatic reconnection
+        if (this.eventSource) {
+            this.eventSource.close();
+            this.eventSource = null;
+        }
+
+        this.reconnectAttempts++;
+
+        if (this.reconnectAttempts <= this.maxReconnectAttempts) {
+            // Exponential backoff with jitter
+            const expDelay = this.baseReconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+            const cappedDelay = Math.min(expDelay, this.maxReconnectDelay);
+            const jitter = cappedDelay * 0.1 * (Math.random() * 2 - 1);
+            const delay = Math.round(cappedDelay + jitter);
+
+            console.log(`LogViewer: Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+            this.updateStatus('reconnecting');
+
+            // Clear any existing timer
+            if (this.reconnectTimer) {
+                clearTimeout(this.reconnectTimer);
+            }
+
+            this.reconnectTimer = setTimeout(() => {
+                if (this.isActive) {
+                    this.connect();
+                }
+            }, delay);
+        } else {
+            // Max attempts reached - disconnect
+            console.warn('LogViewer: Max reconnection attempts reached, disconnecting');
+            this.addLine('[WARN] Connection lost. Click Connect to retry.', 'error');
+            this.isActive = false;
+            this.updateStatus('disconnected');
+        }
+    }
+
     disconnect() {
+        // Clear reconnect timer
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+        }
         if (this.eventSource) {
             this.eventSource.close();
             this.eventSource = null;
         }
         this.connected = false;
         this.isActive = false;
+        this.reconnectAttempts = 0;
         this.updateStatus('disconnected');
     }
 
